@@ -1,0 +1,24 @@
+[package]
+name = "honba-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Code generation from Rust wire types: JSON Schema, OpenAPI, TypeScript, .pyi, MCP tool schemas"
+
+[lib]
+name = "honba_codegen"
+
+[dependencies]
+honba-messages.workspace = true
+honba-entities.workspace = true
+honba-strategy.workspace = true
+honba-api.workspace = true
+honba-config.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+schemars = { version = "0.8", features = ["derive"] }
+anyhow = { workspace = true }
+
+[dev-dependencies]

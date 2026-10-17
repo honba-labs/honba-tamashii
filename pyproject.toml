@@ -1,0 +1,28 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "honba"
+version = "0.1.0"
+description = "本場 honba — Rust core, Python surface, Indian equities algo trading"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0" }
+authors = [{ name = "honba-labs" }]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[tool.maturin]
+module-name = "honba._honba"
+python-source = "python"
+features = ["extension-module"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

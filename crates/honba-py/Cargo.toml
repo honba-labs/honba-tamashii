@@ -1,0 +1,32 @@
+[package]
+name = "honba-py"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "PyO3 bindings and honba._honba extension module"
+
+[lib]
+name = "honba"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.22", features = ["extension-module"] }
+pyo3-async-runtimes = { version = "0.22", features = ["tokio-runtime"] }
+tokio.workspace = true
+honba-messages.workspace = true
+honba-entities.workspace = true
+honba-market = { workspace = true, features = ["india"] }
+chrono.workspace = true
+honba-engine.workspace = true
+honba-strategy.workspace = true
+honba-sim.workspace = true
+honba-risk.workspace = true
+honba-codegen.workspace = true
+honba-api-rest.workspace = true
+honba-async.workspace = true
+honba-ports.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
