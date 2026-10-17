@@ -15,5 +15,64 @@ default = []
 extension-module = ["pyo3/extension-module"]
 
 [dependencies]
-pyo3 = { version = "0.23", features = ["abi3-py310"] }
+pyo3 = { version = "0.22", features = ["abi3-py310"] }
 rust_decimal = "1"
+
+[workspace]
+resolver = "2"
+members = [
+  "crates/honba-tamashii-codegen",
+  "crates/honba-tamashii-py",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "AGPL-3.0"
+repository = "https://github.com/your-org/honba-tamashii"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+thiserror = "1"
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+rust_decimal = "1"
+async-trait = "0.1"
+
+honba-tamashii-codegen = { path = "crates/honba-tamashii-codegen" }
+honba-tamashii-py      = { path = "crates/honba-tamashii-py" }
+
+honba-codegen          = { package = "honba-tamashii-codegen", path = "crates/honba-tamashii-codegen" }
+honba-py               = { package = "honba-tamashii-py", path = "crates/honba-tamashii-py" }
+
+# Cross-repo dependencies
+honba-kokoro-messages  = { path = "../honba-kokoro/crates/honba-kokoro-messages" }
+honba-kokoro-entities  = { path = "../honba-kokoro/crates/honba-kokoro-entities" }
+honba-kokoro-ports     = { path = "../honba-kokoro/crates/honba-kokoro-ports" }
+honba-kokoro-risk      = { path = "../honba-kokoro/crates/honba-kokoro-risk" }
+honba-messages         = { package = "honba-kokoro-messages", path = "../honba-kokoro/crates/honba-kokoro-messages" }
+honba-entities         = { package = "honba-kokoro-entities", path = "../honba-kokoro/crates/honba-kokoro-entities" }
+honba-ports            = { package = "honba-kokoro-ports", path = "../honba-kokoro/crates/honba-kokoro-ports" }
+honba-risk             = { package = "honba-kokoro-risk", path = "../honba-kokoro/crates/honba-kokoro-risk" }
+
+honba-me-market        = { path = "../honba-me/crates/honba-me-market" }
+honba-market           = { package = "honba-me-market", path = "../honba-me/crates/honba-me-market" }
+
+honba-nou-strategy     = { path = "../honba-nou/crates/honba-nou-strategy" }
+honba-strategy         = { package = "honba-nou-strategy", path = "../honba-nou/crates/honba-nou-strategy" }
+
+honba-ya-engine        = { path = "../honba-ya/crates/honba-ya-engine" }
+honba-ya-sim           = { path = "../honba-ya/crates/honba-ya-sim" }
+honba-ya-api-rest      = { path = "../honba-ya/crates/honba-ya-api-rest" }
+honba-ya-async         = { path = "../honba-ya/crates/honba-ya-async" }
+honba-engine           = { package = "honba-ya-engine", path = "../honba-ya/crates/honba-ya-engine" }
+honba-sim              = { package = "honba-ya-sim", path = "../honba-ya/crates/honba-ya-sim" }
+honba-api-rest         = { package = "honba-ya-api-rest", path = "../honba-ya/crates/honba-ya-api-rest" }
+honba-async            = { package = "honba-ya-async", path = "../honba-ya/crates/honba-ya-async" }
+honba-ya-api           = { path = "../honba-ya/crates/honba-ya-api" }
+honba-api              = { package = "honba-ya-api", path = "../honba-ya/crates/honba-ya-api" }
+honba-ya-config        = { path = "../honba-ya/crates/honba-ya-config" }
+honba-config           = { package = "honba-ya-config", path = "../honba-ya/crates/honba-ya-config" }

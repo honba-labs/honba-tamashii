@@ -66,7 +66,7 @@ impl SchemaSet {
     /// wrappers such as `InstrumentId`).
     pub fn add_type<T: JsonSchema>(&mut self, preferred_name: &str) {
         let root: RootSchema =
-            schemars::gen::SchemaGenerator::default().into_root_schema_for::<T>();
+            schemars::r#gen::SchemaGenerator::default().into_root_schema_for::<T>();
         let root_value = serde_json::to_value(&root).unwrap_or_else(|_| json!({}));
 
         if let Some(defs) = root_value.get("definitions").and_then(Value::as_object) {

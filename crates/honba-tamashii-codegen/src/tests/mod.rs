@@ -2,6 +2,7 @@
 
 mod client;
 mod codegen;
+mod docs;
 mod endpoints;
 mod instance;
 mod mcp;
