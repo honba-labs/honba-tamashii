@@ -1,0 +1,627 @@
+"""``StrategyRunner``: drives a strategy and an execution port (mirrors ``honba_strategy::StrategyRunner``).
+
+Per event ``(event, ts_init)`` (ADR 008, decision 5):
+
+1. the context clock is set to ``ts_init``;
+2. a ``Bar``, ``QuoteTick`` or ``TradeTick`` is dispatched to its hook (other events reach no hook);
+3. every intent submitted since the last drain (including from ``on_start`` and from the previous
+   event's ``on_fill``) is validated and sent to the execution port as order ``"{name}-{n}"``;
+4. the port's one ordered event stream (``drain_events()``, ADR 0019 decision 4) is drained
+   once and walked in order, keeping an ``OrderState`` per order: a ``Fill`` is booked in the
+   context, then passed to ``on_fill``; a ``Rejected``, ``Cancelled`` or ``Expired`` event
+   releases the unfilled remainder it carries (for the instrument it names) and is recorded as
+   an ``OrderRejection``. A repeated or illegal terminal event for an order releases nothing,
+   so ``filled + released == ordered`` per order. Queue order is the tiebreak (a fill that
+   beats a cancel comes first), as in the Rust runner. Legacy ports (``drain_fills`` /
+   ``drain_rejections``, one-argument ``cancel``) are adapted by ``adapt_port`` until 0.3.0.
+
+Intents submitted in ``on_stop`` are never executed.
+
+Risk gate (ADR 0018 decisions 6-7, mirrors ``StrategyRunner::with_risk`` in Rust): the runner is
+its own submitter, so with ``risk=<RiskStage>`` every order passes the stage right before the
+port's ``submit``. The request carries ``position`` = the context position plus this runner's
+working exposure on the same side (``working_exposure``), ``reference_price`` = the last bar
+close or trade price seen (updated before the strategy sees the event), ``trading_state`` (see
+``set_trading_state``) and ``ts`` = ``ts_init`` in ns. A refusal never reaches the port and
+consumes its order id; it is audited (``audit``: :class:`~honba.risk.RiskRefused`, then
+:class:`~honba.risk.OrderRejected`), applies ``Initialized -> Rejected`` and queues a
+``Rejected`` event, reason = the ``ErrorCode`` wire spelling (``risk_*``), ahead of the next
+drain, so the strategy and ``order_rejections`` see it like a venue reject. Without a stage the
+runner still enforces ``Halted`` and reduce-only (:func:`~honba.risk.check_state`). A stage
+serves one runner, and a runner whose port already gates (``holds_risk_stage``) takes none.
+
+Warm-up gate (``StrategyManifest.warmup_bars``): a *driving bar* is a ``Bar`` event whose
+``ts_init`` differs from the previous ``Bar`` event's (bars of several instruments at one
+time are one driving bar). While at most ``warmup_bars`` driving bars have been seen (and
+before the first one), the strategy still receives every event, but each valid intent is
+released in the context and recorded as a :class:`SuppressedIntent` instead of becoming an
+order; it consumes no order id. Invalid intents are rejected as usual. Vectors shared with
+Rust: ``schema/conformance/warmup_gate.json``.
+
+Logged event types mirror ``honba-messages::Event`` wire types exactly so that
+``honba.log.EventFilter`` can filter them by wire name:
+
+* ``order``          – intent submitted to the execution port
+* ``order_rejected`` – intent failed validation, or the port rejected an order (WARNING level)
+* ``order_filled``   – fill received from the execution port
+* ``order_cancelled`` – the port cancelled an order (WARNING level)
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import weakref
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+import honba.log as _honba_log  # noqa: F401 — triggers auto-init from HONBA_LOG_EVENTS
+from honba._native import native_attr
+from honba.domain.order_state import IllegalTransition, OrderEvent, OrderState
+from honba.entities.bar import Bar
+from honba.entities.instrument import InstrumentId
+from honba.entities.order import OrderIntent, OrderSide, OrderStatus, validate_intent
+from honba.entities.tick import QuoteTick, TradeTick
+from honba.entities.trade import Trade
+from honba.risk import OrderRejected, RiskRefusal, RiskRefused, check_state
+from honba.strategies.base import Strategy
+from honba.strategies.context import LedgerContext
+from honba.strategies.execution import (
+    ExecutionEvent,
+    ExecutionPort,
+    ExecutionPortLike,
+    Fill,
+    OrderRejection,
+    Rejected,
+    adapt_port,
+    event_order_id,
+    order_event,
+    rejection_from_event,
+)
+
+if TYPE_CHECKING:
+    from honba._honba import RiskLimits, RiskStage, TradingState
+
+__all__ = [
+    "ExecutionPort",
+    "ExecutionPortLike",
+    "IntentRejection",
+    "OrderRejection",
+    "RunResult",
+    "StrategyRunner",
+    "SubmittedIntent",
+    "SuppressedIntent",
+]
+
+
+_FINISHED = frozenset(
+    {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED}
+)
+
+
+@dataclass(frozen=True, slots=True)
+class SubmittedIntent:
+    """An intent the runner sent as an order, with the ``ts_init`` it was sent at."""
+
+    ts_init: int
+    intent: OrderIntent
+    order_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class SuppressedIntent:
+    """A valid intent the warm-up gate released instead of sending, with its ``ts_init``."""
+
+    ts_init: int
+    intent: OrderIntent
+
+
+@dataclass(frozen=True, slots=True)
+class IntentRejection:
+    """An intent the runner refused because it breaks an ``OrderIntent`` invariant."""
+
+    ts_init: int
+    intent: OrderIntent
+    error: str
+
+
+@dataclass
+class RunResult:
+    intents: list[SubmittedIntent] = field(default_factory=list)
+    fills: list[Trade] = field(default_factory=list)
+    rejections: list[IntentRejection] = field(default_factory=list)
+    ctx: LedgerContext = field(default_factory=LedgerContext)
+    # Orders (or parts of them) the port rejected or cancelled, released in ``ctx``.
+    order_rejections: list[OrderRejection] = field(default_factory=list)
+    # Intents the warm-up gate released instead of sending.
+    suppressed: list[SuppressedIntent] = field(default_factory=list)
+
+
+_QTY_EPS = 1e-9  # ADR 0016 tolerance, as in ``OrderState``
+
+# ``RiskStage`` is a native object (no weakref, no attributes), so owners are keyed by ``id``;
+# an entry is stale once its runner is gone (the runner holds the stage, so ids cannot be reused
+# while it lives).
+_STAGE_OWNERS: dict[int, weakref.ReferenceType[StrategyRunner]] = {}
+
+_WORKING = (OrderStatus.SUBMITTED, OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED)
+
+
+class _FallbackActiveState:
+    """Pure-Python stand-in for ``honba._honba.TradingState.ACTIVE``.
+
+    TODO(tamashii-migration): the in-workspace honba-tamashii-py extension does not (yet)
+    export ``TradingState`` (see honba/__init__.py for why). Every consumer of the default
+    "active" state here only needs ``str()`` ("active", the wire spelling), so this stands
+    in for it until a honba-tamashii crate owns trading-state (plan.md M1+).
+    """
+
+    def __str__(self) -> str:
+        return "active"
+
+
+_FALLBACK_ACTIVE = _FallbackActiveState()
+
+
+def _active() -> TradingState:
+    try:
+        return native_attr("TradingState").ACTIVE
+    except (ImportError, RuntimeError):
+        return _FALLBACK_ACTIVE  # type: ignore[return-value]
+
+
+def _overrides(strategy: Strategy, method: str) -> bool:
+    return getattr(type(strategy), method) is not getattr(Strategy, method)
+
+
+class StrategyRunner:
+    """Binds ``ctx`` (a fresh ``LedgerContext`` by default) to ``strategy`` and runs it.
+
+    ``warmup_bars`` defaults to the strategy's ``warmup_bars`` class attribute (0).
+
+    ``risk`` puts a :class:`~honba.risk.RiskStage` in front of the port (see the module docs).
+    The native stage does not expose its limits, so ``risk_limits`` (the ``RiskLimits`` it was
+    built with) is what :meth:`require_live_limits` checks; omitted, it counts as no limits.
+    """
+
+    def __init__(
+        self,
+        strategy: Strategy,
+        execution: ExecutionPortLike,
+        ctx: LedgerContext | None = None,
+        *,
+        warmup_bars: int | None = None,
+        risk: RiskStage | None = None,
+        risk_limits: RiskLimits | None = None,
+    ) -> None:
+        if warmup_bars is None:
+            warmup_bars = getattr(strategy, "warmup_bars", 0)
+        if isinstance(warmup_bars, bool) or not isinstance(warmup_bars, int):
+            raise TypeError(f"warmup_bars must be an int, got {warmup_bars!r}")
+        if warmup_bars < 0:
+            raise ValueError(f"warmup_bars must be >= 0, got {warmup_bars}")
+        self.warmup_bars = warmup_bars
+        self._bars_seen = 0
+        self._last_bar_ts: int | None = None
+        self.strategy = strategy
+        self.execution = execution
+        if risk is not None:
+            owner = _STAGE_OWNERS.get(id(risk))
+            if (owner is not None and owner() is not None) or getattr(
+                execution, "holds_risk_stage", False
+            ):
+                raise ValueError(
+                    "a run holds at most one risk stage: this stage already serves another "
+                    "runner, or the execution port gates orders itself"
+                )
+            _STAGE_OWNERS[id(risk)] = weakref.ref(self)
+        self._risk = risk
+        self._risk_limits = risk_limits
+        self._trading_state: TradingState | None = None  # None: Active (needs no extension)
+        self._audit: list[RiskRefused | OrderRejected] = []
+        self._orders: dict[str, tuple[InstrumentId, OrderSide]] = {}
+        self._last_px: dict[InstrumentId, float] = {}
+        # Latest (bid, ask) per instrument: the price collar's expected_price source.
+        self._last_quote: dict[InstrumentId, tuple[float, float]] = {}
+        self._pre_gate: list[Rejected] = []
+        self._port = adapt_port(execution)  # event stream + cancel(order_id, now), bound once
+        self._now = 0
+        self._states: dict[str, OrderState] = {}
+        self._released: dict[InstrumentId, float] = {}
+        self.ctx = ctx if ctx is not None else LedgerContext()
+        strategy.bind(self.ctx)
+        # Logger name: honba.runner.<strategy-name>
+        # Filter with: EventFilter(["order_filled", "order_rejected", ...])
+        self.logger = logging.getLogger(f"honba.runner.{strategy.name}")
+        self._seq = 0
+        self.intents: list[SubmittedIntent] = []
+        self.fills: list[Trade] = []
+        self.rejections: list[IntentRejection] = []
+        self.order_rejections: list[OrderRejection] = []
+        self.suppressed: list[SuppressedIntent] = []
+
+    @property
+    def audit(self) -> tuple[RiskRefused | OrderRejected, ...]:
+        """The runner's cumulative audit trail: ``RiskRefused`` then ``OrderRejected`` per
+        order it refused before submit (Rust ``StrategyRunner::audit``)."""
+        return tuple(self._audit)
+
+    @property
+    def trading_state(self) -> TradingState:
+        """The trading state the runner enforces: ``ACTIVE`` until :meth:`set_trading_state`."""
+        return self._trading_state if self._trading_state is not None else _active()
+
+    def set_trading_state(self, state: TradingState) -> None:
+        """Tell the runner the host's trading state (``Halted`` / ``Reducing`` / ``Active``).
+
+        Rust: ``Handler::on_trading_state``. Orders already sent are not affected.
+        """
+        if not isinstance(state, native_attr("TradingState")):
+            raise TypeError(f"expected a TradingState, got {state!r}")
+        self._trading_state = state
+
+    @property
+    def holds_risk_stage(self) -> bool:
+        """True if this runner was built with its own stage (Rust ``holds_risk_stage``)."""
+        return self._risk is not None
+
+    def require_live_limits(self) -> None:
+        """The live-run guard (ADR 0018 decision 8): ``ValueError`` unless the runner's stage
+        was built with both ``max_notional`` and ``order_rate`` (see ``risk_limits``)."""
+        limits = self._risk_limits if self._risk is not None else None
+        (limits if limits is not None else native_attr("RiskLimits")()).require_live()
+
+    def working_exposure(self, instrument_id: InstrumentId, side: OrderSide) -> float:
+        """Signed open quantity (``+`` buy, ``-`` sell) of this runner's working orders on
+        ``instrument_id`` and ``side`` (ADR 0019 decision 5)."""
+        total = 0.0
+        for order_id, (iid, order_side) in self._orders.items():
+            state = self._states.get(order_id)
+            if (
+                iid == instrument_id
+                and order_side is side
+                and state is not None
+                and state.status in _WORKING
+            ):
+                total += state.quantity - state.filled_qty
+        return total if side is OrderSide.BUY else -total
+
+    def start(self) -> None:
+        self.strategy.on_start()
+
+    @property
+    def warming_up(self) -> bool:
+        """True while orders are suppressed: at most ``warmup_bars`` driving bars seen."""
+        return self.warmup_bars > 0 and self._bars_seen <= self.warmup_bars
+
+    def on_event(self, event: Any, ts_init: int) -> None:
+        self.ctx.set_now(ts_init)
+        self._now = ts_init
+        if isinstance(event, Bar):
+            self._last_px[event.instrument_id] = event.close
+        elif isinstance(event, TradeTick):
+            self._last_px[event.instrument_id] = event.price
+        elif isinstance(event, QuoteTick):
+            self._last_quote[event.instrument_id] = (event.bid_price, event.ask_price)
+        if isinstance(event, Bar) and ts_init != self._last_bar_ts:
+            self._bars_seen += 1
+            self._last_bar_ts = ts_init
+        if isinstance(event, Bar):
+            self.strategy.on_bar(event)
+        elif isinstance(event, QuoteTick):
+            self.strategy.on_quote(event)
+        elif isinstance(event, TradeTick):
+            self.strategy.on_trade(event)
+        self._submit_intents(ts_init)
+        self._book_events()
+
+    def order_state(self, order_id: str) -> OrderState | None:
+        """The FSM state the runner tracked for ``order_id``, if it submitted it."""
+        return self._states.get(order_id)
+
+    def released_quantity(self, instrument_id: InstrumentId) -> float:
+        """Total quantity released for ``instrument_id``: its rejected/cancelled/expired remainders."""
+        return self._released.get(instrument_id, 0.0)
+
+    def cancel(self, order_id: str) -> bool:
+        """Ask the port to cancel ``order_id`` and book what it reports at once.
+
+        The cancel is stamped with the time of the latest event (``now``). Returns ``False``
+        if the port has no cancel path (nothing is released then). Cancelling an unknown or
+        finished order does nothing.
+        """
+        if not self._port.cancel(order_id, self._now):
+            return False
+        state = self._states.get(order_id)
+        if state is not None:
+            try:
+                state.apply(OrderEvent.cancel_requested())
+            except IllegalTransition:
+                pass  # finished order: the FSM keeps its state
+        self._book_events()
+        return True
+
+    def stop(self) -> None:
+        self.strategy.on_stop()
+        self.ctx.drain_intents()  # never executed: the run is over
+
+    def run(self, events: Iterable[tuple[Any, int]]) -> RunResult:
+        """``start``, then each ``(event, ts_init)``, then ``stop``.
+
+        An execution port with an ``on_event(event, ts_init)`` method (a simulator)
+        sees each event before the strategy, like an engine handler registered first.
+        """
+        observe = getattr(self.execution, "on_event", None)
+        self.start()
+        for event, ts_init in events:
+            if observe is not None:
+                observe(event, ts_init)
+            self.on_event(event, ts_init)
+        self.stop()
+        return RunResult(
+            self.intents,
+            self.fills,
+            self.rejections,
+            self.ctx,
+            order_rejections=self.order_rejections,
+            suppressed=self.suppressed,
+        )
+
+    def _drain(self) -> list[OrderIntent]:
+        if _overrides(self.strategy, "drain_intents"):
+            return self.strategy.drain_intents()  # deprecated override, honoured until 0.3
+        return self.ctx.drain_intents()
+
+    def _flush_cancels(self) -> None:
+        """Relay the strategy's cancel requests (``Strategy.cancel``) to the port."""
+        for order_id in self.ctx.drain_cancels():
+            state = self._states.get(order_id)
+            if state is None or state.status in _FINISHED:
+                continue
+            self.cancel(order_id)
+
+    def _submit_intents(self, ts_init: int) -> None:
+        self._flush_cancels()
+        drained = self._drain()
+        for index, intent in enumerate(drained):
+            try:
+                validate_intent(
+                    intent.side,
+                    intent.quantity,
+                    intent.order_type,
+                    intent.price,
+                    intent.trigger_price,
+                )
+            except ValueError as error:
+                self.rejections.append(IntentRejection(ts_init, intent, str(error)))
+                # Wire type: order_rejected — WARNING always passes EventFilter
+                self.logger.warning(
+                    "order_rejected: order_id=pending symbol=%s side=%s reason=%s",
+                    intent.instrument_id.symbol,
+                    intent.side.name,
+                    error,
+                    extra={
+                        "event_type": "order_rejected",
+                        "symbol": intent.instrument_id.symbol,
+                        "reason": str(error),
+                    },
+                )
+                self._release(intent)
+                continue
+
+            if self.warming_up:
+                self.ctx.release(intent)
+                self.suppressed.append(SuppressedIntent(ts_init, intent))
+                self.logger.debug(
+                    "warmup: suppressed symbol=%s side=%s qty=%s",
+                    intent.instrument_id.symbol,
+                    intent.side.name,
+                    intent.quantity,
+                )
+                continue
+
+            order_id = f"{self.strategy.name}-{self._seq}"
+            self._seq += 1
+            try:
+                refusal = self._gate(order_id, intent, ts_init)
+                if refusal is None:
+                    self._port.submit(order_id, intent, ts_init)
+            except BaseException:
+                # Terminal for the run, but the intents that were drained and never
+                # sent (this one and the rest) must not leave their instruments busy.
+                for unsent in drained[index:]:
+                    self._release(unsent)
+                raise
+            if refusal is not None:
+                self._refuse(order_id, intent, refusal, ts_init)
+                continue
+            state = OrderState()
+            state.apply(OrderEvent.submitted(intent.quantity))
+            self._states[order_id] = state
+            self._orders[order_id] = (intent.instrument_id, intent.side)
+            self.ctx.note_order(order_id, intent)
+            self.intents.append(SubmittedIntent(ts_init, intent, order_id))
+            # Wire type: order (DEBUG — not emitted unless level <= DEBUG)
+            self.logger.debug(
+                "order: order_id=%s symbol=%s side=%s qty=%s",
+                order_id,
+                intent.instrument_id.symbol,
+                intent.side.name,
+                intent.quantity,
+                extra={
+                    "event_type": "order",
+                    "order_id": order_id,
+                    "symbol": intent.instrument_id.symbol,
+                    "side": intent.side.name,
+                    "qty": intent.quantity,
+                },
+            )
+
+    def _gate(self, order_id: str, intent: OrderIntent, ts_init: int) -> RiskRefusal | None:
+        """The stage (or, without one, the state rules) over the order about to be submitted."""
+        iid = intent.instrument_id
+        position = self.ctx.position(iid) + self.working_exposure(iid, intent.side)
+        if self._risk is None:
+            return check_state(intent.side, intent.quantity, position, self.trading_state)
+        request: dict[str, Any] = {
+            "order_id": order_id,
+            "instrument_id": f"{iid.symbol}.{iid.exchange}",
+            "side": intent.side.value,
+            "quantity": intent.quantity,
+            "position": position,
+            "trading_state": str(self.trading_state),
+            "ts": ts_init,
+        }
+        if intent.price is not None:
+            request["price"] = intent.price
+        if intent.trigger_price is not None:
+            request["trigger_price"] = intent.trigger_price
+        if iid in self._last_px:
+            request["reference_price"] = self._last_px[iid]
+        # The touch a market order crosses (ask for a buy, bid for a sell); priced orders and
+        # instruments with no quote yet carry none, so the collar skips (Rust expected_price).
+        if intent.price is None and iid in self._last_quote:
+            bid, ask = self._last_quote[iid]
+            request["expected_price"] = ask if intent.side is OrderSide.BUY else bid
+        decision = self._risk.check(request)
+        if decision.approved:
+            return None
+        return RiskRefusal(str(decision.code), str(decision.rule), dict(decision.context))
+
+    def _refuse(
+        self, order_id: str, intent: OrderIntent, refusal: RiskRefusal, ts_init: int
+    ) -> None:
+        """Audit a refusal and queue its ``Rejected`` event ahead of the next drain."""
+        self._audit.append(
+            RiskRefused(order_id, ts_init, refusal.code, refusal.rule, refusal.context)
+        )
+        self._audit.append(OrderRejected(order_id, ts_init, refusal.code))
+        self._states[order_id] = OrderState()
+        self._orders[order_id] = (intent.instrument_id, intent.side)
+        self._pre_gate.append(Rejected(order_id, intent, refusal.code, ts_init))
+
+    def _book_events(self) -> None:
+        # A failing hook does not lose the other drained events: each is still booked
+        # and recorded, and the first error is raised afterwards.
+        first_error: Exception | None = None
+        pre_gate, self._pre_gate = self._pre_gate, []
+        for ev in [*pre_gate, *self._port.drain_events()]:
+            try:
+                self._book_event(ev)
+            except Exception as error:  # noqa: BLE001 - the first one is re-raised below
+                first_error = first_error or error
+        if first_error is not None:
+            raise first_error
+        self._flush_cancels()
+
+    def _book_event(self, ev: ExecutionEvent) -> None:
+        if isinstance(ev, Fill):
+            state = self._states.get(ev.trade.order_id or "")
+            if state is not None:
+                complete = state.filled_qty + ev.trade.quantity + _QTY_EPS >= state.quantity
+                try:
+                    state.apply(OrderEvent.fill(ev.trade.quantity, complete))
+                except IllegalTransition:
+                    pass  # an illegal fill (overfill) leaves the FSM unchanged but is booked
+                self._note_finished(ev.trade.order_id or "", state)
+            self._book_fill(ev.trade)
+            return
+        rejection = rejection_from_event(ev)
+        if rejection is None:  # acknowledgements move the FSM only
+            state = self._states.get(event_order_id(ev))
+            if state is not None:
+                try:
+                    state.apply(order_event(ev))
+                except IllegalTransition:
+                    pass
+            return
+        state = self._states.get(rejection.order_id)
+        if state is not None:
+            try:
+                transitioned = state.apply(order_event(ev))
+            except IllegalTransition:
+                return  # illegal terminal: releases nothing
+            if not transitioned:
+                return  # duplicate terminal: releases nothing
+            self._note_finished(rejection.order_id, state)
+        self._book_rejection(rejection)
+
+    def _note_finished(self, order_id: str, state: OrderState) -> None:
+        if state.status in _FINISHED:
+            self.ctx.note_closed(order_id)
+
+    def _book_fill(self, fill: Trade) -> None:
+        if _overrides(self.strategy, "handle_fill"):
+            # deprecated override, honoured until 0.3
+            try:
+                self.strategy.handle_fill(fill)
+            finally:
+                self._record_fill(fill)
+            return
+        self.ctx.apply_fill(fill)  # a fill that cannot be booked is not recorded
+        try:
+            self.strategy.on_fill(fill)
+        finally:
+            self._record_fill(fill)
+
+    def _record_fill(self, fill: Trade) -> None:
+        self.fills.append(fill)
+        # Wire type: order_filled (INFO)
+        # ts_event is the simulated bar date (Unix ns), formatted as YYYY-MM-DD for readability
+        ts_ns = fill.ts or 0
+        if ts_ns > 0:
+            from datetime import datetime, timezone
+
+            bar_date = datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc).strftime("%Y-%m-%d")
+        else:
+            bar_date = "?"
+        self.logger.info(
+            "order_filled: ts_event=%s order_id=%s symbol=%s side=%s last_qty=%s last_px=%.4f cost=%.4f",
+            bar_date,
+            fill.order_id or "?",
+            fill.instrument_id.symbol,
+            fill.side.name,
+            fill.quantity,
+            fill.price,
+            fill.costs.to_major(),
+            extra={
+                "event_type": "order_filled",
+                "ts_event": bar_date,
+                "order_id": fill.order_id,
+                "symbol": fill.instrument_id.symbol,
+                "side": fill.side.name,
+                "last_qty": fill.quantity,
+                "last_px": fill.price,
+                "cost": fill.costs.to_major(),
+            },
+        )
+
+    def _release(self, intent: OrderIntent) -> None:
+        if _overrides(self.strategy, "handle_rejected"):
+            self.strategy.handle_rejected(intent)  # deprecated override, honoured until 0.3
+        else:
+            self.ctx.release(intent)
+
+    def _book_rejection(self, rejection: OrderRejection) -> None:
+        iid, qty = rejection.intent.instrument_id, rejection.intent.quantity
+        if math.isfinite(qty) and qty > 0:
+            self._released[iid] = self._released.get(iid, 0.0) + qty
+        self._release(rejection.intent)
+        self.order_rejections.append(rejection)
+        event_type = "order_cancelled" if rejection.cancelled else "order_rejected"
+        self.logger.warning(
+            "%s: order_id=%s symbol=%s side=%s qty=%s reason=%s",
+            event_type,
+            rejection.order_id,
+            rejection.intent.instrument_id.symbol,
+            rejection.intent.side.name,
+            rejection.intent.quantity,
+            rejection.reason,
+            extra={
+                "event_type": event_type,
+                "order_id": rejection.order_id,
+                "symbol": rejection.intent.instrument_id.symbol,
+                "reason": rejection.reason,
+            },
+        )

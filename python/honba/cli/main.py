@@ -1,0 +1,32 @@
+"""Honba CLI."""
+
+import typer
+
+from honba.cli.ai import app as ai_app
+from honba.cli.backtest import backtest
+from honba.cli.data import app as data_app
+from honba.cli.indicators import app as indicators_app
+from honba.cli.mcp import app as mcp_app
+from honba.cli.schema import app as schema_app
+from honba.cli.screener import app as screener_app
+from honba.cli.strategy import verify
+
+app = typer.Typer(help="Honba - AI-native trading for Indian markets", no_args_is_help=True)
+
+app.add_typer(ai_app, name="ai")
+app.add_typer(data_app, name="data")
+app.add_typer(indicators_app, name="indicators")
+app.add_typer(mcp_app, name="mcp")
+app.add_typer(schema_app, name="schema")
+app.add_typer(screener_app, name="screener")
+app.command("backtest")(backtest)
+app.command("verify")(verify)
+
+
+@app.command()
+def version() -> None:
+    typer.echo("honba 0.1.0")
+
+
+if __name__ == "__main__":
+    app()
