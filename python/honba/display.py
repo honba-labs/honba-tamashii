@@ -113,7 +113,11 @@ class Column:
     ``key`` selects the value from a mapping row (or is just a label for positional rows) and
     is the key used in json/csv output. ``align`` is ``left``/``right``/``center``; when unset,
     columns whose values are all numbers right-align. ``fmt`` turns a raw value into cell text
-    (table and plain only). ``max_width`` truncates cells with an ellipsis.
+    (table and plain only). ``style`` is a static Rich style string for every cell in the
+    column. ``style_fn`` takes the row's raw value and returns a Rich style string for that
+    cell, overriding ``style`` when it returns something truthy (table/Rich only; the plain
+    path has no colour concept and ignores both). ``max_width`` truncates cells with an
+    ellipsis.
     """
 
     key: str
@@ -121,6 +125,7 @@ class Column:
     align: str | None = None
     fmt: Callable[[Any], str] | None = None
     style: str | None = None
+    style_fn: Callable[[Any], str | None] | None = None
     max_width: int | None = None
 
     @property
@@ -175,20 +180,26 @@ def _align(col: Column, values: Sequence[Any]) -> str:
     return "right" if present and all(_is_number(v) for v in present) else "left"
 
 
-def _cells(rows: Sequence[Row], cols: Sequence[Column]) -> tuple[list[list[str]], list[str]]:
-    """Formatted cell text per row, and the alignment of each column."""
+def _cells(
+    rows: Sequence[Row], cols: Sequence[Column]
+) -> tuple[list[list[str]], list[str], list[list[Any]]]:
+    """Formatted cell text per row, the alignment of each column, and the raw values."""
     text: list[list[str]] = []
+    raws: list[list[Any]] = []
     for row in rows:
         line = []
+        raw_line = []
         for i, col in enumerate(cols):
             v = _raw(row, i, col.key)
+            raw_line.append(v)
             if v is None:
                 line.append("-")
             else:
                 line.append((col.fmt or format_cell)(v))
         text.append(line)
+        raws.append(raw_line)
     aligns = [_align(c, [_raw(r, i, c.key) for r in rows]) for i, c in enumerate(cols)]
-    return text, aligns
+    return text, aligns, raws
 
 
 # =============================================================================
@@ -294,7 +305,7 @@ def render_table(
         _plain_table(rows, cols, title, stream, width)
         return
 
-    text, aligns = _cells(rows, cols)
+    text, aligns, raws = _cells(rows, cols)
     color = _use_color(stream)
     table = rich.Table(
         title=title,
@@ -309,8 +320,14 @@ def render_table(
             max_width=col.max_width,
             overflow="ellipsis",
         )
-    for line in text:
-        table.add_row(*(rich.Text(cell) for cell in line))
+    for line, raw_line in zip(text, raws, strict=True):
+        cells = []
+        for col, cell, raw in zip(cols, line, raw_line, strict=True):
+            cell_style = None
+            if color and col.style_fn is not None:
+                cell_style = col.style_fn(raw)
+            cells.append(rich.Text(cell, style=cell_style or ""))
+        table.add_row(*cells)
     _console(rich, stream, width).print(table)
 
 
@@ -321,7 +338,7 @@ def _plain_table(
     out: TextIO,
     width: int | None,
 ) -> None:
-    text, aligns = _cells(rows, cols)
+    text, aligns, _raws = _cells(rows, cols)
     headers = [c.title for c in cols]
     for line in text:
         for i, col in enumerate(cols):
