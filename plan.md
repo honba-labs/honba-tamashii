@@ -288,11 +288,20 @@ Layer 3: [honba-tamashii-py] ─────────────────
 - [ ] Provide seamless export to Polars (`pl.DataFrame`) and PyArrow (`pa.Table`) with zero memory copies.
 - [ ] Implement historical NSE Bhavcopy reader bridging `honba-me-loaders` into Python.
 
-### Phase 5: High-Performance Technical Indicators & Screener (M4) — Week 9–10
-- [ ] Expose `honba-me-indicators` to Python: Supertrend, VWAP, CPR, ADX, RMA, PSAR, SMA, EMA, RSI.
-- [ ] Provide dual-mode API: stateful streaming classes for `Strategy` and vectorized SIMD batch functions for Polars/NumPy.
-- [ ] Deprecate and excise legacy pure-Python indicator implementations in `python/honba/indicators/`.
-- [ ] Benchmark vectorized indicators to guarantee >10x speedup over pure Python equivalents.
+### Phase 5: Ported StockSharp 100+ Indicators & Strategy Primitives (M4) — Week 9–10
+> **Exposing the complete ported StockSharp Indicators (100+) & Strategy Bases to Python**:
+
+- [ ] **5.1 Expose StockSharp 100+ Indicators to Python (`honba.indicators`)**
+  - [ ] Moving Averages: `SMA`, `EMA`, `WMA`, `HMA`, `DEMA`, `TEMA`, `KAMA`, `ZLEMA`, `VWMA`, `ALMA`, `FRAMA`, `T3`, `McGinleyDynamic`.
+  - [ ] Momentum & Oscillators: `RSI`, `Stochastic`, `StochRSI`, `MACD`, `ROC`, `Momentum`, `CCI`, `WilliamsR`, `UltimateOscillator`, `AwesomeOscillator`, `AcceleratorOscillator`, `CMO`, `DPO`, `FisherTransform`, `QQE`, `TSI`.
+  - [ ] Volatility & Bands: `ATR`, `BollingerBands`, `KeltnerChannel`, `DonchianChannel`, `StandardDeviation`, `HistoricalVolatility`, `ChaikinVolatility`, `Supertrend`.
+  - [ ] Volume & Microstructure: `OBV`, `VWAP` (session, weekly, monthly + bands), `ADLine`, `CMF`, `MFI`, `VolumeProfile`, `MarketDepthImbalance`.
+  - [ ] Candlestick Patterns: Single & multi-candle detectors (`Doji`, `Hammer`, `Engulfing`, `MorningStar`, `ThreeWhiteSoldiers`).
+- [ ] **5.2 Dual-Mode Python Architecture**
+  - [ ] Stateful Streaming: `ind.update(bar.close)` / `ind.value` for live & backtesting strategy loops.
+  - [ ] Vectorized SIMD Batch Compute: Fast Arrow/Polars expressions (`pl.col("close").honba.rsi(14)`) with zero-copy C memory pass.
+- [ ] **5.3 StockSharp Strategy Base Classes (`honba.strategies.base`)**
+  - [ ] Provide specialized Python base classes: `QuotingStrategy`, `ArbitrageStrategy`, `SlicingStrategy`, `RebalancingStrategy`.
 
 ### Phase 6: Distribution, Documentation & Legacy Pruning (M5) — Week 11–12
 - [ ] Complete pruning of dead legacy modules in `python/honba/`.
