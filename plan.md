@@ -247,6 +247,7 @@ Layer 3: [honba-tamashii-py] ─────────────────
 ### Phase 1: Canonical Type Bindings & Scaffolding Cleanup (M0) — Week 1–2
 - [ ] Consolidate the extension crate into `crates/honba-tamashii-py` and update root `Cargo.toml`.
 - [ ] Remove deleted legacy crates (`honba-kokoro-messages`, `entities`, `ports`, `risk`) from workspace dependencies.
+  - [ ] Implement PyO3 wrappers for `honba-mon` (`PyRiskEngine`, `PyRiskLimits`, `PyRiskRefusal`) and route `python/honba/risk.py` to native FFI per [Risk Migration Plan](../honba-docs/docs/architecture/migration_plan_kokoro_risk_to_mon.md).
 - [ ] Implement PyO3 wrappers for `honba-core`: `PyPrice`, `PyQuantity`, `PyMoney`, `PyInstrumentId`, `PyPriceBand`.
 - [ ] Implement full Python numeric protocol (`__add__`, `__sub__`, `__mul__`, `__eq__`, `__lt__`, etc.) and `to_decimal()`.
 - [ ] Implement `PyBar`, `PyTick`, and `PyDepthLevel` wrappers wrapping canonical `honba_core` types.
