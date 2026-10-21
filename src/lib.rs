@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 
 // ============================================================================
 // Bar — one OHLCV observation
@@ -171,7 +171,12 @@ impl Runner {
     /// with `honba-te-router` is the next milestone — the shape stays identical.
     fn run(&self, py: Python<'_>, strategy: Bound<'_, PyAny>) -> PyResult<Metrics> {
         let orders = Arc::new(Mutex::new(Vec::<OrderIntent>::new()));
-        let ctx = Py::new(py, PyContext { orders: Arc::clone(&orders) })?;
+        let ctx = Py::new(
+            py,
+            PyContext {
+                orders: Arc::clone(&orders),
+            },
+        )?;
 
         if strategy.hasattr("setup")? {
             strategy.call_method0("setup")?;

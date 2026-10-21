@@ -6,8 +6,8 @@
 //! renderer, the `.pyi` renderer, the MCP tool builder — reads that map, so a
 //! defect in normalization cannot reach four artifacts separately.
 
-use schemars::{schema::RootSchema, JsonSchema};
-use serde_json::{json, Value};
+use schemars::{JsonSchema, schema::RootSchema};
+use serde_json::{Value, json};
 
 use super::registry;
 

@@ -11,7 +11,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use honba_strategy::{StrategyIr, StrategyManifest, STRATEGY_API_VERSION};
+use honba_strategy::{STRATEGY_API_VERSION, StrategyIr, StrategyManifest};
 
 /// Why `verify` failed: a stable code (`deserialize` or an `IrError` code) and
 /// a human-readable message.

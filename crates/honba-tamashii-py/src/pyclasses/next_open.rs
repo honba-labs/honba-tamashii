@@ -801,7 +801,7 @@ impl NextOpenSimulator {
             Some(_) => {
                 return Err(PyTypeError::new_err(
                     "costs must be None, a cost pack name or a callable",
-                ))
+                ));
             }
         };
         let mut cfg = SimConfig::new(cash);

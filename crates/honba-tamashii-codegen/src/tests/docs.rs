@@ -2,8 +2,8 @@ use honba_messages::{ENDPOINTS, WRITE_PATHS};
 
 use crate::docs::render;
 use crate::registry::{
-    request_type_names, API_TYPES, CONFIG_TYPES, MANIFEST_TYPES, SCREENER_TYPES, WIRE_ENUMS,
-    WIRE_TYPES,
+    API_TYPES, CONFIG_TYPES, MANIFEST_TYPES, SCREENER_TYPES, WIRE_ENUMS, WIRE_TYPES,
+    request_type_names,
 };
 
 #[test]

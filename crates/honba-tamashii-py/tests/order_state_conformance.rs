@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use honba::pyclasses::next_open::{BarIn, NativeSim, OrderIn, SimConfig};
 use honba_messages::{OrderEvent, OrderState, OrderStatus};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const EPS: f64 = 1e-9;
 

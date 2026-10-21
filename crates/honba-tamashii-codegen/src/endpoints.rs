@@ -5,10 +5,10 @@
 //! added to the registry appears in the spec, and a route missing from the
 //! registry cannot appear in the spec.
 
-use honba_messages::{Access, HttpMethod, ENDPOINTS, WRITE_PATHS};
-use serde_json::{json, Map, Value};
+use honba_messages::{Access, ENDPOINTS, HttpMethod, WRITE_PATHS};
+use serde_json::{Map, Value, json};
 
-use crate::schemas::{SchemaSet, COMPONENTS_PREFIX};
+use crate::schemas::{COMPONENTS_PREFIX, SchemaSet};
 
 /// Endpoints that stream (`text/event-stream`) rather than answer one JSON body.
 ///

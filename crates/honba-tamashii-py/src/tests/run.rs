@@ -1,7 +1,7 @@
 //! Unit tests for `crate::pyclasses::run`.
 
 use honba_entities::{Currency, InstrumentKind};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::pyclasses::run::*;
 

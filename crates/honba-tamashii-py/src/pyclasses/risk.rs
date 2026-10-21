@@ -22,7 +22,7 @@ use honba_risk::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use super::run::parse_instrument;
 
@@ -117,7 +117,7 @@ pub(crate) fn parse_request(v: &Value) -> Result<RiskRequest, String> {
         other => {
             return Err(req_err(format!(
                 "`side` must be buy or sell, got `{other}`"
-            )))
+            )));
         }
     };
     let instrument_id = parse_instrument_id(text("instrument_id")?)

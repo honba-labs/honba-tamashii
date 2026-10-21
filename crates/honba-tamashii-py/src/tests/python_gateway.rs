@@ -3,7 +3,7 @@
 
 use honba_ports::PortError;
 
-use crate::pyclasses::python_gateway::{classify, PyFailure};
+use crate::pyclasses::python_gateway::{PyFailure, classify};
 
 fn failure(mro: &[&str], code: Option<&str>, fatal: bool, reject: Option<&str>) -> PyFailure {
     PyFailure {

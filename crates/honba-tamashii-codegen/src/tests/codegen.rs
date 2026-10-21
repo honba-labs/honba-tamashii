@@ -1,7 +1,7 @@
 //! Unit tests for `crate`.
 
 use crate::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 #[test]
 fn the_version_axes_are_owned_here() {

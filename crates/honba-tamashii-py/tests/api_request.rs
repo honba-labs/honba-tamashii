@@ -3,8 +3,8 @@
 
 use std::path::PathBuf;
 
-use honba::pyclasses::api::{request, request_with, ApiRequestError, RunsOptions};
-use serde_json::{json, Value};
+use honba::pyclasses::api::{ApiRequestError, RunsOptions, request, request_with};
+use serde_json::{Value, json};
 
 /// A fresh data directory owned by one test. Each test passes its own `label`, so tests running in
 /// parallel never remove or reuse each other's directory.

@@ -29,7 +29,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 pub mod client;
 pub mod docs;
@@ -43,10 +43,10 @@ pub mod typings;
 
 pub use instance::validate_instance;
 pub use registry::{
-    published_names, request_type_names, API_TYPES, CONFIG_TYPES, MANIFEST_TYPES, SCREENER_TYPES,
-    WIRE_ENUMS, WIRE_TYPES,
+    API_TYPES, CONFIG_TYPES, MANIFEST_TYPES, SCREENER_TYPES, WIRE_ENUMS, WIRE_TYPES,
+    published_names, request_type_names,
 };
-pub use schemas::{local_refs, unresolved_local_refs, SchemaSet};
+pub use schemas::{SchemaSet, local_refs, unresolved_local_refs};
 
 /// Version of the JSON wire contract, owned here per docs/archive/plan.md §4.1.
 ///

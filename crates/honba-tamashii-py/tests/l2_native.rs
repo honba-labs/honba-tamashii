@@ -8,7 +8,7 @@ use honba::pyclasses::l2::{L2Config, L2OrderIn, NativeL2, QuoteIn, TradeIn};
 use honba::pyclasses::next_open::{CostSpec, SimError};
 use honba_engine::AlgoError;
 use honba_entities::{Currency, Money};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn fixture() -> Value {
     let path =
@@ -134,7 +134,9 @@ fn run(sc: &Value, via_events: bool) {
                     .iter()
                     .filter(|e| e.kind == "fill")
                     .map(|f| {
-                        json!([f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs])
+                        json!([
+                            f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs
+                        ])
                     })
                     .collect();
                 let rej: Vec<Value> = events
@@ -153,7 +155,9 @@ fn run(sc: &Value, via_events: bool) {
                     .drain_fills()
                     .iter()
                     .map(|f| {
-                        json!([f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs])
+                        json!([
+                            f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs
+                        ])
                     })
                     .collect();
                 let rej: Vec<Value> = sim

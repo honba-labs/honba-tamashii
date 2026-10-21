@@ -2,7 +2,7 @@
 
 use honba_messages::{Exchange, InstrumentId, TradingState};
 use honba_risk::{OrderRateLimit, RiskCheck, RiskDecision};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::pyclasses::risk::*;
 
@@ -206,9 +206,11 @@ fn run_risk_refuses_bad_specs() {
         let e = parse_run_risk(&bad.to_string()).unwrap_err();
         assert!(e.starts_with("invalid risk"), "{bad}: {e}");
     }
-    assert!(parse_run_risk("not json")
-        .unwrap_err()
-        .starts_with("invalid risk"));
+    assert!(
+        parse_run_risk("not json")
+            .unwrap_err()
+            .starts_with("invalid risk")
+    );
 }
 
 #[test]

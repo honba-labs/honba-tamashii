@@ -21,8 +21,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyModule, PyString, PyTuple};
 
 use super::next_open::{
-    callable_cost_fn, iid, lot_key, optional, parse_side, required, side_str, to_py_err, CostSpec,
-    ErrorSlot, EventOut, FillOut, RejectionOut, Res, SimError,
+    CostSpec, ErrorSlot, EventOut, FillOut, RejectionOut, Res, SimError, callable_cost_fn, iid,
+    lot_key, optional, parse_side, required, side_str, to_py_err,
 };
 
 /// One top-of-book quote.
@@ -437,7 +437,7 @@ impl L2Simulator {
             Some(_) => {
                 return Err(PyTypeError::new_err(
                     "costs must be None, a cost pack name or a callable",
-                ))
+                ));
             }
         };
         let mut cfg = L2Config::new(cash);

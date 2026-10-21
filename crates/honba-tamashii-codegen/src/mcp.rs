@@ -12,7 +12,7 @@
 //!   client receives a tool on its own and has nowhere else to resolve from.
 
 use honba_messages::WRITE_PATHS;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::endpoints::path_params;
 use crate::schemas::SchemaSet;

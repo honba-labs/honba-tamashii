@@ -1,100 +1,317 @@
-# Plan: 本場・魂 honba-tamashii
+# Master Plan: 本場・魂 honba-tamashii
 
-## Unfinished cleanup carried in from the M0.5 bulk import
+> **The soul of the real market.**  
+> High-performance PyO3 native bindings, idiomatic Python SDK, and research-live parity bridge for Indian equities and derivatives (NSE/BSE/NFO/MCX). Connects Python quantitative research, AI decision models (`honba-nou`), and Python strategy scripts to the zero-I/O deterministic core (`honba-core`), institutional Order Management System (`honba-kokoro`), market data pipeline (`honba-me`), pre-trade risk engine (`honba-mon`), and the high-throughput actor runtime (`honba-ya`). Zero-copy Apache Arrow data transfer, exact decimal financial math (`rust_decimal`), GIL-disciplined execution, and SEBI regulatory compliance.
 
-Out of staged order: `python/honba/` also carries a bulk, mostly-mechanical import of the
-pure-Python parts of the legacy honba-labs package (`honba.domain`, `.entities`, `.markets`,
-`.screener`, `.data`, `.research`, `.backtest`, `.strategies`, `.adapters`, `.ai`, `.api`,
-`.client`, `.cli`, `.query`, `.utils`, `.wire`, `.analytics`, `.algo_analytics`, `.core`, plus
-top-level `risk.py` / `session.py` / `event_loop.py` / `_native.py` / `display.py` /
-`report.py` / `incubation.py` / `log.py` / `log_main.py`), done pragmatically so
-`honba-examples` could drop its dependency on honba-labs today, ahead of M1-M5 actually
-wiring this surface to the new Rust crates. This is a deviation from the staged plan below,
-not a replacement for it — M1-M5 should treat the bulk-imported tree as the thing being
-replaced piece by piece (e.g. M4's `honba.indicators` / `honba.types` already exist here in
-pure-Python legacy form; M1's Bar/OrderIntent wrappers should absorb `honba.entities`/
-`honba.domain`'s pure-Python versions rather than add a third copy).
+---
 
-Known rough edges left behind, for M1+ to actually fix rather than re-discover:
-- The bulk-imported code was written against a *different* native extension (also named
-  `honba._honba`, built from the unrelated `honba-labs/honba/crates/honba-py` crate) with a
-  much larger surface (`RiskStage`, `canonical_json`, `NextOpenSimulator`, `L2Simulator`,
-  `GatewayServer`, `run_strategy`, `verify_manifest`, `nse_equity_settlement_days`,
-  `currency_minor_units`, `wire_enum_values`, `TradingState`, ...). Most of that code reaches
-  the extension lazily (`honba._native.native_attr`, or a `try/except ImportError` at call
-  time), which is what let the bulk import work with only two real patches:
-  - `honba/domain/money.py`: `_minor_units()` now falls back to a hardcoded 4-currency table
-    (INR/USD/EUR/GBP, mirroring `schema/conformance/currency_minor_units.json`) when
-    `currency_minor_units` is missing from this repo's own `_honba`. This is currently
-    load-bearing (every `Money` construction goes through it), not just a convenience.
-  - `honba/strategies/runner.py`: `_active()` (the default `TradingState`) falls back to a
-    tiny pure-Python stand-in whose `str()` is `"active"`, since `TradingState` isn't
-    exported here either.
-  - Both are marked `# TODO(tamashii-migration)`. A honba-tamashii crate should eventually
-    own `TradingState` / the currency table for real, at which point these fallbacks become
-    dead code and can be deleted.
-- Two path-calculation helpers (`honba/screener/catalog.py::default_catalog_path`,
-  `honba/ai/mcp/tools.py::schema_path`) hardcode how many `.parents[N]` steps lead back to
-  the repo root; they were off by one for this repo's `python/honba/...` layout (legacy has
-  an extra `python/src/honba/...` level) and have been corrected, also marked
-  `# TODO(tamashii-migration)`.
-- Not imported at all: the legacy native extension's two stale `.pyi` stubs
-  (`honba/_honba.pyi`, `honba/_lib/__init__.pyi`) — they describe the *other* `honba._honba`
-  and would mislead type checkers about this repo's own compiled module. Also not imported:
-  the compiled `.so` files themselves (obviously — that's the whole point of keeping this
-  repo's own `crates/honba-tamashii-py` as the one and only `honba._honba`).
-- Not audited line-by-line: `honba.ai.*` (rl/alignment/llm/mcp/autoresearch/journal_data/
-  verification) beyond confirming `import honba.ai` and the few submodules
-  `honba_examples` actually uses (`ai.ask`, `ai.decision`, `ai.knowledge`, `ai.llm.provider`)
-  work without the heavy optional deps (`torch`, `transformers`, `llama-cpp-python`, ...)
-  installed. Those stay behind the `ai` / `alignment` / `llm` / `rl` extras in
-  `pyproject.toml`; nothing at package-import time requires them.
-- `honba.adapters` here is only the contract/registry/testing/secrets infrastructure.
-  Concrete broker adapters (dhan, ...) live in the separate `honba-adapters` repo, as the
-  module's own docstring says — unaffected by this import.
+## 0. Executive Summary & Architectural Audit
 
-The acceptance bar for the bulk import was `honba-examples`' test suite at least matching
-its pre-migration baseline (768 passed / 1 skipped / 6 failed, all 6 in
-`tests/unit/test_06_mcp_integration.py`, a pre-existing stale-assertion bug) sourced
-entirely from this repo. It now passes 773 / 1 skipped / 1 failed (same pre-existing bug,
-now only tripping one assertion instead of six) with zero runtime reference to honba-labs.
+### 0.1 Current State vs Target Architecture
 
-## M0 — Boundary proof (W1)
-☑ Scaffold crate, pyproject.toml, maturin config
-☑ Runner, Strategy, Bar, PyContext, Metrics, SMA
-☑ Passing pytest on a fresh maturin develop
-□ GitHub Actions: build wheels for 5 targets, upload to PyPI on tag
-□ py.typed + mypy --strict in CI
+`honba-tamashii` ("Soul") serves as the bridge between the Rust core engine and the Python ecosystem. A thorough architectural audit of `honba-tamashii` and its relationship to the newly restructured `honba-core`, `honba-mon`, `honba-kokoro`, and `honba-me` reveals critical misalignments, duplicate legacy trees, and toy scaffolds:
 
-## M1 — Wire to real crates (W2–4)
-□ Depend on honba-kokoro-types via path — replace Bar/OrderIntent
-with wrappers around honba_kokoro_types::{Bar, Price, Quantity, ...}
-□ Runner delegates to honba-ya-engine — the real event loop
-□ PyContext::submit calls honba-te-router (OTR-aware)
-□ algo_id passed through from config, never defaulted
+| Area | Current State in `honba-tamashii` | Target State (Master Architecture) | Severity |
+| :--- | :--- | :--- | :--- |
+| **Domain Types & Precision** | `src/lib.rs` exports a toy `Bar` with `f64` (`open`, `high`, `low`, `close`, `volume: u64`), `OrderIntent` with raw strings, and `Metrics` with `f64` cash. Python tree has ad-hoc fallback tables for currencies. | **100% unified on `honba-core`**: Native PyO3 wrappers around canonical `InstrumentId`, `Price`, `Quantity`, `Money`, `Bar`, `Tick`, `OrderRequest`, and `OrderStatus` with exact `rust_decimal::Decimal` and Python `decimal.Decimal` interoperability. Zero floats for prices/quantities. | **P0 (Critical)** |
+| **Dual Crate Dichotomy** | Two competing Rust crates: root `honba-tamashii` (a 240-line toy scaffold with mock sawtooth bars) and `crates/honba-tamashii-py` (legacy code referencing deprecated `honba-messages`, `honba-entities`, and `honba-ports`). | **Single Authoritative Extension Crate**: Consolidate into `crates/honba-tamashii-py` (compiled as `honba._honba` with ABI3 Python 3.10+ wheels). Excise all legacy references to pruned Kokoro crates. Root crate acts as the clean workspace anchor. | **P0 (Critical)** |
+| **Legacy Python Bulk Import** | `python/honba/` contains 20+ legacy packages bulk-imported from `honba-labs` with lazy `_native.py` fallbacks, stale `.parents[N]` path hacks, and unverified AI submodules. | **Systematic Native Absorption & Pruning**: Progressively replace legacy pure-Python domain/entity/indicator modules with high-speed Rust-backed implementations; eliminate fallback hacks (`_minor_units` table, dummy `TradingState`). | **P1 (High)** |
+| **Event Loop & Parity** | `Runner.run()` is a synthetic 10-line loop iterating over hardcoded sawtooth numbers with no integration into the actual event loop, backtester, or live market feed. | **Research-Live Parity via `honba-ya` & `honba-kokoro`**: `Runner` delegates directly to `honba-ya`'s deterministic event simulator (backtesting) and actor runtime (live). Strategies test against the exact same OMS FSM, FIFO tax-lots, and T+1 Demat settlement. | **P0 (Critical)** |
+| **Pre-Trade Risk & SEBI Compliance** | `PyContext.submit()` pushes unverified order intents to an in-memory `Arc<Mutex<Vec>>`. No SEBI `algo_id` validation, no OTR tracking, no circuit band checks. | **Authoritative Risk Gate (`honba-mon`)**: Every order submission from Python passes synchronously through `honba-mon::RiskEngine`. Enforces SEBI Retail Algo circular compliance, OTR breaker, scrip price bands, and emergency kill-switches before orders can leave Python context. | **P0 (Critical)** |
+| **GIL Discipline & Sandboxing** | `strategy.call_method1("on_bar", ...)` runs under Python GIL synchronously without `catch_unwind`. A Python exception crashes the entire process. | **Fault-Isolated Execution**: Wrap all Python callback dispatches in `std::panic::catch_unwind` and PyO3 exception traps. On error, transition strategy to `StrategyState::Degraded`, trigger order-cancellation flow in `honba-mon`, log structured tracebacks, and release GIL (`py.allow_threads`) during Rust compute/I/O. | **P0 (Critical)** |
+| **Data Transfer Efficiency** | Historical bars and ticks are converted one-by-one into Python class instances, incurring massive heap allocations and serialization overhead. | **Zero-Copy Arrow Lakehouse Bridge**: Zero-copy data sharing between Rust Parquet lakehouse (`honba-me-feed`) and Python (Polars / PyArrow) using the Arrow PyCapsule protocol (`nanoarrow`). Instant million-bar vector ingestion. | **P1 (High)** |
+| **Technical Indicators** | `SMA` is a toy 40-line `f64` vector struct. Legacy Python has pure-Python indicator implementations. | **Vectorized Bindings to `honba-me-indicators`**: Expose the institutional Rust indicator suite (Supertrend, VWAP, CPR, ADX, RMA, PSAR, Ichimoku, RSI) directly to Python with SIMD vector acceleration and NumPy/Polars array interoperability. | **P1 (High)** |
 
-## M2 — Market data & persistence (W5–6)
-□ Runner picks feed: honba-me-loaders (backtest) or
-honba-me-<broker> (live)
-□ Runner picks execution: honba-ya-sim (backtest) or
-honba-te-<broker> (live)
-□ Optional runner.snapshot(path) for session replay
+---
 
-## M3 — Async and error discipline (W7–8)
-□ Wrap every Python callback in catch_unwind; mark strategy
-Degraded on exception, log traceback, continue
-□ Release GIL with py.allow_threads around all Rust I/O between
-callbacks
-□ Runner.shutdown() — Ctrl-C safe, calls on_stop, flushes fills
+## 1. Architectural Principles & System Integration
 
-## M4 — Python SDK surface (W9–12)
-□ honba.adapters.BrokerAdapter — Python-side broker trait for
-community adapters (escape hatch before graduating to Rust honba-te)
-□ honba.indicators — re-export SMA/EMA/RSI from honba-me-indicators
-□ honba.types — Price, Quantity, InstrumentId as PyO3 wrappers
-with proper __eq__ / __gt__ / __float__
+```text
+                                  ┌────────────────────────────────────────────────────────┐
+                                  │                  Python Ecosystem                      │
+                                  │    Jupyter / Polars / PyTorch / Strategy Scripts / AI   │
+                                  └───────────────────────────┬────────────────────────────┘
+                                                              │ Python Strategy / SDK
+                                                              ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  本場・魂 honba-tamashii Subsystem (PyO3 Native Bridge & Python SDK)                                         │
+│                                                                                                              │
+│  ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────────┐  │
+│  │   Canonical Type Wrappers    │   │   GIL-Disciplined Dispatch   │   │   Zero-Copy Arrow PyCapsule      │  │
+│  │   (honba.types)              │   │   (Runner / Strategy Loop)   │   │   (honba.data / Parquet Lake)    │  │
+│  │   Price, Qty, InstrumentId   │   │   py.allow_threads + traps   │   │   Rust Arrow 53 ⇄ Polars/PyArrow │  │
+│  └──────────────┬───────────────┘   └──────────────┬───────────────┘   └──────────────────┬───────────────┘  │
+│                 │                                  │                                      │                  │
+└─────────────────┼──────────────────────────────────┼──────────────────────────────────────┼──────────────────┘
+                  │                                  │                                      │
+                  ▼                                  ▼                                      ▼
+┌─────────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────────┐
+│   honba-core (Canonical Types)  │   │  honba-ya (Runtime / Engine) │   │  honba-me (Market Data & Feeds)  │
+│   Decimal Math, UTC Timestamps  │   │  Actor Event Loop & Backtest │   │  Indicators, Bhavcopy, Parquet   │
+└─────────────────┬───────────────┘   └──────────────┬───────────────┘   └──────────────────────────────────┘
+                  │                                  │
+                  ▼                                  ▼
+┌─────────────────────────────────┐   ┌──────────────────────────────┐
+│  honba-mon (Pre-Trade Risk)     │   │ honba-kokoro (Heart / OMS)   │
+│  SEBI Algo ID, OTR Breaker      │   │ Idempotent FSM, FIFO Lots,   │
+│  Scrip Price Bands, Kill-Switch │   │ Double-Entry Cash Ledger     │
+└─────────────────────────────────┘   └──────────────────────────────┘
+```
 
-## M5 — Distribution (W13)
-□ maturin publish dry-run against TestPyPI
-□ Compatibility table in README: honba 0.1.x ↔ honba-kokoro 0.1.x
-□ honba.abi3.so size budget: < 20 MB stripped
+### Key Tenets
+1. **Zero Compromise on Monetary Precision**: All monetary values crossing the Python boundary use exact decimal representations. Prices and quantities bridge between `rust_decimal::Decimal` and Python's `decimal.Decimal` (or optimized integer-scaled FixedPoint handles) with zero floating-point drift.
+2. **Deterministic Research-Live Parity**: A strategy written against `honba.Strategy` runs identically in backtesting and live execution. The Python runner does not maintain its own simulated matching engine; it delegates directly to `honba-ya` and `honba-kokoro`, ensuring exact execution prices, statutory charges (STT, GST, stamp duty), and T+1 Demat settlement.
+3. **GIL Discipline & Zero-Cost Concurrency**: The Python Global Interpreter Lock (GIL) is acquired exclusively during strategy callback dispatches (`on_bar`, `on_tick`, `on_order_ack`, `on_fill`). Rust-side I/O, event dispatching, risk validation, and indicator computations execute with the GIL released (`py.allow_threads`).
+4. **Resilient Exception Sandboxing**: A buggy strategy raising a Python exception or causing an unhandled panic must never crash the trading daemon. Callbacks are isolated within `std::panic::catch_unwind` and PyO3 error handlers, transitioning the strategy into a `Degraded` state and dispatching automated safety cancellations through `honba-mon`.
+5. **Zero-Copy Arrow Lakehouse Transfers**: High-volume historical market data (OHLCV bars, tick streams, book snapshots) transfers across the FFI boundary using the standard Arrow PyCapsule protocol, enabling zero-copy ingest into Polars and NumPy.
+6. **Mandatory SEBI Compliance**: Every strategy configuration requires an explicit `algo_id`. Python `ctx.submit()` calls pass synchronously through `honba-mon` before an order can enter the OMS.
+
+---
+
+## 2. Crate Topology & Dependency Rules
+
+The target workspace structure for `honba-tamashii` consolidates all native code into an authoritative PyO3 extension and pairs it with the streamlined Python SDK:
+
+```text
+honba-tamashii/
+├── Cargo.toml                     # Workspace root manifest
+├── pyproject.toml                 # Maturin build configuration (ABI3 Python 3.10+)
+├── README.md                      # Architecture and Python developer guide
+├── plan.md                        # Master implementation roadmap
+├── crates/
+│   ├── honba-tamashii-py/         # The authoritative honba._honba PyO3 extension module
+│   │   ├── Cargo.toml
+│   │   └── src/
+│   │       ├── lib.rs             # PyO3 module initialization & symbol registry
+│   │       ├── types.rs           # PyPrice, PyQuantity, PyInstrumentId, PyMoney wrappers
+│   │       ├── market.rs          # PyBar, PyTick, PyDepthLevel wrappers
+│   │       ├── order.rs           # PyOrderRequest, PyOrderAck, PyFillReport, PyOrderStatus
+│   │       ├── context.rs         # PyContext runtime interface with honba-mon risk check
+│   │       ├── runner.rs          # PyRunner delegating to honba-ya event loop
+│   │       ├── indicators.rs      # Vectorized bindings to honba-me-indicators
+│   │       ├── arrow.rs           # Arrow PyCapsule zero-copy export/import
+│   │       └── errors.rs          # Rust-to-Python exception translation hierarchy
+│   └── honba-tamashii-codegen/    # Schema & Python stub generator (.pyi)
+└── python/
+    └── honba/                     # Idiomatic Python SDK
+        ├── __init__.py            # Clean public API re-exports
+        ├── py.typed               # PEP 561 typing marker
+        ├── _honba.pyi             # Autogenerated native type stubs
+        ├── types/                 # Pythonic type wrappers & Decimal aliases
+        ├── strategy/              # Strategy base class & lifecycle handlers
+        ├── runner/                # High-level backtest & live runner wrappers
+        ├── indicators/            # Vectorized indicator bindings (Rust-accelerated)
+        ├── data/                  # Lakehouse, Bhavcopy & Parquet dataset accessors
+        ├── ai/                    # honba-nou AI/LLM client & decision integration
+        └── research/              # Jupyter notebook analytics, tearsheet generators
+```
+
+### Layering & Dependency Hierarchy
+```text
+Python SDK: [honba (python/honba/)] ──▶ loads [honba._honba (ABI3 cdylib)]
+                                              │
+Layer 3: [honba-tamashii-py] ─────────────────┴──▶ depends on:
+             ├── [honba-core]         (Canonical types: Price, Qty, Bar, Tick, OrderRequest)
+             ├── [honba-mon]          (Synchronous pre-trade risk engine & OTR gate)
+             ├── [honba-kokoro]       (OMS FSM, FIFO portfolio, double-entry ledger)
+             ├── [honba-me-core]      (Feed traits & tick enrichers)
+             ├── [honba-me-indicators](Incremental & batch technical indicators)
+             ├── [honba-me-feed]      (Arrow 53 Parquet datasets)
+             └── [honba-ya]           (Deterministic backtester & actor event loop)
+```
+
+### Deprecation & Pruning Directive
+- ❌ **`src/lib.rs` (toy scaffold)**: Deleted; replaced by authoritative `crates/honba-tamashii-py`.
+- ❌ **Legacy references to `honba-kokoro-{messages,entities,ports,risk}`**: Excised completely from `Cargo.toml`.
+- ❌ **Stale path hacks (`.parents[N]`)**: Replaced by standard Python resource loading via `importlib.resources`.
+- ❌ **Ad-hoc fallback tables in `python/honba/domain/money.py`**: Deleted; native `_honba` provides exact currency metadata from `honba-core`.
+- ❌ **Legacy pure-Python mocks in `python/honba/strategies/runner.py`**: Replaced by native `PyRunner`.
+
+---
+
+## 3. Deep-Dive Specification & Core Modules
+
+### 3.1 `honba-tamashii-py`: Canonical Type Bindings & Decimal Arithmetic
+- **Strict Decimal Interoperability**:
+  - `PyPrice`, `PyQuantity`, and `PyMoney` wrap `honba_core::Price`, `Quantity`, and `Money`.
+  - Implement Python numeric protocols: `__repr__`, `__str__`, `__eq__`, `__lt__`, `__le__`, `__gt__`, `__ge__`, `__add__`, `__sub__`, `__mul__`, `__truediv__`.
+  - Seamless two-way conversion with Python standard library `decimal.Decimal`:
+    ```python
+    from decimal import Decimal
+    from honba import Price, Quantity
+
+    p = Price("2540.50")
+    assert str(p) == "2540.50"
+    assert p.to_decimal() == Decimal("2540.50")
+    ```
+- **Canonical Market Objects**:
+  - `PyBar`: Wraps `honba_core::Bar` (`timestamp: DateTime<Utc>`, `open`, `high`, `low`, `close` as `Price`, `volume` as `Quantity`, `vwap: Option<Price>`).
+  - `PyTick`: Wraps `honba_core::Tick` (`Ltp`, `Quote` with `PriceBand`, `DepthLevel`).
+  - `PyInstrumentId`: Canonical scrip identifier supporting exchange codes (`NSE`, `BSE`, `NFO`, `MCX`) and segments (`EQUITY`, `FUTURES`, `OPTIONS`).
+
+### 3.2 Strategy Runtime & GIL-Disciplined Event Loop
+- **Python Strategy Lifecycle Interface**:
+  ```python
+  from honba import Strategy, Bar, Tick, PyContext, OrderAck, FillReport
+
+  class MomentumAlpha(Strategy):
+      def setup(self, ctx: PyContext) -> None:
+          """Called once before market data starts."""
+          pass
+
+      def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+          """Called per bar close for subscribed instruments."""
+          pass
+
+      def on_tick(self, tick: Tick, ctx: PyContext) -> None:
+          """Called per real-time tick (for tick-level strategies)."""
+          pass
+
+      def on_order_ack(self, ack: OrderAck, ctx: PyContext) -> None:
+          """Called on exchange/broker order acknowledgement."""
+          pass
+
+      def on_fill(self, fill: FillReport, ctx: PyContext) -> None:
+          """Called on trade execution with lot & commission details."""
+          pass
+
+      def on_stop(self, ctx: PyContext) -> None:
+          """Called gracefully on market close or user halt."""
+          pass
+  ```
+- **Fault-Isolated Execution & Degraded State**:
+  - Every callback invocation into Python is wrapped in `std::panic::catch_unwind`.
+  - If a Python strategy throws an unhandled exception:
+    1. Trap exception via PyO3, capture formatted Python traceback, and log via `tracing::error!`.
+    2. Transition strategy state: `Active -> Degraded`.
+    3. Trigger automated protective actions via `honba-mon`: cancel all open orders for this `algo_id` and enter reduce-only mode.
+    4. Do not crash the Rust process; continue safely servicing other strategies and maintaining feed health.
+- **GIL Release Windows**:
+  - The Rust loop releases the GIL (`py.allow_threads`) during:
+    - Arrow Parquet reading and decompression from disk.
+    - Pre-trade risk calculations in `honba-mon`.
+    - OMS state updates in `honba-kokoro`.
+    - Network I/O and WebSocket event processing in `honba-me` and `honba-te`.
+
+### 3.3 Research-Live Parity via `honba-ya` & `honba-kokoro`
+- **Synchronous Risk Enforcement in `PyContext`**:
+  - When Python calls `ctx.submit(order_request)`, `PyContext` routes the order directly through `honba_mon::RiskEngine::validate_order()` before appending to the outbound queue.
+  - If rejected (e.g. OTR breach, price band violation, missing `algo_id`), `ctx.submit()` raises a typed `RiskRefusalError` with the exact regulatory reason code, preventing invalid orders from ever reaching the broker.
+- **Simulation Parity with Real Indian Microstructure**:
+  - In backtest mode, `Runner` utilizes `honba-ya-sim`:
+    - Strict T+1 Demat settlement and cash margin release.
+    - Statutory Indian charges applied to every simulated fill: STT (0.1% on delivery), exchange turnover charges, SEBI turnover fees, GST (18%), and stamp duty (0.015%).
+    - Conservative queue priority and liquidity simulation.
+- **Unified Strategy Metrics**:
+  - `runner.run()` returns a rich `PyMetrics` object backed by `honba-kokoro-portfolio` and `honba-kokoro-ledger`:
+    - Total return, CAGR, Annualized Volatility, Sharpe Ratio, Sortino Ratio, Max Drawdown (MDD).
+    - Double-entry transaction ledger: total STT paid, total GST, broker commissions, realized PnL, unrealized MTM.
+
+### 3.4 Zero-Copy Arrow Data Lakehouse Bridge
+- **PyCapsule Protocol Integration**:
+  - Implement zero-copy export of Rust `arrow::record_batch::RecordBatch` to Python `pyarrow.Table` and `polars.DataFrame` using the Arrow PyCapsule standard (`__arrow_c_stream__`).
+  - Python researchers can pull multi-gigabyte tick and 1-minute historical datasets from the `honba-me` Parquet lakehouse in sub-millisecond memory transfer times without serialization overhead:
+    ```python
+    import honba
+    import polars as pl
+
+    # Zero-copy memory mapping directly into Polars DataFrame
+    df = honba.data.load_bars("NSE:RELIANCE", start="2026-01-01", timeframe="1m")
+    assert isinstance(df, pl.DataFrame)
+    ```
+
+### 3.5 Vectorized Indicators & Signal Bindings (`honba-me-indicators`)
+- **Dual-Mode Indicator API**:
+  - **Streaming Mode**: Stateful indicator classes (`SMA`, `EMA`, `RSI`, `Supertrend`, `VWAP`, `CPR`) for real-time bar-by-bar updates inside `on_bar()`.
+  - **Vectorized Batch Mode**: NumPy/Polars array-accelerated functions executing directly in Rust SIMD:
+    ```python
+    from honba import indicators
+
+    # Vectorized compute over Polars series / NumPy arrays
+    supertrend, direction = indicators.supertrend(high, low, close, period=10, multiplier=3.0)
+    cpr = indicators.cpr(high, low, close)
+    ```
+
+### 3.6 Legacy Python Tree Migration & Systematic Pruning
+- **Audit & Phase-Out Plan for `python/honba/`**:
+  - **Phase A**: Replace legacy `honba.domain.money` and `honba.domain.types` with native `honba._honba` types. Remove hardcoded 4-currency table.
+  - **Phase B**: Replace legacy `honba.screener` and `honba.indicators` with `honba-me-indicators` bindings.
+  - **Phase C**: Consolidate `honba.strategies` to inherit from canonical `honba.Strategy`.
+  - **Phase D**: Replace legacy `honba.backtest` with native `honba._honba.Runner` powered by `honba-ya`.
+  - **Phase E**: Audit and prune `honba.ai` — retain only the active components that integrate with `honba-nou` and `honba-examples`.
+
+---
+
+## 4. Phase-by-Phase Implementation Roadmap
+
+### Phase 1: Canonical Type Bindings & Scaffolding Cleanup (M0) — Week 1–2
+- [ ] Consolidate the extension crate into `crates/honba-tamashii-py` and update root `Cargo.toml`.
+- [ ] Remove deleted legacy crates (`honba-kokoro-messages`, `entities`, `ports`, `risk`) from workspace dependencies.
+- [ ] Implement PyO3 wrappers for `honba-core`: `PyPrice`, `PyQuantity`, `PyMoney`, `PyInstrumentId`, `PyPriceBand`.
+- [ ] Implement full Python numeric protocol (`__add__`, `__sub__`, `__mul__`, `__eq__`, `__lt__`, etc.) and `to_decimal()`.
+- [ ] Implement `PyBar`, `PyTick`, and `PyDepthLevel` wrappers wrapping canonical `honba_core` types.
+- [ ] Replace hardcoded currency fallback in `python/honba/domain/money.py` with native `_honba.currency_minor_units()`.
+- [ ] Generate strict `.pyi` type stubs via `honba-tamashii-codegen` and pass `mypy --strict`.
+
+### Phase 2: Python-First Strategy API & GIL-Disciplined Runner (M1) — Week 3–4
+- [ ] **2.1 Python-First Strategy SDK (like Nautilus & Jesse)**
+  - [ ] Implement ergonomic `Strategy` base class with lifecycle hooks: `on_start`, `on_stop`, `on_tick`, `on_bar`, `on_order_event`, `on_position_event`.
+  - [ ] Implement declarative `Parameter(default, min, max, step)` descriptor for Genetic and Bayesian optimizer chromosome extraction.
+  - [ ] Implement high-level execution helpers: `self.buy()`, `self.sell()`, `self.close_position()`, `self.cancel_all()`, and bracket/OCO orders.
+  - [ ] Provide property accessors: `self.portfolio`, `self.positions`, `self.cash`, `self.indicators`.
+- [ ] **2.2 Synchronous Pre-Trade Risk Interception (`honba-mon`)**
+  - [ ] Implement `PyContext` with synchronous validation against `honba_mon::RiskEngine`.
+  - [ ] Enforce mandatory SEBI `algo_id` validation on all order submissions from Python.
+  - [ ] Reject ungrounded limit prices outside the scrip operational circuit band.
+- [ ] **2.3 GIL Discipline & Fault Isolation**
+  - [ ] Wrap strategy callback dispatches in `std::panic::catch_unwind` and PyO3 error handlers.
+  - [ ] Implement `StrategyState::Degraded` handling with automated protective order cancellations on exception.
+  - [ ] Ensure all Rust-side calculations release the GIL via `py.allow_threads`, acquiring GIL only for Python callback invocation.
+  - [ ] Implement unit tests validating that Python strategy crashes do not panic the Rust host.
+
+### Phase 3: Research-Live Parity Backtest Runner & Optimizer Bridge (M2) — Week 5–6
+- [ ] **3.1 Institutional Backtester Integration**
+  - [ ] Integrate Python `Runner` directly with `honba-ya-backtest` and `honba-kokoro-oms`.
+  - [ ] Wire simulated execution to `honba-kokoro-portfolio` (FIFO tax-lots) and `honba-kokoro-ledger` (double-entry charges).
+  - [ ] Model accurate Indian statutory fees: STT, GST, SEBI charges, Stamp Duty, and exchange turnover fees.
+  - [ ] Return structured `PyMetrics` containing Sharpe, Sortino, Calmar, Max Drawdown, DSR, PBO, and tax breakdown.
+- [ ] **3.2 Python Optimization Interface (like Jesse)**
+  - [ ] Expose `honba.optimize(strategy_cls, config)` triggering GA, Bayesian TPE, or Walk-Forward Analysis in `honba-ya`.
+  - [ ] Export Pareto-optimal frontier and parameter sensitivity heatmaps to Pandas/Polars DataFrames.
+- [ ] **3.3 Interactive Notebook & Visualization Support**
+  - [ ] Implement `report.plot()` for Jupyter notebooks rendering equity curves, drawdowns, and trade distributions.
+  - [ ] Validate research-live parity against synthetic and historical benchmark datasets.
+
+### Phase 4: Zero-Copy Arrow Lakehouse & Data Accessors (M3) — Week 7–8
+- [ ] Implement Arrow PyCapsule protocol (`__arrow_c_stream__`) in `crates/honba-tamashii-py/src/arrow.rs`.
+- [ ] Connect `honba.data` directly to `honba-me-feed` Parquet lakehouse datasets.
+- [ ] Provide seamless export to Polars (`pl.DataFrame`) and PyArrow (`pa.Table`) with zero memory copies.
+- [ ] Implement historical NSE Bhavcopy reader bridging `honba-me-loaders` into Python.
+
+### Phase 5: High-Performance Technical Indicators & Screener (M4) — Week 9–10
+- [ ] Expose `honba-me-indicators` to Python: Supertrend, VWAP, CPR, ADX, RMA, PSAR, SMA, EMA, RSI.
+- [ ] Provide dual-mode API: stateful streaming classes for `Strategy` and vectorized SIMD batch functions for Polars/NumPy.
+- [ ] Deprecate and excise legacy pure-Python indicator implementations in `python/honba/indicators/`.
+- [ ] Benchmark vectorized indicators to guarantee >10x speedup over pure Python equivalents.
+
+### Phase 6: Distribution, Documentation & Legacy Pruning (M5) — Week 11–12
+- [ ] Complete pruning of dead legacy modules in `python/honba/`.
+- [ ] Configure CI matrix to build and test wheels for 5 targets (Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64) using `maturin`.
+- [ ] Verify wheel binary size budget (< 20 MB stripped).
+- [ ] Validate all `honba-examples` tests against the unified `honba` package.
+- [ ] Publish comprehensive Python developer documentation, Jupyter starter notebooks, and API reference.
+
+---
+
+## 5. Verification, Conformance & Benchmarks
+
+1. **Numerical & Decimal Precision Invariant**:
+   - `proptest` suites asserting that converting `Price` and `Quantity` between Rust `Decimal` and Python `decimal.Decimal` over $10^6$ randomized inputs produces zero precision loss.
+2. **GIL Safety & Concurrency Stress Test**:
+   - Multi-threaded Python backtest benchmark running 100 concurrent strategy instances across 8 OS threads, verifying zero deadlock and linear multi-core scaling.
+3. **Fault-Tolerance & Sandboxing Test**:
+   - Suite of intentionally misbehaved Python strategies (raising `ZeroDivisionError`, `MemoryError`, recursive loops, and `SystemExit`) verifying that `Runner` isolates failures, logs clean tracebacks, sets state to `Degraded`, cancels orders in `honba-mon`, and continues running.
+4. **Arrow Zero-Copy Ingestion Benchmark**:
+   - 10,000,000 tick / 500,000 1-minute bar dataset memory transfer test into Polars in $< 50\text{ ms}$ with zero memory re-allocation.
+5. **Regulatory & OTR Compliance Suite**:
+   - Strategy test generating aggressive order cancellation loops, proving that `honba-mon` trips the OTR circuit breaker, blocks further submissions, and surfaces `RiskRefusalError` to Python.

@@ -4,7 +4,7 @@ use crate::endpoints::*;
 use crate::registry;
 use crate::schemas::SchemaSet;
 use honba_messages::ENDPOINTS;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn paths() -> Value {
     openapi_paths(&registry::full_registry())

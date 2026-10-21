@@ -17,8 +17,8 @@
 
 use std::fmt;
 use std::future::Future;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// What a started runtime looks like from outside.
 #[derive(Clone, Debug, PartialEq, Eq)]

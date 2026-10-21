@@ -3,7 +3,7 @@
 //! `ValueError` through the binding), never a panic or an allocation abort.
 //! Runs through the Rust API only; no Python interpreter.
 
-use honba::pyclasses::run::{run_strategy_json, MAX_SMA_PERIOD};
+use honba::pyclasses::run::{MAX_SMA_PERIOD, run_strategy_json};
 
 const INSTRUMENT: &str = r#"{"symbol": "RELIANCE", "exchange": "NSE"}"#;
 

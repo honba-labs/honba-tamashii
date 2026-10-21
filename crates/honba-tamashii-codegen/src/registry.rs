@@ -6,7 +6,7 @@
 //! from Python-generated to Rust-generated (docs/archive/plan.md §4.1).
 
 use schemars::JsonSchema;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::schemas::SchemaSet;
 

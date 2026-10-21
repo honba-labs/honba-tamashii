@@ -280,7 +280,7 @@ impl PythonGateway {
                     Err(e) => {
                         return Self::on_blocking(move || Python::with_gil(|py| map_err(py, &e)))
                             .await
-                            .and_then(Err)
+                            .and_then(Err);
                     }
                 }
             }

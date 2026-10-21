@@ -9,7 +9,7 @@
 
 use std::path::Path;
 
-use honba_codegen::{typescript, typings, SchemaSet};
+use honba_codegen::{SchemaSet, typescript, typings};
 use serde_json::json;
 
 fn fixture() -> SchemaSet {

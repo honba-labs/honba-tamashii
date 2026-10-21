@@ -5,11 +5,11 @@
 use std::path::PathBuf;
 
 use honba::pyclasses::next_open::{
-    india_fill_cost, BarIn, CostSpec, NativeSim, OrderIn, SimConfig, SimError,
+    BarIn, CostSpec, NativeSim, OrderIn, SimConfig, SimError, india_fill_cost,
 };
 use honba_engine::AlgoError;
 use honba_entities::{Currency, Money};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn fixture() -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -127,7 +127,9 @@ fn run(sc: &Value, via_events: bool) {
                     .iter()
                     .filter(|e| e.kind == "fill")
                     .map(|f| {
-                        json!([f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs])
+                        json!([
+                            f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs
+                        ])
                     })
                     .collect();
                 let rej: Vec<Value> = events
@@ -146,7 +148,9 @@ fn run(sc: &Value, via_events: bool) {
                     .drain_fills()
                     .iter()
                     .map(|f| {
-                        json!([f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs])
+                        json!([
+                            f.order_id, f.symbol, f.side, f.quantity, f.price, f.ts, f.costs
+                        ])
                     })
                     .collect();
                 let rej: Vec<Value> = sim

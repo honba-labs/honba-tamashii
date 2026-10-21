@@ -10,15 +10,15 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use std::collections::BTreeMap;
 
 use honba_entities::{Currency, Position, PositionSide, ScreenerFilterPredicate, Trade};
 use honba_messages::{
-    AggressorSide, Bar, BarAggregation, Event, InstrumentId, Message, Order, OrderSide,
-    OrderStatus, OrderType, PriceType, TimeInForce, UnixNanos, API_VERSION, SCHEMA_VERSION,
+    API_VERSION, AggressorSide, Bar, BarAggregation, Event, InstrumentId, Message, Order,
+    OrderSide, OrderStatus, OrderType, PriceType, SCHEMA_VERSION, TimeInForce, UnixNanos,
 };
 use honba_strategy::OrderIntent;
 

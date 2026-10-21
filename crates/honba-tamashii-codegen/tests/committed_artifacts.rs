@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-use honba_codegen::{unresolved_local_refs, Codegen};
+use honba_codegen::{Codegen, unresolved_local_refs};
 
 /// The repository root, two levels above this crate.
 fn repo() -> PathBuf {

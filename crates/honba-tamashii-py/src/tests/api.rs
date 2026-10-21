@@ -1,6 +1,6 @@
 //! `crate::pyclasses::api`: state caching and argument rejection (no interpreter).
 
-use crate::pyclasses::api::{request, ApiRequestError};
+use crate::pyclasses::api::{ApiRequestError, request};
 
 fn empty_dir(name: &str) -> String {
     let dir = std::env::temp_dir()
@@ -49,7 +49,7 @@ fn bad_arguments_are_dispatch_errors() {
 
 #[test]
 fn run_options_are_part_of_the_state_key() {
-    use crate::pyclasses::api::{request_with, RunsOptions};
+    use crate::pyclasses::api::{RunsOptions, request_with};
     let dir = empty_dir("keyed");
     let on = RunsOptions {
         journals_dir: Some(format!("{dir}/journals")),

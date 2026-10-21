@@ -2,7 +2,7 @@
 
 use std::sync::{Mutex, MutexGuard};
 
-use crate::runtime::{block_on, info, is_running, start, stop, RuntimeError};
+use crate::runtime::{RuntimeError, block_on, info, is_running, start, stop};
 
 /// The slot is process-global, so tests that start or stop it run one at a time.
 static SERIAL: Mutex<()> = Mutex::new(());

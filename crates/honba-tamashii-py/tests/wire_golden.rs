@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use honba::pyclasses::wire::{canonical, KINDS};
+use honba::pyclasses::wire::{KINDS, canonical};
 use serde_json::Value;
 
 fn golden_dir() -> PathBuf {

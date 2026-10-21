@@ -9,7 +9,7 @@
 // (same allowance as `domain.rs` and `wire.rs`).
 #![allow(clippy::useless_conversion)]
 
-use super::risk::{build_stage, json_text, parse_run_risk, RunRisk};
+use super::risk::{RunRisk, build_stage, json_text, parse_run_risk};
 use honba_engine::{AlgoError, AuditKind, ExecutionEngine, Handler};
 use honba_entities::{Currency, ExecutionEvent, Instrument, InstrumentKind, Money, Trade};
 use honba_messages::OrderSide;
@@ -24,9 +24,9 @@ use honba_strategy::{
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::de::DeserializeOwned;
+use serde_json::{Value, json};
 
 /// Strategy names accepted by [`run_strategy_json`].
 pub const STRATEGIES: [&str; 4] = [
@@ -436,7 +436,7 @@ pub fn run_strategy_risk_json(
         other => {
             return Err(format!(
                 "unknown strategy '{other}'; expected one of {STRATEGIES:?}"
-            ))
+            ));
         }
     };
     serde_json::to_string(&outcome).map_err(|e| e.to_string())
