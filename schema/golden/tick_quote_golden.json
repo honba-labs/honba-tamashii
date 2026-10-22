@@ -1,0 +1,22 @@
+{
+  "type": "quote",
+  "data": {
+    "instrument": {
+      "exchange": "NSE",
+      "symbol": "TCS"
+    },
+    "bid": "2480.50",
+    "ask": "2481.00",
+    "bid_qty": "500",
+    "ask_qty": "300",
+    "last_price": "2480.75",
+    "exchange_ts": "2026-01-15T14:30:00Z",
+    "receive_ts": "2026-01-15T14:30:01Z",
+    "band": {
+      "lower": "2400.00",
+      "upper": "2500.00",
+      "reference_price": "2450.00",
+      "band_pct": "0.05"
+    }
+  }
+}

@@ -1,13 +1,35 @@
-#![allow(clippy::useless_conversion)]
+//! 本場・魂 honba-tamashii — the PyO3 bridge between Rust and Python.
+//!
+//! This crate is the only one in the Honba ecosystem that may depend on
+//! PyO3. Everything below it is pure Rust:
+//!
+//! - `honba-core` — the canonical value objects (price, quantity, money,
+//!   instrument) and the wire contracts.
+//! - `honba-mon` — the pre-trade risk gate: SEBI algo ids, the
+//!   order-to-trade ratio breaker, price bands, freeze limits.
+//! - `honba-me-market` — the Indian market profile (calendar, F&O grammar).
+//!
+//! Everything above it is Python: `honba`, the SDK.
+//!
+//! Money never crosses as a float. Prices, quantities and amounts are exact
+//! decimals (`rust_decimal::Decimal` here, `decimal.Decimal` in Python), and
+//! the boundary refuses a Python `float` outright.
+
+// PyO3 0.22's `#[pymethods]` expansion predates the 2024 edition's
+// `unsafe_op_in_unsafe_fn` lint, and `create_exception!` mentions a cfg the
+// crate does not define. Both come from the macro, not from this code.
+#![allow(unsafe_op_in_unsafe_fn)]
+#![allow(unexpected_cfgs)]
 
 use pyo3::prelude::*;
 
+pub mod decimal;
 pub mod pyclasses;
 pub mod runtime;
 
 pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
 
-/// Root PyO3 module exposing `honba` (and `honba._honba`).
+/// The `honba._honba` module.
 #[pymodule]
 pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
@@ -19,7 +41,7 @@ pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// Convenience initialization for embedded use
+/// Convenience initialization for embedded use.
 pub fn register_embedded(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
@@ -29,9 +51,6 @@ pub fn register_embedded(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(runtime_info, m)?)?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests;
 
 /// Start the one async runtime of this interpreter: `(flavor, worker_threads, generation)`.
 ///
@@ -77,7 +96,5 @@ pub fn initialize_runtime() -> PyResult<()> {
 pub fn get_runtime_handle() -> PyResult<String> {
     runtime::info()
         .map(|i| format!("tokio-{}", i.flavor))
-        .ok_or_else(|| {
-            pyo3::exceptions::PyRuntimeError::new_err("the async runtime is not running")
-        })
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the async runtime is not running"))
 }

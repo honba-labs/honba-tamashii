@@ -2,7 +2,7 @@
 //! CLI writes, so `honba schema export` (Python) and `honba schema export`
 //! (Rust binary) cannot drift apart. Runs without a Python interpreter.
 
-use honba::pyclasses::codegen::{artifact_names, render};
+use _honba::pyclasses::codegen::{artifact_names, render};
 use honba_codegen::{Artifact, Codegen};
 
 #[test]

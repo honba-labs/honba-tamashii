@@ -1,0 +1,13 @@
+{
+  "type": "ltp",
+  "data": {
+    "instrument": {
+      "exchange": "NSE",
+      "symbol": "RELIANCE"
+    },
+    "price": "2500.00",
+    "volume": "100",
+    "exchange_ts": "2026-01-15T14:30:00Z",
+    "receive_ts": "2026-01-15T14:30:01Z"
+  }
+}

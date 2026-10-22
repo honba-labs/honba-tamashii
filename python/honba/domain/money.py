@@ -26,33 +26,16 @@ from typing import NamedTuple
 from honba._native import native_attr
 
 
-# TODO(tamashii-migration): this mirrors schema/conformance/currency_minor_units.json
-# (shared with honba-labs). It only covers the four currencies that table defines. The
-# in-workspace honba-tamashii-py extension does not (yet) export `currency_minor_units`
-# (that symbol belongs to the legacy honba-labs honba-py crate, a different Rust crate from
-# this workspace's own crates/honba-tamashii-py — see honba/__init__.py). Until a honba-tamashii
-# crate owns this table (plan.md M1+), this fallback is load-bearing, not just a source-checkout
-# convenience: every `Money` construction goes through it in this workspace today.
-_FALLBACK_MINOR_UNITS: dict[str, tuple[int, str, str]] = {
-    "INR": (2, "paisa", "paise"),
-    "USD": (2, "cent", "cents"),
-    "EUR": (2, "cent", "cents"),
-    "GBP": (2, "penny", "pence"),
-}
-
-
 @functools.lru_cache(maxsize=1)
 def _minor_units() -> dict[str, tuple[int, str, str]]:
     """Rust's ``Currency`` table: code -> (minor exponent, singular name, plural name).
 
-    Loaded on first use so that importing this module (and ``import honba``) does not
-    need the compiled extension. Falls back to :data:`_FALLBACK_MINOR_UNITS` when the
-    extension is missing the symbol (see the TODO above) or not built at all.
+    The table is owned by ``honba-core`` and reaches Python through the compiled
+    extension, so there is exactly one copy of it (plan.md, Phase 1). It is
+    read on first use, so importing this module (and ``import honba``) does not
+    need the extension; the first use without it raises ``ImportError``.
     """
-    try:
-        return dict(native_attr("currency_minor_units")())
-    except (ImportError, RuntimeError):
-        return dict(_FALLBACK_MINOR_UNITS)
+    return dict(native_attr("currency_minor_units")())
 
 
 class MinorUnit(NamedTuple):

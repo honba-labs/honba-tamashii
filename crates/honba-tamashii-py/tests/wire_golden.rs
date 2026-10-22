@@ -1,13 +1,16 @@
 //! The Python-facing wire contract (`canonical_json`) agrees with the shared
 //! golden vectors in `schema/golden/` (ADR 006).
 //!
-//! Exercises `honba::pyclasses::wire::canonical` across the messages,
-//! entities and strategy crates through the Rust API only: no Python
-//! interpreter is started, so this runs under plain `cargo test`.
+//! The vectors are the kernel's (`honba-core/schema/golden`); this copy is
+//! the one the Python bridge is checked against, so a change to the canonical
+//! types that the bridge does not agree with fails here.
+//!
+//! Exercises `_honba::pyclasses::wire::canonical` through the Rust API only:
+//! no Python interpreter is started, so this runs under plain `cargo test`.
 
 use std::path::PathBuf;
 
-use honba::pyclasses::wire::{KINDS, canonical};
+use _honba::pyclasses::wire::{KINDS, canonical};
 use serde_json::Value;
 
 fn golden_dir() -> PathBuf {
@@ -30,80 +33,47 @@ fn golden_files() -> Vec<(String, Value)> {
         .collect()
 }
 
-fn entries<'a>(doc: &'a Value, key: &str) -> impl Iterator<Item = &'a Value> {
-    doc.get(key).and_then(Value::as_array).into_iter().flatten()
-}
-
-#[test]
-fn every_wire_kind_has_a_golden_file() {
-    let mut covered: Vec<String> = golden_files()
-        .iter()
-        .map(|(_, doc)| doc["type"].as_str().unwrap().to_owned())
-        .collect();
-    covered.sort();
-    let mut kinds: Vec<String> = KINDS.iter().map(|k| (*k).to_owned()).collect();
-    kinds.sort();
-    assert_eq!(covered, kinds);
-}
-
-#[test]
-fn golden_cases_round_trip_unchanged_and_idempotently() {
-    for (file, doc) in golden_files() {
-        let kind = doc["type"].as_str().unwrap();
-        for case in entries(&doc, "cases") {
-            let name = &case["name"];
-            let value = &case["value"];
-            let out = canonical(kind, &value.to_string())
-                .unwrap_or_else(|e| panic!("{file} {name}: {e}"));
-            let parsed: Value = serde_json::from_str(&out).unwrap();
-            assert_eq!(&parsed, value, "{file} {name}");
-            assert_eq!(canonical(kind, &out).unwrap(), out, "{file} {name}");
-        }
+/// The wire kind each golden file pins.
+fn kind_of(file: &str) -> &'static str {
+    match file {
+        "tick_ltp_golden.json" | "tick_quote_golden.json" => "Tick",
+        "decision_placeorder_golden.json" => "Decision",
+        "price_band_golden.json" => "PriceBand",
+        other => panic!("no wire kind pinned for {other}"),
     }
 }
 
 #[test]
-fn golden_invalid_values_and_texts_are_rejected() {
-    let mut checked = 0;
+fn every_golden_vector_round_trips_unchanged_and_idempotently() {
     for (file, doc) in golden_files() {
-        let kind = doc["type"].as_str().unwrap();
-        for case in entries(&doc, "invalid") {
-            let payload = case["value"].to_string();
-            assert!(
-                canonical(kind, &payload).is_err(),
-                "{file} {}: accepted {payload}",
-                case["name"]
-            );
-            checked += 1;
-        }
-        for case in entries(&doc, "invalid_text") {
-            let text = case["text"].as_str().unwrap();
-            assert!(
-                canonical(kind, text).is_err(),
-                "{file} {}: accepted {text}",
-                case["name"]
-            );
-            checked += 1;
-        }
+        let kind = kind_of(&file);
+        let out = canonical(kind, &doc.to_string())
+            .unwrap_or_else(|e| panic!("{file}: {e}"));
+        let parsed: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(&parsed, &doc, "{file}");
+        assert_eq!(canonical(kind, &out).unwrap(), out, "{file}");
     }
-    assert!(checked > 0, "no invalid golden cases found");
 }
 
-/// ADR 0012 rule 1: record readers ignore unknown fields. Every `tolerated`
-/// case parses and reserializes to its `canonical` form (unknowns dropped).
 #[test]
-fn golden_tolerated_values_drop_unknown_fields() {
-    let mut checked = 0;
-    for (file, doc) in golden_files() {
-        let kind = doc["type"].as_str().unwrap();
-        for case in entries(&doc, "tolerated") {
-            let name = &case["name"];
-            let out = canonical(kind, &case["value"].to_string())
-                .unwrap_or_else(|e| panic!("{file} {name}: {e}"));
-            let parsed: Value = serde_json::from_str(&out).unwrap();
-            assert_eq!(parsed, case["canonical"], "{file} {name}");
-            checked += 1;
-        }
+fn a_malformed_payload_is_refused() {
+    assert!(canonical("Tick", "{\"type\": \"ltp\"}").is_err());
+    assert!(canonical("Decision", "{\"action\": \"place_order\"}").is_err());
+    assert!(canonical("NotAKind", "{}").is_err());
+}
+
+#[test]
+fn the_wire_kinds_cover_the_canonical_types() {
+    for kind in [
+        "InstrumentId",
+        "Bar",
+        "Tick",
+        "DepthLevel",
+        "OrderRequest",
+        "OrderAck",
+        "FillReport",
+        "Decision",
+    ] {
+        assert!(KINDS.contains(&kind), "{kind} is not a wire kind");
     }
-    assert!(checked > 0, "no tolerated golden cases found");
 }

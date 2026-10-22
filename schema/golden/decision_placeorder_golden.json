@@ -1,0 +1,9 @@
+{
+  "action": "place_order",
+  "symbol": "RELIANCE",
+  "side": "BUY",
+  "qty": "100",
+  "price_limit": "2450.50",
+  "algo_id": "momentum-alpha-v1",
+  "rationale": "breakout above 20-day high"
+}

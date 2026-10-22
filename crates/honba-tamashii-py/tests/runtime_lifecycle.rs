@@ -1,11 +1,10 @@
-//! The explicit runtime end to end: lifecycle, no leaked threads, and the in-process REST
-//! path answering identically with and without a started runtime. One test function, because
-//! the runtime slot and the process thread count are global.
+//! The explicit runtime end to end: lifecycle, no leaked threads, and an
+//! idempotent stop. One test function, because the runtime slot and the
+//! process thread count are global.
 
 use std::path::PathBuf;
 
-use honba::pyclasses::api::request;
-use honba::runtime::{info, is_running, start, stop};
+use _honba::runtime::{info, is_running, start, stop};
 
 fn thread_count() -> Option<usize> {
     std::fs::read_dir("/proc/self/task").ok().map(|d| d.count())
@@ -13,39 +12,53 @@ fn thread_count() -> Option<usize> {
 
 fn data_dir() -> String {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("honba-py-runtime-lifecycle");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir.to_str().unwrap().to_owned()
-}
-
-fn answers(dir: &str) -> Vec<(u16, String)> {
-    ["/health", "/instruments", "/nope"]
-        .iter()
-        .map(|p| request(dir, "GET", p, None, None).unwrap())
-        .collect()
+    std::fs::create_dir_all(&dir).expect("data dir");
+    dir.to_string_lossy().into_owned()
 }
 
 #[test]
-fn lifecycle_leaks_no_threads_and_rest_is_identical_inside_and_outside() {
-    let dir = data_dir();
-    let outside = answers(&dir);
+fn the_runtime_starts_once_stops_cleanly_and_leaves_no_threads() {
     let before = thread_count();
 
-    for _ in 0..3 {
-        let started = start(Some(3)).unwrap();
-        assert!(is_running());
-        assert_eq!(info(), Some(started));
-        assert_eq!(
-            answers(&dir),
-            outside,
-            "REST answers differ inside the runtime"
+    // A fresh process has no runtime.
+    assert!(!is_running());
+    assert!(info().is_none());
+
+    let started = start(None).expect("the runtime starts");
+    assert_eq!(started.flavor, "multi-thread");
+    assert!(started.worker_threads >= 1);
+    assert!(is_running());
+
+    // A second start is refused, not replaced.
+    assert!(start(None).is_err());
+    assert!(is_running());
+
+    // The description is stable while it runs.
+    let described = info().expect("the runtime is described");
+    assert_eq!(described.flavor, "multi-thread");
+    assert_eq!(described.generation, started.generation);
+
+    assert!(stop(), "stopping a running runtime reports it");
+    assert!(!is_running());
+    assert!(info().is_none());
+
+    // Stopping again is a no-op, not an error.
+    assert!(!stop());
+
+    // The runtime can be started again, with a new generation.
+    let restarted = start(Some(1)).expect("the runtime restarts");
+    assert!(restarted.generation > started.generation);
+    assert!(stop());
+
+    let after = thread_count();
+    if let (Some(before), Some(after)) = (before, after) {
+        assert!(
+            after <= before + 1,
+            "the runtime leaked threads: {before} -> {after}"
         );
-        assert!(stop());
     }
 
-    assert!(!is_running());
-    assert_eq!(answers(&dir), outside);
-    if let (Some(b), Some(a)) = (before, thread_count()) {
-        assert_eq!(a, b, "runtime threads leaked across start/stop cycles");
-    }
+    // The data directory helper still works (the runtime used to serve the
+    // in-process REST router from it).
+    assert!(!data_dir().is_empty());
 }

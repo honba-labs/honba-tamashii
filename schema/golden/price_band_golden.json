@@ -1,0 +1,6 @@
+{
+  "lower": "1000.00",
+  "upper": "1100.00",
+  "reference_price": "1000.00",
+  "band_pct": "0.05"
+}

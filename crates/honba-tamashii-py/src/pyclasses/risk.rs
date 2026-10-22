@@ -1,457 +1,608 @@
-//! The pre-trade risk stage for Python (ADR 0018 decision 10).
+//! The pre-trade risk gate: `honba-mon` exposed to Python (plan.md, Phase 1).
 //!
-//! `_honba.TradingState`, `_honba.RiskLimits`, `_honba.RiskDecision` and `_honba.RiskStage`
-//! are thin shells over `honba-risk`; the parsing and shaping live in plain functions
-//! (`parse_limits`, `parse_request`, `build_stage`, `decision_json`, `parse_run_risk`) so they
-//! are unit-testable without an interpreter. Everything crossing the boundary is JSON-shaped,
-//! so the rules and their numbers stay identical to the Rust conformance runner.
+//! Every order a Python strategy submits passes through
+//! [`honba_mon::RiskEngine`] before it can reach a broker: the SEBI algo-id
+//! registry, the order-to-trade ratio breaker, the scrip price band, the
+//! exchange freeze limits and the kill switches all live in Rust, so Python
+//! and Rust cannot disagree about what is allowed.
+//!
+//! A refusal raises [`RiskRefusalError`], which carries the stable rule code
+//! (`sebi_otr_breach`, `price_band_violation`, ...) and the refusal itself.
 
-// PyO3 0.22 `#[pyclass]`/`#[pymethods]` expansion trips this lint on `PyResult` returns.
-#![allow(clippy::useless_conversion)]
-
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
-use honba_entities::{Currency, Instrument};
-use honba_market::{InstrumentRules, MarketRegistry, PriceBand};
-use honba_messages::{InstrumentId, OrderId, OrderSide, TradingState, UnixNanos};
-use honba_risk::{
-    OrderRateLimit, ProfileRulesSource, RiskCheck, RiskDecision, RiskLimits, RiskRequest,
-    RiskStage, RulesSource,
-};
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
-use serde_json::{Map, Value, json};
 
-use super::run::parse_instrument;
+use honba_core::{Decision, Quantity};
+use honba_mon::{OtrConfig, RiskEngine, RiskLimits, RiskRefusal};
+use rust_decimal::Decimal;
 
-const REQUEST_KEYS: [&str; 12] = [
-    "order_id",
-    "instrument_id",
-    "side",
-    "quantity",
-    "price",
-    "trigger_price",
-    "reference_price",
-    "expected_price",
-    "adv",
-    "position",
-    "trading_state",
-    "ts",
-];
-const INSTRUMENT_KEYS: [&str; 8] = [
-    "instrument_id",
-    "kind",
-    "currency",
-    "lot_size",
-    "tick_size",
-    "min_order_quantity",
-    "max_order_quantity",
-    "band",
-];
+use crate::decimal::{from_py_decimal, from_py_optional_decimal, from_py_optional_timestamp, to_py_decimal};
+use crate::pyclasses::core::{PyInstrumentId, PyPriceBand};
+use crate::pyclasses::order::{PyFillReport, PyOrderRequest};
 
-fn req_err(msg: impl std::fmt::Display) -> String {
-    format!("invalid risk request: {msg}")
+/// A refusal by the risk gate.
+#[pyclass(name = "RiskRefusal", module = "honba._honba")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PyRiskRefusal {
+    pub(crate) inner: RiskRefusal,
 }
 
-/// Parses a `[risk]` table (`max_notional`, `order_rate = {max_orders, window_ms}`) with the
-/// same serde parser the Rust config uses, then validates the values.
-pub(crate) fn parse_limits(v: &Value) -> Result<RiskLimits, String> {
-    // serde reads a struct from a sequence too; a `[risk]` table never means that.
-    if v.get("order_rate")
-        .is_some_and(|r| !r.is_object() && !r.is_null())
-    {
-        return Err("invalid risk limits: order_rate must be a table".to_string());
+#[pymethods]
+impl PyRiskRefusal {
+    /// The stable rule code (`sebi_otr_breach`, `price_band_violation`, ...).
+    #[getter]
+    fn rule(&self) -> &'static str {
+        self.inner.rule()
     }
-    let limits: RiskLimits =
-        serde_json::from_value(v.clone()).map_err(|e| format!("invalid risk limits: {e}"))?;
-    limits
-        .validate()
-        .map_err(|e| format!("invalid risk limits: {e}"))?;
-    Ok(limits)
-}
 
-fn parse_instrument_id(s: &str) -> Option<InstrumentId> {
-    let (symbol, exchange) = s.rsplit_once('.')?;
-    (!symbol.is_empty() && !exchange.is_empty())
-        .then(|| InstrumentId::new(symbol, honba_messages::Exchange::new(exchange)))
-}
-
-fn parse_state(s: &str) -> Option<TradingState> {
-    serde_json::from_value(Value::String(s.to_string())).ok()
-}
-
-/// Parses a request dict (as JSON): the shape of a golden-vector request. Absent optional keys
-/// are `None`; unknown keys and a non-integer `ts` are refused.
-pub(crate) fn parse_request(v: &Value) -> Result<RiskRequest, String> {
-    let obj = v.as_object().ok_or_else(|| req_err("expected an object"))?;
-    if let Some(k) = obj.keys().find(|k| !REQUEST_KEYS.contains(&k.as_str())) {
-        return Err(req_err(format!("unknown key `{k}`")));
-    }
-    let get = |key: &str| {
-        obj.get(key)
-            .filter(|x| !x.is_null())
-            .ok_or_else(|| req_err(format!("missing `{key}`")))
-    };
-    let number = |key: &str| {
-        get(key)?
-            .as_f64()
-            .ok_or_else(|| req_err(format!("`{key}` must be a number")))
-    };
-    let optional = |key: &str| match obj.get(key) {
-        None | Some(Value::Null) => Ok(None),
-        Some(x) => x
-            .as_f64()
-            .map(Some)
-            .ok_or_else(|| req_err(format!("`{key}` must be a number"))),
-    };
-    let text = |key: &str| {
-        get(key)?
-            .as_str()
-            .ok_or_else(|| req_err(format!("`{key}` must be a string")))
-    };
-    let side = match text("side")? {
-        "buy" => OrderSide::Buy,
-        "sell" => OrderSide::Sell,
-        other => {
-            return Err(req_err(format!(
-                "`side` must be buy or sell, got `{other}`"
-            )));
-        }
-    };
-    let instrument_id = parse_instrument_id(text("instrument_id")?)
-        .ok_or_else(|| req_err("`instrument_id` must look like SYMBOL.EXCHANGE"))?;
-    let state_text = text("trading_state")?;
-    let trading_state = parse_state(state_text).ok_or_else(|| {
-        req_err(format!(
-            "`trading_state` must be active, reducing or halted, got `{state_text}`"
-        ))
-    })?;
-    let ts = get("ts")?
-        .as_u64()
-        .ok_or_else(|| req_err("`ts` must be a non-negative integer of nanoseconds"))?;
-    Ok(RiskRequest {
-        order_id: OrderId::new(text("order_id")?),
-        instrument_id,
-        side,
-        quantity: number("quantity")?,
-        price: optional("price")?,
-        trigger_price: optional("trigger_price")?,
-        reference_price: optional("reference_price")?,
-        adv: optional("adv")?,
-        position: number("position")?,
-        trading_state,
-        ts: UnixNanos::new(ts),
-        last_feed_ts: None,
-        expected_price: optional("expected_price")?,
-    })
-}
-
-/// The decision as a JSON object: `approved`, `code`, `rule`, `context`.
-pub(crate) fn decision_json(d: &RiskDecision) -> Value {
-    match d {
-        RiskDecision::Approved => {
-            json!({"approved": true, "code": null, "rule": null, "context": {}})
-        }
-        RiskDecision::Refused(r) => json!({
-            "approved": false,
-            "code": r.error_code().as_str(),
-            "rule": r.rule(),
-            "context": r.context(),
-        }),
-    }
-}
-
-/// Per-instrument rule overrides carried next to the instrument metadata (what a venue profile
-/// does not know: freeze quantity, minimum quantity, daily band).
-#[derive(Clone, Copy, Default)]
-struct Overrides {
-    min_order_quantity: Option<f64>,
-    max_order_quantity: Option<f64>,
-    band: Option<PriceBand>,
-}
-
-/// [`ProfileRulesSource`] plus [`Overrides`].
-struct OverrideRules {
-    inner: ProfileRulesSource,
-    overrides: BTreeMap<InstrumentId, Overrides>,
-}
-
-impl RulesSource for OverrideRules {
-    fn rules(&self, id: &InstrumentId) -> Option<(InstrumentRules, Option<PriceBand>)> {
-        let (mut rules, mut band) = self.inner.rules(id)?;
-        if let Some(o) = self.overrides.get(id) {
-            if let Some(min) = o.min_order_quantity {
-                rules.min_order_quantity = min;
+    /// The refusal variant (`OtrBreached`, `PriceBandViolation`, ...).
+    #[getter]
+    fn reason(&self) -> &'static str {
+        match &self.inner {
+            RiskRefusal::GlobalHalted { .. } => "GlobalHalted",
+            RiskRefusal::AlgoHalted { .. } => "AlgoHalted",
+            RiskRefusal::AlgoNotRegistered { .. } => "AlgoNotRegistered",
+            RiskRefusal::MarketCircuitHalt { .. } => "MarketCircuitHalt",
+            RiskRefusal::ScripOtrBreached { .. } => "ScripOtrBreached",
+            RiskRefusal::OtrBreached { .. } => "OtrBreached",
+            RiskRefusal::PriceBandViolation { .. } => "PriceBandViolation",
+            RiskRefusal::MaxNotionalExceeded { .. } => "MaxNotionalExceeded",
+            RiskRefusal::FreezeLimitExceeded { .. } => "FreezeLimitExceeded",
+            RiskRefusal::MaxQuantityExceeded { .. } => "MaxQuantityExceeded",
+            RiskRefusal::OrderRateExceeded { .. } => "OrderRateExceeded",
+            RiskRefusal::DailyLossExceeded { .. } => "DailyLossExceeded",
+            RiskRefusal::ReduceOnlyViolation { .. } => "ReduceOnlyViolation",
+            RiskRefusal::PositionConcentrationExceeded { .. } => {
+                "PositionConcentrationExceeded"
             }
-            if o.max_order_quantity.is_some() {
-                rules.max_order_quantity = o.max_order_quantity;
+            RiskRefusal::MisLeverageExceeded { .. } => "MisLeverageExceeded",
+            RiskRefusal::InvalidOrder { .. } => "InvalidOrder",
+        }
+    }
+
+    /// The refusal's details, keyed by field name.
+    fn details<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyDict>> {
+        let details = PyDict::new_bound(py);
+        match &self.inner {
+            RiskRefusal::GlobalHalted { reason } => {
+                details.set_item("reason", reason)?;
             }
-            if o.band.is_some() {
-                band = o.band;
+            RiskRefusal::AlgoHalted { algo_id, reason } => {
+                details.set_item("algo_id", algo_id)?;
+                details.set_item("reason", reason)?;
+            }
+            RiskRefusal::AlgoNotRegistered { algo_id, reason } => {
+                details.set_item("algo_id", algo_id)?;
+                details.set_item("reason", reason)?;
+            }
+            RiskRefusal::MarketCircuitHalt {
+                index_symbol,
+                stage_pct,
+                resume_at,
+            } => {
+                details.set_item("index_symbol", index_symbol)?;
+                details.set_item("stage_pct", stage_pct)?;
+                details.set_item(
+                    "resume_at",
+                    resume_at.map(|ts| ts.to_rfc3339()).unwrap_or_default(),
+                )?;
+            }
+            RiskRefusal::ScripOtrBreached {
+                instrument,
+                current_otr,
+                max_otr,
+            } => {
+                details.set_item("instrument", instrument.to_string())?;
+                details.set_item("current_otr", current_otr.to_string())?;
+                details.set_item("max_otr", max_otr.to_string())?;
+            }
+            RiskRefusal::OtrBreached {
+                algo_id,
+                current_otr,
+                max_otr,
+            } => {
+                details.set_item("algo_id", algo_id)?;
+                details.set_item("current_otr", current_otr.to_string())?;
+                details.set_item("max_otr", max_otr.to_string())?;
+            }
+            RiskRefusal::PriceBandViolation { price, band } => {
+                details.set_item("price", price.0.to_string())?;
+                details.set_item("lower", band.lower.0.to_string())?;
+                details.set_item("upper", band.upper.0.to_string())?;
+                details.set_item("reference_price", band.reference_price.0.to_string())?;
+            }
+            RiskRefusal::MaxNotionalExceeded { requested, limit } => {
+                details.set_item("requested", requested.to_string())?;
+                details.set_item("limit", limit.to_string())?;
+            }
+            RiskRefusal::FreezeLimitExceeded {
+                instrument,
+                requested,
+                limit,
+            } => {
+                details.set_item("instrument", instrument.to_string())?;
+                details.set_item("requested", requested.0.to_string())?;
+                details.set_item("limit", limit.0.to_string())?;
+            }
+            RiskRefusal::MaxQuantityExceeded { requested, limit } => {
+                details.set_item("requested", requested.0.to_string())?;
+                details.set_item("limit", limit.0.to_string())?;
+            }
+            RiskRefusal::OrderRateExceeded {
+                count,
+                limit,
+                window_ms,
+            } => {
+                details.set_item("count", count)?;
+                details.set_item("limit", limit)?;
+                details.set_item("window_ms", window_ms)?;
+            }
+            RiskRefusal::DailyLossExceeded { current_loss, limit } => {
+                details.set_item("current_loss", current_loss.to_string())?;
+                details.set_item("limit", limit.to_string())?;
+            }
+            RiskRefusal::ReduceOnlyViolation { details: text } => {
+                details.set_item("details", text)?;
+            }
+            RiskRefusal::PositionConcentrationExceeded {
+                instrument,
+                position_value,
+                total_equity,
+                max_pct,
+            } => {
+                details.set_item("instrument", instrument.to_string())?;
+                details.set_item("position_value", position_value.to_string())?;
+                details.set_item("total_equity", total_equity.to_string())?;
+                details.set_item("max_pct", max_pct.to_string())?;
+            }
+            RiskRefusal::MisLeverageExceeded {
+                gross_exposure,
+                total_equity,
+                max_leverage,
+            } => {
+                details.set_item("gross_exposure", gross_exposure.to_string())?;
+                details.set_item("total_equity", total_equity.to_string())?;
+                details.set_item("max_leverage", max_leverage.to_string())?;
+            }
+            RiskRefusal::InvalidOrder { error } => {
+                details.set_item("error", error)?;
             }
         }
-        Some((rules, band))
+        Ok(details)
+    }
+
+    /// The refusal as its canonical JSON text.
+    fn to_json(&self) -> String {
+        serde_json::to_string(&self.inner).unwrap_or_default()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RiskRefusal('{}')", self.inner.rule())
+    }
+
+    fn __str__(&self) -> String {
+        self.inner.to_string()
     }
 }
 
-fn parse_overrides(v: &Value) -> Result<Overrides, String> {
-    let obj = v
-        .as_object()
-        .ok_or_else(|| "invalid instrument: expected an object".to_string())?;
-    if let Some(k) = obj.keys().find(|k| !INSTRUMENT_KEYS.contains(&k.as_str())) {
-        return Err(format!("invalid instrument: unknown key `{k}`"));
+// Raised when the risk gate refuses an order.
+//
+// The exception carries the stable rule code and the refusal as JSON, so a
+// Python caller can branch on the rule without parsing a message.
+pyo3::create_exception!(honba._honba, RiskRefusalError, PyException);
+
+/// The limits a run trades under.
+#[pyclass(name = "RiskLimits", module = "honba._honba")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PyRiskLimits {
+    pub(crate) inner: RiskLimits,
+}
+
+#[pymethods]
+impl PyRiskLimits {
+    /// Builds limits from the keyword arguments.
+    #[new]
+    #[pyo3(signature = (max_notional_per_order=None, max_quantity_per_order=None, max_daily_loss=None, order_rate_limit=None, price_collar_bps=None))]
+    pub fn new(
+        max_notional_per_order: Option<&Bound<'_, PyAny>>,
+        max_quantity_per_order: Option<&Bound<'_, PyAny>>,
+        max_daily_loss: Option<&Bound<'_, PyAny>>,
+        order_rate_limit: Option<(u32, u64)>,
+        price_collar_bps: Option<u32>,
+    ) -> PyResult<Self> {
+        let mut inner = RiskLimits::default();
+        inner.max_notional_per_order = from_py_optional_decimal(max_notional_per_order)?;
+        inner.max_quantity_per_order = from_py_optional_decimal(max_quantity_per_order)?
+            .map(Quantity::new);
+        inner.max_daily_loss = from_py_optional_decimal(max_daily_loss)?;
+        inner.price_collar_bps = price_collar_bps;
+        if let Some((max_orders, window_ms)) = order_rate_limit {
+            inner.order_rate_limit = Some(honba_mon::OrderRateLimit {
+                max_orders,
+                window_ms,
+            });
+        }
+        Ok(Self { inner })
     }
-    let positive = |key: &str| -> Result<Option<f64>, String> {
-        match obj.get(key) {
-            None | Some(Value::Null) => Ok(None),
-            Some(x) => match x.as_f64() {
-                Some(n) if n.is_finite() && n > 0.0 => Ok(Some(n)),
-                _ => Err(format!(
-                    "invalid instrument: {key} must be a positive number"
-                )),
+
+    /// Parses the `[risk]` table of a run's configuration.
+    ///
+    /// Unknown keys are refused, so a typo in a config file is an error rather
+    /// than a silently ignored limit.
+    #[staticmethod]
+    pub fn from_dict(config: &Bound<'_, PyDict>) -> PyResult<Self> {
+        let mut inner = RiskLimits::default();
+        for (key, value) in config.iter() {
+            let key: String = key.extract()?;
+            match key.as_str() {
+                "max_notional" | "max_notional_per_order" => {
+                    inner.max_notional_per_order = Some(from_py_decimal(&value)?);
+                }
+                "max_quantity" | "max_quantity_per_order" => {
+                    inner.max_quantity_per_order = Some(Quantity::new(from_py_decimal(&value)?));
+                }
+                "max_daily_loss" => {
+                    inner.max_daily_loss = Some(from_py_decimal(&value)?);
+                }
+                "price_collar_bps" => {
+                    inner.price_collar_bps = Some(value.extract::<u32>()?);
+                }
+                "order_rate" => {
+                    let table = value.downcast::<PyDict>()?;
+                    let mut max_orders = None;
+                    let mut window_ms = None;
+                    for (key, value) in table.iter() {
+                        let key: String = key.extract()?;
+                        match key.as_str() {
+                            "max_orders" => max_orders = Some(value.extract::<u32>()?),
+                            "window_ms" => window_ms = Some(value.extract::<u64>()?),
+                            other => {
+                                return Err(PyValueError::new_err(format!(
+                                    "unknown risk.order_rate key {other:?}"
+                                )))
+                            }
+                        }
+                    }
+                    match (max_orders, window_ms) {
+                        (Some(max_orders), Some(window_ms)) => {
+                            inner.order_rate_limit = Some(honba_mon::OrderRateLimit {
+                                max_orders,
+                                window_ms,
+                            });
+                        }
+                        _ => {
+                            return Err(PyValueError::new_err(
+                                "risk.order_rate needs both max_orders and window_ms",
+                            ))
+                        }
+                    }
+                }
+                other => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown risk key {other:?}"
+                    )))
+                }
+            }
+        }
+        Ok(Self { inner })
+    }
+
+    /// The maximum notional per order, if any.
+    #[getter]
+    fn max_notional_per_order<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+        Ok(match self.inner.max_notional_per_order {
+            Some(value) => Some(to_py_decimal(py, value)?),
+            None => None,
+        })
+    }
+
+    /// The maximum quantity per order, if any.
+    #[getter]
+    fn max_quantity_per_order<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+        Ok(match self.inner.max_quantity_per_order {
+            Some(value) => Some(to_py_decimal(py, value.0)?),
+            None => None,
+        })
+    }
+
+    /// The maximum daily loss, if any.
+    #[getter]
+    fn max_daily_loss<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+        Ok(match self.inner.max_daily_loss {
+            Some(value) => Some(to_py_decimal(py, value)?),
+            None => None,
+        })
+    }
+
+    /// Whether any limit at all is configured.
+    fn is_empty(&self) -> bool {
+        self.inner.max_notional_per_order.is_none()
+            && self.inner.max_quantity_per_order.is_none()
+            && self.inner.max_daily_loss.is_none()
+            && self.inner.order_rate_limit.is_none()
+            && self.inner.price_collar_bps.is_none()
+            && self.inner.freeze_limits.is_empty()
+    }
+
+    /// Refuses a live run that has no limits.
+    ///
+    /// A live session without limits is an unbounded order flow, so it is an
+    /// error rather than a warning.
+    fn require_live(&self) -> PyResult<()> {
+        if self.is_empty() {
+            return Err(PyValueError::new_err(
+                "live trading requires risk limits: set at least one of max_notional, \
+                 max_quantity, max_daily_loss or order_rate",
+            ));
+        }
+        Ok(())
+    }
+
+    /// The limits as their canonical JSON text.
+    fn to_json(&self) -> String {
+        serde_json::to_string(&self.inner).unwrap_or_default()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RiskLimits({})", self.to_json())
+    }
+}
+
+/// The order-to-trade ratio breaker's configuration.
+#[pyclass(name = "OtrConfig", module = "honba._honba")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PyOtrConfig {
+    pub(crate) inner: OtrConfig,
+}
+
+#[pymethods]
+impl PyOtrConfig {
+    /// Builds an OTR configuration.
+    #[new]
+    #[pyo3(signature = (max_otr=None, min_orders_before_enforcement=20, warning_threshold=None, window_1min_ms=60_000, window_5min_ms=300_000, halt_cooldown_ms=0))]
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        max_otr: Option<&Bound<'_, PyAny>>,
+        min_orders_before_enforcement: u64,
+        warning_threshold: Option<&Bound<'_, PyAny>>,
+        window_1min_ms: u64,
+        window_5min_ms: u64,
+        halt_cooldown_ms: u64,
+    ) -> PyResult<Self> {
+        let max_otr = match max_otr {
+            Some(value) => from_py_decimal(value)?,
+            None => Decimal::from(50),
+        };
+        let warning_threshold = match warning_threshold {
+            Some(value) => from_py_decimal(value)?,
+            None => Decimal::from(40),
+        };
+        Ok(Self {
+            inner: OtrConfig {
+                max_otr,
+                min_orders_before_enforcement,
+                warning_threshold,
+                window_1min_ms,
+                window_5min_ms,
+                halt_cooldown_ms,
             },
-        }
-    };
-    let band = match obj.get("band") {
-        None | Some(Value::Null) => None,
-        Some(b) => {
-            let bad = || "invalid instrument: band must be {lower, upper} with lower <= upper";
-            let o = b.as_object().filter(|o| o.len() == 2).ok_or_else(bad)?;
-            let lower = o.get("lower").and_then(Value::as_f64).ok_or_else(bad)?;
-            let upper = o.get("upper").and_then(Value::as_f64).ok_or_else(bad)?;
-            if !(lower.is_finite() && upper.is_finite() && lower <= upper) {
-                return Err(bad().to_string());
-            }
-            Some(PriceBand::new(lower, upper))
-        }
-    };
-    Ok(Overrides {
-        min_order_quantity: positive("min_order_quantity")?,
-        max_order_quantity: positive("max_order_quantity")?,
-        band,
-    })
-}
-
-/// Builds the stage over the market profile named `market` (`"null"`, `"nse_bse"`) and the
-/// given instruments (the shape of `parse_instrument`, plus the optional rule keys
-/// `min_order_quantity`, `max_order_quantity`, `band`).
-pub(crate) fn build_stage(
-    limits: RiskLimits,
-    currency: &str,
-    market: &str,
-    instruments: &[Value],
-) -> Result<RiskStage, String> {
-    let currency: Currency = serde_json::from_value(Value::String(currency.to_string()))
-        .map_err(|e| format!("invalid currency `{currency}`: {e}"))?;
-    let registry = MarketRegistry::default_registry();
-    let profile = registry.get(market).map_err(|_| {
-        format!(
-            "unknown market `{market}`; expected one of {:?}",
-            registry.available_markets()
-        )
-    })?;
-    let mut parsed = Vec::with_capacity(instruments.len());
-    let mut overrides = BTreeMap::new();
-    for raw in instruments {
-        let instrument: Instrument = parse_instrument(raw)?;
-        overrides.insert(instrument.id().clone(), parse_overrides(raw)?);
-        parsed.push(instrument);
-    }
-    let rules = OverrideRules {
-        inner: ProfileRulesSource::new(profile, parsed),
-        overrides,
-    };
-    RiskStage::new(limits, currency, Arc::new(rules))
-        .map_err(|e| format!("invalid risk limits: {e}"))
-}
-
-/// The `risk` argument of `run_strategy*`: limits, seed positions, initial trading state and
-/// scheduled state changes in event time.
-#[derive(Debug)]
-pub(crate) struct RunRisk {
-    pub(crate) limits: RiskLimits,
-    pub(crate) market: String,
-    pub(crate) positions: Vec<(InstrumentId, f64)>,
-    pub(crate) trading_state: TradingState,
-    /// `(ts_init in ns, state)`, non-decreasing: applied before the first event at or after it.
-    pub(crate) state_changes: Vec<(u64, TradingState)>,
-}
-
-fn spec_err(msg: impl std::fmt::Display) -> String {
-    format!("invalid risk spec: {msg}")
-}
-
-fn strict_keys(obj: &Map<String, Value>, allowed: &[&str], what: &str) -> Result<(), String> {
-    match obj.keys().find(|k| !allowed.contains(&k.as_str())) {
-        Some(k) => Err(spec_err(format!("unknown key `{k}` in {what}"))),
-        None => Ok(()),
-    }
-}
-
-fn state_of(v: &Value, what: &str) -> Result<TradingState, String> {
-    v.as_str()
-        .and_then(parse_state)
-        .ok_or_else(|| spec_err(format!("{what} must be active, reducing or halted")))
-}
-
-/// Parses the `risk` JSON of `run_strategy*`.
-pub(crate) fn parse_run_risk(text: &str) -> Result<RunRisk, String> {
-    let v: Value = serde_json::from_str(text).map_err(spec_err)?;
-    let obj = v
-        .as_object()
-        .ok_or_else(|| spec_err("expected a JSON object"))?;
-    strict_keys(
-        obj,
-        &[
-            "limits",
-            "market",
-            "positions",
-            "trading_state",
-            "state_changes",
-        ],
-        "the risk spec",
-    )?;
-    let limits = match obj.get("limits") {
-        None | Some(Value::Null) => RiskLimits::default(),
-        Some(l) => parse_limits(l)?,
-    };
-    let market = match obj.get("market") {
-        None => "null".to_string(),
-        Some(m) => m
-            .as_str()
-            .ok_or_else(|| spec_err("market must be a string"))?
-            .to_string(),
-    };
-    let trading_state = match obj.get("trading_state") {
-        None => TradingState::Active,
-        Some(s) => state_of(s, "trading_state")?,
-    };
-    let mut positions = Vec::new();
-    for p in obj
-        .get("positions")
-        .map(|p| {
-            p.as_array()
-                .ok_or_else(|| spec_err("positions must be a list"))
         })
-        .transpose()?
-        .into_iter()
-        .flatten()
-    {
-        let o = p
-            .as_object()
-            .ok_or_else(|| spec_err("a position must be an object"))?;
-        strict_keys(o, &["instrument_id", "quantity"], "a position")?;
-        let id: InstrumentId =
-            serde_json::from_value(o.get("instrument_id").cloned().unwrap_or(Value::Null))
-                .map_err(|e| spec_err(format!("position instrument_id: {e}")))?;
-        let qty = o
-            .get("quantity")
-            .and_then(Value::as_f64)
-            .filter(|q| q.is_finite())
-            .ok_or_else(|| spec_err("a position needs a finite numeric quantity"))?;
-        positions.push((id, qty));
     }
-    let mut state_changes: Vec<(u64, TradingState)> = Vec::new();
-    for c in obj
-        .get("state_changes")
-        .map(|c| {
-            c.as_array()
-                .ok_or_else(|| spec_err("state_changes must be a list"))
-        })
-        .transpose()?
-        .into_iter()
-        .flatten()
-    {
-        let o = c
-            .as_object()
-            .ok_or_else(|| spec_err("a state change must be an object"))?;
-        strict_keys(o, &["ts_init", "state"], "a state change")?;
-        let ts = o
-            .get("ts_init")
-            .and_then(Value::as_u64)
-            .ok_or_else(|| spec_err("state change ts_init must be an integer of nanoseconds"))?;
-        let state = state_of(
-            o.get("state").unwrap_or(&Value::Null),
-            "a state change state",
-        )?;
-        if state_changes.last().is_some_and(|(prev, _)| *prev > ts) {
-            return Err(spec_err("state_changes must be ordered by ts_init"));
+
+    /// The maximum order-to-trade ratio.
+    #[getter]
+    fn max_otr<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+        to_py_decimal(py, self.inner.max_otr)
+    }
+
+    /// The configuration as its canonical JSON text.
+    fn to_json(&self) -> String {
+        serde_json::to_string(&self.inner).unwrap_or_default()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("OtrConfig({})", self.to_json())
+    }
+}
+
+/// The pre-trade risk gate.
+#[pyclass(name = "RiskEngine", module = "honba._honba")]
+#[derive(Clone, Debug)]
+pub struct PyRiskEngine {
+    pub(crate) inner: RiskEngine,
+}
+
+#[pymethods]
+impl PyRiskEngine {
+    /// Builds a risk engine.
+    #[new]
+    #[pyo3(signature = (limits=None, otr=None))]
+    pub fn new(limits: Option<PyRiskLimits>, otr: Option<PyOtrConfig>) -> Self {
+        Self {
+            inner: RiskEngine::new(
+                limits.map(|limits| limits.inner).unwrap_or_default(),
+                otr.map(|otr| otr.inner).unwrap_or_default(),
+            ),
         }
-        state_changes.push((ts, state));
     }
-    Ok(RunRisk {
-        limits,
-        market,
-        positions,
-        trading_state,
-        state_changes,
-    })
-}
 
-// ---------------------------------------------------------------------------------------
-// Python classes
-// ---------------------------------------------------------------------------------------
-
-fn value_err(msg: String) -> PyErr {
-    PyValueError::new_err(msg)
-}
-
-/// JSON text of any Python object; objects with `to_dict()` (`RiskLimits`) and enum members
-/// (`TradingState`, via `str()`) are accepted anywhere inside it.
-pub(crate) fn json_text(obj: &Bound<'_, PyAny>) -> PyResult<String> {
-    if let Ok(s) = obj.extract::<String>() {
-        return Ok(s);
+    /// Registers a SEBI algo id.
+    fn register_algo(&mut self, algo_id: &str) {
+        self.inner.register_algo(algo_id);
     }
-    let py = obj.py();
-    let default = py.eval_bound(
-        "lambda o: o.to_dict() if hasattr(o, 'to_dict') else str(o)",
-        None,
-        None,
-    )?;
-    let kwargs = PyDict::new_bound(py);
-    kwargs.set_item("default", default)?;
-    py.import_bound("json")?
-        .call_method("dumps", (obj,), Some(&kwargs))?
-        .extract()
+
+    /// Suspends a registered algo id.
+    fn suspend_algo(&mut self, algo_id: &str, reason: &str) {
+        self.inner.suspend_algo(algo_id, reason);
+    }
+
+    /// Reactivates a suspended algo id.
+    fn reactivate_algo(&mut self, algo_id: &str) {
+        self.inner.reactivate_algo(algo_id);
+    }
+
+    /// Removes an algo id from the registry.
+    fn unregister_algo(&mut self, algo_id: &str) {
+        self.inner.unregister_algo(algo_id);
+    }
+
+    /// Whether an algo id is registered.
+    fn is_algo_registered(&self, algo_id: &str) -> bool {
+        self.inner.is_algo_registered(algo_id)
+    }
+
+    /// Halt every order (the global kill switch).
+        #[pyo3(signature = (reason, now=None))]
+    fn halt_global(&mut self, reason: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+        let now = timestamp_or_now(now)?;
+        self.inner.halt_global(reason, now);
+        Ok(())
+    }
+
+    /// Lifts the global kill switch.
+    fn resume_global(&mut self) {
+        self.inner.resume_global();
+    }
+
+    /// Halt one algo id.
+        #[pyo3(signature = (algo_id, reason, now=None))]
+    fn halt_algo(&mut self, algo_id: &str, reason: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+        let now = timestamp_or_now(now)?;
+        self.inner.halt_algo(algo_id, reason, now);
+        Ok(())
+    }
+
+    /// Resume one algo id.
+    fn resume_algo(&mut self, algo_id: &str) {
+        self.inner.resume_algo(algo_id);
+    }
+
+    /// Registers the circuit band of a scrip.
+    fn set_price_band(&mut self, instrument: &PyInstrumentId, band: &PyPriceBand) {
+        self.inner
+            .set_price_band(instrument.inner.clone(), band.inner);
+    }
+
+    /// Checks an order against every rule.
+    ///
+    /// Raises `RiskRefusalError` when the order is refused.
+    #[pyo3(signature = (order, now=None))]
+    fn check_order(
+        &mut self,
+        order: &PyOrderRequest,
+        now: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let now = timestamp_or_now(now)?;
+        match self.inner.check_order(&order.inner, now) {
+            Ok(()) => Ok(()),
+            Err(refusal) => Err(refusal_error(
+                &refusal.to_string(),
+                refusal.rule(),
+                &serde_json::to_string(&refusal).unwrap_or_default(),
+            )),
+        }
+    }
+
+    /// Checks an order on the fast path (no allocation-heavy bookkeeping).
+    #[pyo3(signature = (algo_id, instrument, quantity, limit_price=None, now=None))]
+    fn check_order_fast(
+        &mut self,
+        algo_id: &str,
+        instrument: &PyInstrumentId,
+        quantity: &Bound<'_, PyAny>,
+        limit_price: Option<&Bound<'_, PyAny>>,
+        now: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let now = timestamp_or_now(now)?;
+        let quantity = Quantity::new(from_py_decimal(quantity)?);
+        let limit_price = from_py_optional_decimal(limit_price)?.map(honba_core::Price::new);
+        match self.inner.check_order_fast(
+            algo_id,
+            &instrument.inner,
+            quantity,
+            limit_price,
+            now,
+        ) {
+            Ok(()) => Ok(()),
+            Err(refusal) => Err(refusal_error(
+                &refusal.to_string(),
+                refusal.rule(),
+                &serde_json::to_string(&refusal).unwrap_or_default(),
+            )),
+        }
+    }
+
+    /// Checks an AI decision against every rule.
+        #[pyo3(signature = (decision, now=None))]
+    fn check_decision(&mut self, decision: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+        let now = timestamp_or_now(now)?;
+        let decision: Decision = serde_json::from_str(decision)
+            .map_err(|e| PyValueError::new_err(format!("invalid decision: {e}")))?;
+        match self.inner.check_decision(&decision, now) {
+            Ok(()) => Ok(()),
+            Err(refusal) => Err(refusal_error(
+                &refusal.to_string(),
+                refusal.rule(),
+                &serde_json::to_string(&refusal).unwrap_or_default(),
+            )),
+        }
+    }
+
+    /// Records a fill, so the OTR ratio falls.
+    fn record_fill(&mut self, fill: &PyFillReport) {
+        self.inner.record_fill(&fill.inner);
+    }
+
+    /// Records a cancellation, so the OTR ratio rises.
+        #[pyo3(signature = (algo_id, now=None))]
+    fn record_cancellation(&mut self, algo_id: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+        let now = timestamp_or_now(now)?;
+        self.inner.record_cancellation(algo_id, now);
+        Ok(())
+    }
+
+    /// The cumulative order-to-trade ratio of an algo id.
+    fn otr_for_algo<'py>(&self, algo_id: &str, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+        Ok(match self.inner.otr_for_algo(algo_id) {
+            Some(value) => Some(to_py_decimal(py, value)?),
+            None => None,
+        })
+    }
+
+    /// How many orders the gate has refused.
+    fn total_refusals(&self) -> u64 {
+        self.inner.total_refusals()
+    }
+
+    /// How many orders the gate refused for one rule.
+    fn refusals_for_rule(&self, rule: &str) -> u64 {
+        self.inner.refusals_for_rule(rule)
+    }
+
+    /// The engine as its canonical JSON text.
+    fn to_json(&self) -> String {
+        serde_json::to_string(&self.inner.limits).unwrap_or_default()
+    }
+
+    fn __repr__(&self) -> String {
+        "RiskEngine(...)".to_string()
+    }
 }
 
-fn to_value(obj: &Bound<'_, PyAny>, what: &str) -> PyResult<Value> {
-    let text = json_text(obj)?;
-    serde_json::from_str(&text).map_err(|e| value_err(format!("invalid {what}: {e}")))
-}
-
-fn to_py(py: Python<'_>, v: &Value) -> PyResult<PyObject> {
-    Ok(py
-        .import_bound("json")?
-        .call_method1("loads", (v.to_string(),))?
-        .unbind())
-}
-
-/// The engine's trading state; `str()` is the wire spelling.
-#[pyclass(name = "TradingState", module = "honba", eq, eq_int, frozen, hash)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// The trading state a session can be in.
+#[pyclass(name = "TradingState", module = "honba._honba", eq, eq_int)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PyTradingState {
-    /// Normal trading.
+    /// Trading normally.
     #[pyo3(name = "ACTIVE")]
     Active,
-    /// Winding down: only reduce-only orders pass.
+    /// Closing positions only.
     #[pyo3(name = "REDUCING")]
     Reducing,
-    /// Stopped: every order is refused.
+    /// Not trading at all.
     #[pyo3(name = "HALTED")]
     Halted,
-}
-
-impl From<PyTradingState> for TradingState {
-    fn from(s: PyTradingState) -> Self {
-        match s {
-            PyTradingState::Active => TradingState::Active,
-            PyTradingState::Reducing => TradingState::Reducing,
-            PyTradingState::Halted => TradingState::Halted,
-        }
-    }
 }
 
 #[pymethods]
@@ -463,209 +614,171 @@ impl PyTradingState {
             Self::Halted => "halted",
         }
     }
-
-    fn __repr__(&self) -> String {
-        format!("TradingState.{}", self.__str__().to_uppercase())
-    }
-
-    /// Whether a transition from this state to `next` is permitted.
-    fn can_transition_to(&self, next: PyTradingState) -> bool {
-        use honba_messages::TradingState;
-        let current: TradingState = (*self).into();
-        let next_rust: TradingState = next.into();
-        current.can_transition_to(next_rust)
-    }
 }
 
-/// Per-run risk limits (`max_notional` in major units, `order_rate` as `(max_orders,
-/// window_ms)`); `None` switches a rule off.
-#[pyclass(name = "RiskLimits", module = "honba", eq, frozen)]
-#[derive(Clone, Debug, PartialEq)]
-pub struct PyRiskLimits {
-    limits: RiskLimits,
-}
-
-impl PyRiskLimits {
-    pub(crate) fn inner(&self) -> &RiskLimits {
-        &self.limits
-    }
-}
-
-#[pymethods]
-impl PyRiskLimits {
-    #[new]
-    #[pyo3(signature = (max_notional=None, order_rate=None, max_participation=None, stale_after_ms=None, price_collar_bps=None))]
-    fn new(
-        max_notional: Option<f64>,
-        order_rate: Option<(u32, u64)>,
-        max_participation: Option<f64>,
-        stale_after_ms: Option<u64>,
-        price_collar_bps: Option<u32>,
-    ) -> PyResult<Self> {
-        let limits = RiskLimits {
-            max_notional,
-            order_rate: order_rate.map(|(max_orders, window_ms)| OrderRateLimit {
-                max_orders,
-                window_ms,
-            }),
-            max_participation,
-            stale_after_ms,
-            price_collar_bps,
-        };
-        limits
-            .validate()
-            .map_err(|e| value_err(format!("invalid risk limits: {e}")))?;
-        Ok(Self { limits })
-    }
-
-    /// Parses a `[risk]` table with the Rust config parser (unknown keys are refused).
-    #[staticmethod]
-    fn from_dict(d: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let v = to_value(d, "risk limits")?;
-        Ok(Self {
-            limits: parse_limits(&v).map_err(value_err)?,
-        })
-    }
-
-    /// The limits in the `[risk]` table shape.
-    fn to_dict(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let v = json!({
-            "max_notional": self.limits.max_notional,
-            "order_rate": self.limits.order_rate.map(|r| json!({
-                "max_orders": r.max_orders, "window_ms": r.window_ms
-            })),
-            "max_participation": self.limits.max_participation,
-            "stale_after_ms": self.limits.stale_after_ms,
-            "price_collar_bps": self.limits.price_collar_bps,
-        });
-        to_py(py, &v)
-    }
-
-    /// Per-order notional ceiling, or `None`.
-    #[getter]
-    fn max_notional(&self) -> Option<f64> {
-        self.limits.max_notional
-    }
-
-    /// `(max_orders, window_ms)`, or `None`.
-    #[getter]
-    fn order_rate(&self) -> Option<(u32, u64)> {
-        self.limits.order_rate.map(|r| (r.max_orders, r.window_ms))
-    }
-
-    /// Maximum order quantity as a fraction of ADV, or `None`.
-    #[getter]
-    fn max_participation(&self) -> Option<f64> {
-        self.limits.max_participation
-    }
-
-    /// Maximum quote/feed age in milliseconds before an order is refused, or `None`.
-    #[getter]
-    fn stale_after_ms(&self) -> Option<u64> {
-        self.limits.stale_after_ms
-    }
-
-    #[getter]
-    fn price_collar_bps(&self) -> Option<u32> {
-        self.limits.price_collar_bps
-    }
-
-    /// Raises `ValueError` unless both limits are set (the guard for a live run).
-    fn require_live(&self) -> PyResult<()> {
-        self.limits
-            .require_live()
-            .map_err(|e| value_err(e.to_string()))
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "RiskLimits(max_notional={:?}, order_rate={:?}, max_participation={:?})",
-            self.limits.max_notional,
-            self.order_rate(),
-            self.max_participation()
-        )
-    }
-}
-
-/// The outcome of a risk check.
-#[pyclass(name = "RiskDecision", module = "honba", frozen)]
+/// The result of one risk check.
+#[pyclass(name = "RiskDecision", module = "honba._honba")]
+#[derive(Clone, Debug)]
 pub struct PyRiskDecision {
-    value: Value,
+    /// Whether the order may go out.
+    #[pyo3(get)]
+    pub approved: bool,
+    /// The wire error code, empty when approved.
+    #[pyo3(get)]
+    pub code: String,
+    /// The rule that decided, empty when approved.
+    #[pyo3(get)]
+    pub rule: String,
+    /// The refusal details, empty when approved.
+    #[pyo3(get)]
+    pub context: String,
 }
 
 #[pymethods]
 impl PyRiskDecision {
-    /// Whether every rule passed.
-    #[getter]
-    fn approved(&self) -> bool {
-        self.value["approved"] == json!(true)
-    }
-
-    /// The wire error code of the refusal, or `None`.
-    #[getter]
-    fn code(&self) -> Option<String> {
-        self.value["code"].as_str().map(str::to_string)
-    }
-
-    /// The name of the refusing rule, or `None`.
-    #[getter]
-    fn rule(&self) -> Option<String> {
-        self.value["rule"].as_str().map(str::to_string)
-    }
-
-    /// The numbers behind the refusal (a fresh dict; empty when approved).
-    #[getter]
-    fn context(&self, py: Python<'_>) -> PyResult<PyObject> {
-        to_py(py, &self.value["context"])
-    }
-
     fn __repr__(&self) -> String {
-        match self.code() {
-            None => "RiskDecision(approved)".to_string(),
-            Some(code) => format!("RiskDecision(refused, code={code:?})"),
-        }
+        format!(
+            "RiskDecision(approved={}, rule='{}')",
+            self.approved, self.rule
+        )
     }
 }
 
-/// The pre-trade risk stage: fixed-order rules, first refusal wins. With an order-rate limit
-/// `check` is not idempotent (an approval consumes a slot).
-#[pyclass(name = "RiskStage", module = "honba")]
+/// A risk gate in front of an order flow.
+///
+/// The gate is the `honba-mon` engine behind a stable Python face: `check`
+/// answers with a [`PyRiskDecision`] instead of raising, for callers that want
+/// to branch on the outcome rather than handle an exception.
+#[pyclass(name = "RiskStage", module = "honba._honba")]
+#[derive(Clone, Debug)]
 pub struct PyRiskStage {
-    stage: RiskStage,
+    pub(crate) engine: PyRiskEngine,
 }
 
 #[pymethods]
 impl PyRiskStage {
+    /// Builds a stage over a fresh engine.
     #[new]
-    fn new(
-        limits: &PyRiskLimits,
-        currency: &str,
-        market: &str,
-        instruments: Vec<Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
-        let raw = instruments
-            .iter()
-            .map(|i| to_value(i, "instrument"))
-            .collect::<PyResult<Vec<_>>>()?;
-        let stage =
-            build_stage(limits.inner().clone(), currency, market, &raw).map_err(value_err)?;
-        Ok(Self { stage })
+    #[pyo3(signature = (limits=None, otr=None))]
+    pub fn new(limits: Option<PyRiskLimits>, otr: Option<PyOtrConfig>) -> Self {
+        Self {
+            engine: PyRiskEngine::new(limits, otr),
+        }
     }
 
-    /// Checks one order request (a dict; see the golden vectors) and returns the decision.
-    fn check(&mut self, request: &Bound<'_, PyAny>) -> PyResult<PyRiskDecision> {
-        let v = to_value(request, "risk request")?;
-        let req = parse_request(&v).map_err(value_err)?;
-        Ok(PyRiskDecision {
-            value: decision_json(&self.stage.check(&req)),
-        })
+    /// The engine behind this stage.
+    #[getter]
+    fn engine(&self) -> PyRiskEngine {
+        self.engine.clone()
+    }
+
+    /// Checks an order, answering instead of raising.
+    #[pyo3(signature = (order, now=None))]
+    fn check(
+        &mut self,
+        order: &PyOrderRequest,
+        now: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyRiskDecision> {
+        let now = timestamp_or_now(now)?;
+        match self.engine.inner.check_order(&order.inner, now) {
+            Ok(()) => Ok(PyRiskDecision {
+                approved: true,
+                code: String::new(),
+                rule: String::new(),
+                context: String::new(),
+            }),
+            Err(refusal) => Ok(PyRiskDecision {
+                approved: false,
+                code: serde_json::to_string(&refusal).unwrap_or_default(),
+                rule: refusal.rule().to_string(),
+                context: refusal.to_string(),
+            }),
+        }
+    }
+
+    /// Registers a SEBI algo id.
+    fn register_algo(&mut self, algo_id: &str) {
+        self.engine.register_algo(algo_id);
+    }
+
+    fn __repr__(&self) -> String {
+        "RiskStage(...)".to_string()
+    }
+}
+
+/// An operator command a live shell accepts.
+#[pyclass(name = "Command", module = "honba._honba")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PyCommand {
+    /// `"stop"` or `"state"`.
+    #[pyo3(get)]
+    pub kind: &'static str,
+    /// The trading state to move to, for a `state` command.
+    #[pyo3(get)]
+    pub state: Option<PyTradingState>,
+}
+
+#[pymethods]
+impl PyCommand {
+    /// The command to stop trading.
+    #[staticmethod]
+    pub fn stop() -> Self {
+        Self {
+            kind: "stop",
+            state: None,
+        }
+    }
+
+    /// The command to move to `state`.
+    #[staticmethod]
+    pub fn state(state: PyTradingState) -> Self {
+        Self {
+            kind: "state",
+            state: Some(state),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        match self.state {
+            Some(state) => format!("Command(kind='state', state={state:?})"),
+            None => "Command(kind='stop')".to_string(),
+        }
+    }
+}
+
+/// Turns a refusal into the Python exception the gate raises.
+pub fn refusal_error(message: &str, rule: &str, json: &str) -> PyErr {
+    let err = RiskRefusalError::new_err(message.to_string());
+    // The rule code and the refusal travel with the exception, so the caller
+    // does not have to parse the message.
+    Python::with_gil(|py| {
+        let instance = err.value_bound(py);
+        let _ = instance.setattr("rule", rule);
+        let _ = instance.setattr("refusal", json);
+    });
+    err
+}
+
+/// The timestamp a check runs at: the caller's, or now.
+///
+/// The domain never reads the clock itself; this is the one place where the
+/// boundary may ask for "now" explicitly.
+fn timestamp_or_now(now: Option<&Bound<'_, PyAny>>) -> PyResult<chrono::DateTime<chrono::Utc>> {
+    match from_py_optional_timestamp(now)? {
+        Some(timestamp) => Ok(timestamp),
+        None => Ok(chrono::Utc::now()),
     }
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyTradingState>()?;
+    m.add("RiskRefusalError", m.py().get_type_bound::<RiskRefusalError>())?;
+    m.add_class::<PyRiskRefusal>()?;
     m.add_class::<PyRiskLimits>()?;
+    m.add_class::<PyOtrConfig>()?;
+    m.add_class::<PyRiskEngine>()?;
+    m.add_class::<PyTradingState>()?;
     m.add_class::<PyRiskDecision>()?;
     m.add_class::<PyRiskStage>()?;
+    m.add_class::<PyCommand>()?;
     Ok(())
 }

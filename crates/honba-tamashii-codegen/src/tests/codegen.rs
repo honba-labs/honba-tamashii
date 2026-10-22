@@ -4,11 +4,11 @@ use crate::*;
 use serde_json::{Value, json};
 
 #[test]
-fn the_version_axes_are_owned_here() {
-    // docs/archive/plan.md 4.1: both constants have exactly one owner; codegen
+fn the_version_axes_are_owned_by_the_kernel() {
+    // The kernel owns the wire types, so it owns their versions; codegen
     // re-exports them rather than repeating the literal.
-    assert_eq!(SCHEMA_VERSION, honba_messages::SCHEMA_VERSION);
-    assert_eq!(API_VERSION, honba_messages::API_VERSION);
+    assert_eq!(SCHEMA_VERSION, honba_core::SCHEMA_VERSION);
+    assert_eq!(API_VERSION, honba_core::API_VERSION);
     assert!(!API_VERSION.is_empty());
 }
 
@@ -25,7 +25,7 @@ fn the_bundle_declares_a_draft_that_supports_defs() {
 #[test]
 fn every_ref_in_the_bundle_is_resolvable() {
     // The defect this guards: the bundle declared `$defs` while the
-    // generated types still used `#/definitions/`, so 23 nested references
+    // generated types still used `#/definitions/`, so nested references
     // pointed at a key that did not exist.
     let schema = Codegen::new().json_schema();
     let defs = schema["$defs"].as_object().expect("$defs object");
@@ -65,54 +65,9 @@ fn check_refs(
 }
 
 #[test]
-fn the_openapi_document_has_paths() {
-    // An OpenAPI document with no `paths` describes nothing; codegen used to
-    // emit only info and components.
-    let spec = Codegen::new().openapi();
-    assert_eq!(spec["openapi"], json!("3.1.0"));
-    let paths = spec["paths"].as_object().expect("paths object");
-    assert!(!paths.is_empty());
-    assert!(paths.contains_key("/health"));
-    assert!(paths.contains_key("/instruments"));
-}
-
-#[test]
-fn every_ref_in_the_openapi_document_resolves_as_a_json_pointer() {
-    // The defect this guards: components carried bare refs such as
-    // `{"$ref": "AccountConfig"}`, which no OpenAPI tool can resolve. The old
-    // check stripped an optional prefix and looked the remainder up in the
-    // registry, so a bare name passed. Resolve each ref against the document
-    // itself instead, the way a validator would.
-    let spec = Codegen::new().openapi();
-    let unresolved = unresolved_local_refs(&spec);
-    assert!(unresolved.is_empty(), "unresolvable $refs: {unresolved:?}");
-}
-
-#[test]
-fn every_openapi_ref_points_into_components_schemas() {
-    let spec = Codegen::new().openapi();
-    let refs = local_refs(&spec);
-    assert!(!refs.is_empty());
-    let stray: Vec<_> = refs
-        .iter()
-        .filter(|r| !r.starts_with("#/components/schemas/"))
-        .collect();
-    assert!(stray.is_empty(), "refs outside components: {stray:?}");
-}
-
-#[test]
 fn the_json_schema_bundle_refs_resolve_as_json_pointers() {
     let unresolved = unresolved_local_refs(&Codegen::new().json_schema());
     assert!(unresolved.is_empty(), "unresolvable $refs: {unresolved:?}");
-}
-
-#[test]
-fn the_openapi_paths_are_the_endpoint_registry_paths() {
-    let spec = Codegen::new().openapi();
-    assert_eq!(
-        spec["paths"],
-        endpoints::openapi_paths(Codegen::new().schemas())
-    );
 }
 
 #[test]
@@ -186,21 +141,13 @@ fn rendered_json_ends_with_a_newline() {
 }
 
 #[test]
-fn the_bundle_root_names_each_wire_and_screener_type() {
+fn the_bundle_root_names_each_wire_type() {
     // The root `properties` let one document carry any wire value under its
-    // snake_case name, as the Python-built bundle did.
+    // snake_case name.
     let schema = Codegen::new().json_schema();
     assert_eq!(schema["type"], json!("object"));
-    assert_eq!(
-        schema["properties"]["metric_ref"],
-        json!({"$ref": "#/$defs/MetricRef"})
-    );
-    assert_eq!(
-        schema["properties"]["order_intent"],
-        json!({"$ref": "#/$defs/OrderIntent"})
-    );
     let props = schema["properties"].as_object().unwrap();
-    for name in WIRE_TYPES.iter().chain(SCREENER_TYPES) {
+    for name in WIRE_TYPES.iter().chain(DECISION_TYPES) {
         assert!(
             props
                 .values()

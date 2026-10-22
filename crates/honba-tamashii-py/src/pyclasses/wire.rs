@@ -1,78 +1,100 @@
 //! The JSON wire contract exposed to Python (ADR 006).
 //!
-//! `canonical_json` parses a payload with the Rust serde types and serializes
-//! it back, so Python can check that its models agree with Rust exactly.
+//! `canonical_json` parses a payload with the canonical Rust types and
+//! serializes it back, so Python can check that its models agree with Rust
+//! exactly. The types are the ones in `honba-core`, the shared kernel.
 
-// PyO3 0.22 `#[pyfunction]` expansion trips this lint on `PyResult` returns
-// (same allowance as `domain.rs`).
-#![allow(clippy::useless_conversion)]
+use std::collections::BTreeMap;
 
+use honba_core::{
+    Bar, CancelRequest, Decision, DepthLevel, Exchange, FillReport, InstrumentId, ModifyRequest,
+    OrderAck, OrderRequest, OrderSide, OrderStatus, OrderType, Tick, TimeInForce,
+};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use std::collections::BTreeMap;
-
-use honba_entities::{Currency, Position, PositionSide, ScreenerFilterPredicate, Trade};
-use honba_messages::{
-    API_VERSION, AggressorSide, Bar, BarAggregation, Event, InstrumentId, Message, Order,
-    OrderSide, OrderStatus, OrderType, PriceType, SCHEMA_VERSION, TimeInForce, UnixNanos,
-};
-use honba_strategy::OrderIntent;
-
 /// Wire-contract type names accepted by [`canonical_json`].
-pub const KINDS: [&str; 10] = [
-    "UnixNanos",
+pub const KINDS: [&str; 13] = [
     "InstrumentId",
     "Bar",
-    "Order",
-    "OrderIntent",
-    "Trade",
-    "Position",
-    "Event",
-    "Message",
-    "ScreenerFilterPredicate",
+    "Tick",
+    "DepthLevel",
+    "PriceBand",
+    "OrderRequest",
+    "OrderAck",
+    "FillReport",
+    "CancelRequest",
+    "ModifyRequest",
+    "Decision",
+    "OrderSide",
+    "OrderType",
 ];
 
 /// Wire enum names accepted by [`canonical`] and listed by [`enum_values`].
-pub const ENUM_KINDS: [&str; 9] = [
+pub const ENUM_KINDS: [&str; 6] = [
     "OrderSide",
     "OrderType",
     "OrderStatus",
     "TimeInForce",
-    "BarAggregation",
-    "PriceType",
-    "AggressorSide",
-    "PositionSide",
+    "Exchange",
     "Currency",
 ];
 
-fn wire_strings<T: Serialize>(all: &[T]) -> Vec<String> {
-    all.iter()
-        .map(|v| match serde_json::to_value(v) {
-            Ok(serde_json::Value::String(s)) => s,
-            other => unreachable!("wire enum serialized as {other:?}"),
-        })
-        .collect()
+fn wire_strings<T: Serialize>(value: &T) -> Vec<String> {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(s)) => vec![s],
+        Ok(serde_json::Value::Array(items)) => items
+            .into_iter()
+            .filter_map(|item| item.as_str().map(str::to_owned))
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// Every variant of every wire enum, as its JSON string, keyed by enum name.
-///
-/// Generated from the enums' `ALL` constants, so a variant added in Rust
-/// shows up here (and fails the Python parity test until Python has it).
 pub fn enum_values() -> BTreeMap<&'static str, Vec<String>> {
     BTreeMap::from([
-        ("OrderSide", wire_strings(OrderSide::ALL)),
-        ("OrderType", wire_strings(OrderType::ALL)),
-        ("OrderStatus", wire_strings(OrderStatus::ALL)),
-        ("TimeInForce", wire_strings(TimeInForce::ALL)),
-        ("BarAggregation", wire_strings(BarAggregation::ALL)),
-        ("PriceType", wire_strings(PriceType::ALL)),
-        ("AggressorSide", wire_strings(AggressorSide::ALL)),
-        ("PositionSide", wire_strings(PositionSide::ALL)),
-        ("Currency", wire_strings(Currency::ALL)),
+        ("OrderSide", wire_strings(&[OrderSide::Buy, OrderSide::Sell])),
+        (
+            "OrderType",
+            wire_strings(&[
+                OrderType::Market,
+                OrderType::Limit(honba_core::Price::ZERO),
+                OrderType::StopLoss(honba_core::Price::ZERO),
+            ]),
+        ),
+        (
+            "OrderStatus",
+            wire_strings(&[
+                OrderStatus::PendingNew,
+                OrderStatus::New,
+                OrderStatus::PartiallyFilled,
+                OrderStatus::Filled,
+                OrderStatus::Cancelled,
+                OrderStatus::Rejected,
+                OrderStatus::Expired,
+            ]),
+        ),
+        (
+            "TimeInForce",
+            wire_strings(&[TimeInForce::Day, TimeInForce::Ioc, TimeInForce::Gtc]),
+        ),
+        (
+            "Exchange",
+            wire_strings(&[Exchange::Nse, Exchange::Bse, Exchange::Mcx]),
+        ),
+        (
+            "Currency",
+            wire_strings(&[
+                honba_core::Currency::Inr,
+                honba_core::Currency::Usd,
+                honba_core::Currency::Eur,
+                honba_core::Currency::Gbp,
+            ]),
+        ),
     ])
 }
 
@@ -84,25 +106,23 @@ fn reserialize<T: Serialize + DeserializeOwned>(payload: &str) -> Result<String,
 /// Parses `payload` as the Rust type named `kind` and returns its canonical JSON.
 pub fn canonical(kind: &str, payload: &str) -> Result<String, String> {
     match kind {
-        "UnixNanos" => reserialize::<UnixNanos>(payload),
         "InstrumentId" => reserialize::<InstrumentId>(payload),
         "Bar" => reserialize::<Bar>(payload),
-        "Order" => reserialize::<Order>(payload),
-        "OrderIntent" => reserialize::<OrderIntent>(payload),
-        "Trade" => reserialize::<Trade>(payload),
-        "Position" => reserialize::<Position>(payload),
-        "Event" => reserialize::<Event>(payload),
-        "Message" => reserialize::<Message>(payload),
-        "ScreenerFilterPredicate" => reserialize::<ScreenerFilterPredicate>(payload),
+        "Tick" => reserialize::<Tick>(payload),
+        "DepthLevel" => reserialize::<DepthLevel>(payload),
+        "PriceBand" => reserialize::<honba_core::PriceBand>(payload),
+        "OrderRequest" => reserialize::<OrderRequest>(payload),
+        "OrderAck" => reserialize::<OrderAck>(payload),
+        "FillReport" => reserialize::<FillReport>(payload),
+        "CancelRequest" => reserialize::<CancelRequest>(payload),
+        "ModifyRequest" => reserialize::<ModifyRequest>(payload),
+        "Decision" => reserialize::<Decision>(payload),
         "OrderSide" => reserialize::<OrderSide>(payload),
         "OrderType" => reserialize::<OrderType>(payload),
         "OrderStatus" => reserialize::<OrderStatus>(payload),
         "TimeInForce" => reserialize::<TimeInForce>(payload),
-        "BarAggregation" => reserialize::<BarAggregation>(payload),
-        "PriceType" => reserialize::<PriceType>(payload),
-        "AggressorSide" => reserialize::<AggressorSide>(payload),
-        "PositionSide" => reserialize::<PositionSide>(payload),
-        "Currency" => reserialize::<Currency>(payload),
+        "Exchange" => reserialize::<Exchange>(payload),
+        "Currency" => reserialize::<honba_core::Currency>(payload),
         other => Err(format!(
             "unknown kind '{other}'; expected one of {KINDS:?} or {ENUM_KINDS:?}"
         )),
@@ -125,34 +145,10 @@ pub fn wire_enum_values() -> BTreeMap<&'static str, Vec<String>> {
     enum_values()
 }
 
-/// The currency minor-unit table, keyed by currency code: `(exponent, singular, plural)`.
-///
-/// Generated from `Currency::ALL`, so Python reads the one Rust table (ADR 0011).
-pub fn currency_minor_units() -> BTreeMap<String, (u8, &'static str, &'static str)> {
-    Currency::ALL
-        .iter()
-        .map(|c| {
-            let unit = c.minor_unit();
-            (
-                c.code().to_owned(),
-                (c.minor_exponent(), unit.singular, unit.plural),
-            )
-        })
-        .collect()
-}
-
-/// Minor-unit table per currency code: `(exponent, singular name, plural name)`.
-#[pyfunction]
-#[pyo3(name = "currency_minor_units")]
-pub fn py_currency_minor_units() -> BTreeMap<String, (u8, &'static str, &'static str)> {
-    currency_minor_units()
-}
-
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("SCHEMA_VERSION", SCHEMA_VERSION)?;
-    m.add("API_VERSION", API_VERSION)?;
+    m.add("SCHEMA_VERSION", honba_core::SCHEMA_VERSION)?;
+    m.add("API_VERSION", honba_core::API_VERSION)?;
     m.add_function(wrap_pyfunction!(canonical_json, m)?)?;
     m.add_function(wrap_pyfunction!(wire_enum_values, m)?)?;
-    m.add_function(wrap_pyfunction!(py_currency_minor_units, m)?)?;
     Ok(())
 }
