@@ -26,6 +26,7 @@ use pyo3::prelude::*;
 pub mod decimal;
 pub mod pyclasses;
 pub mod runtime;
+pub mod arrow;
 
 pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
 

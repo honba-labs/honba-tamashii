@@ -24,11 +24,17 @@ fn host_triple() -> String {
         .expect("rustc -vV reports a host triple")
 }
 
+/// The feature set of a wheel build: the crate forced onto `extension-module`, exactly what
+/// maturin passes. `cargo metadata` refuses bare `extension-module` when the selected package
+/// is ambiguous, so the crate-qualified spelling is used.
+const WHEEL_FEATURES: &str = "honba-tamashii-py/extension-module";
+
 fn resolved_pyo3_features() -> Vec<String> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let out = Command::new(cargo)
         .args(["metadata", "--format-version", "1", "--offline"])
         .args(["--filter-platform", &host_triple()])
+        .args(["--features", WHEEL_FEATURES])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .expect("cargo metadata runs");

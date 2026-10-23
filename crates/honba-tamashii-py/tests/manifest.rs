@@ -51,11 +51,17 @@ fn an_empty_name_is_refused() {
 }
 
 #[test]
-fn an_unresolved_named_universe_is_refused() {
+fn an_unresolved_named_universe_is_refused_at_compile() {
+    // A named universe is a legal declaration: the graph layer subscribes to
+    // instruments and the loader resolves names to instruments later, so
+    // `validate` (the consistency check) still accepts it. But the IR is the
+    // run-level artifact and the compiler only ever sees the explicit form,
+    // so `compile` refuses a universe that was never resolved.
     let manifest: StrategyManifest =
         serde_json::from_str(&manifest_json(json!({"named": "nifty50"}), subscribed())).unwrap();
+    assert_eq!(validate(&manifest), Ok(()));
     assert_eq!(
-        validate(&manifest),
+        compile(manifest),
         Err(ManifestError::NamedUniverseUnresolved)
     );
 }
