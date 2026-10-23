@@ -59,6 +59,7 @@ from honba._honba import (
     TimeInForce,
     TradingState,
 )
+from honba.domain.trade import Trade
 from honba.strategy import Strategy
 
 __all__ = [
@@ -92,6 +93,7 @@ __all__ = [
     "Tick",
     "TimeInForce",
     "TradingState",
+    "Trade",
     "arrow",
     "indicators",
 ]
