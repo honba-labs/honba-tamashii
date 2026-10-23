@@ -1,4 +1,4 @@
-//! The strategy harness: `Runner`, `PyContext`, `Metrics`, `SMA`.
+//! The strategy harness: `Runner`, `PyContext`, `Metrics`, `Sma`.
 //!
 //! This replaces the toy scaffold that used to live in the crate root. The
 //! shape is the same — a strategy gets `setup`, then `on_bar` per bar, then
@@ -363,7 +363,7 @@ impl PyRunner {
 }
 
 /// A simple moving average over exact decimals.
-#[pyclass(name = "SMA", module = "honba._honba")]
+#[pyclass(name = "Sma", module = "honba._honba")]
 #[derive(Clone, Debug)]
 pub struct PySma {
     period: usize,
@@ -411,7 +411,7 @@ impl PySma {
     }
 
     fn __repr__(&self) -> String {
-        format!("SMA(period={})", self.period)
+        format!("Sma(period={})", self.period)
     }
 }
 

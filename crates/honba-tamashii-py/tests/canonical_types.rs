@@ -163,7 +163,7 @@ fn the_whole_module_imports() {
             "Runner",
             "PyContext",
             "Metrics",
-            "SMA",
+            "Sma",
         ] {
             assert!(module.hasattr(name).unwrap(), "{name} is missing");
         }

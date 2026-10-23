@@ -19,9 +19,17 @@ via ``honba-mon`` rather than crashing the host process.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Optional, TypeVar, Generic, List, Dict
+from typing import Any, Dict, Generic, List, Optional, TypeVar
 
-from honba._honba import Bar, InstrumentId, Metrics, PyContext, RiskRefusalError, SMA, Tick
+from honba._honba import (
+    Bar,
+    InstrumentId,
+    Metrics,
+    PyContext,
+    RiskRefusalError,
+    Sma,
+    Tick,
+)
 
 T = TypeVar("T")
 

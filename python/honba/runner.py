@@ -53,7 +53,7 @@ from honba._honba import (
     Metrics,
     PyContext,
     RiskRefusalError,
-    SMA,
+    Sma,
     Tick,
 )
 from honba.strategy import Strategy
@@ -409,7 +409,7 @@ class Runner:
             # Prepare the parameter grid from the config
             # If any value is a `Parameter` we extract its (min, max, step)
             # and generate a discrete grid; otherwise we treat the value as a
-            single point to sweep.
+            # single point to sweep.
             param_grid: dict[str, List[Any]] = {}
             for key, value in config.items():
                 # Check if the value is our custom Parameter descriptor

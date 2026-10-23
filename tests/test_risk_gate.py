@@ -6,7 +6,6 @@ breaker, the scrip price band, the freeze limits and the kill switches.
 """
 
 import pytest
-
 from honba import InstrumentId, OrderRequest, OrderSide, PriceBand
 from honba._honba import (
     OtrConfig,

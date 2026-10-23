@@ -100,12 +100,10 @@ pub const CLASSES: &[Class] = &[
     Class {
         name: "Money",
         doc: "An exact monetary amount in a currency.",
-        attributes: &[
-            Attribute {
-                name: "currency",
-                annotation: "str",
-            },
-        ],
+        attributes: &[Attribute {
+            name: "currency",
+            annotation: "str",
+        }],
         methods: &[
             Method {
                 name: "to_decimal",
@@ -892,7 +890,7 @@ pub const CLASSES: &[Class] = &[
         }],
     },
     Class {
-        name: "SMA",
+        name: "Sma",
         doc: "A simple moving average over exact decimals.",
         attributes: &[Attribute {
             name: "value",
@@ -974,6 +972,115 @@ pub const CLASSES: &[Class] = &[
         ],
         methods: &[],
     },
+    Class {
+        name: "ArrowStream",
+        doc: "Zero-copy Arrow PyCapsule stream.",
+        attributes: &[
+            Attribute {
+                name: "num_rows",
+                annotation: "int",
+            },
+            Attribute {
+                name: "num_batches",
+                annotation: "int",
+            },
+            Attribute {
+                name: "column_names",
+                annotation: "list[str]",
+            },
+        ],
+        methods: &[
+            Method {
+                name: "__arrow_c_schema__",
+                signature: "def __arrow_c_schema__(self) -> Any: ...",
+            },
+            Method {
+                name: "__arrow_c_stream__",
+                signature: "def __arrow_c_stream__(self, requested_schema: Any = None) -> Any: ...",
+            },
+            Method {
+                name: "to_pyarrow",
+                signature: "def to_pyarrow(self) -> Any: ...",
+            },
+            Method {
+                name: "to_polars",
+                signature: "def to_polars(self) -> Any: ...",
+            },
+        ],
+    },
+    Class {
+        name: "Lakehouse",
+        doc: "Parquet Lakehouse v2 reader and writer.",
+        attributes: &[Attribute {
+            name: "root",
+            annotation: "str",
+        }],
+        methods: &[
+            Method {
+                name: "write_bars",
+                signature: "def write_bars(self, timeframe: str, bars: list[Bar]) -> list[str]: ...",
+            },
+            Method {
+                name: "write_ticks",
+                signature: "def write_ticks(self, ticks: list[Tick]) -> list[str]: ...",
+            },
+            Method {
+                name: "read_bars",
+                signature: "def read_bars(self, instrument: InstrumentId | str, timeframe: str, start: str | datetime.datetime, end: str | datetime.datetime) -> list[Bar]: ...",
+            },
+            Method {
+                name: "read_ticks",
+                signature: "def read_ticks(self, instrument: InstrumentId | str, start: str | datetime.datetime, end: str | datetime.datetime) -> list[Tick]: ...",
+            },
+            Method {
+                name: "load_bars_arrow",
+                signature: "def load_bars_arrow(self, instrument: InstrumentId | str, timeframe: str, start: str | datetime.datetime, end: str | datetime.datetime) -> ArrowStream: ...",
+            },
+            Method {
+                name: "load_ticks_arrow",
+                signature: "def load_ticks_arrow(self, instrument: InstrumentId | str, start: str | datetime.datetime, end: str | datetime.datetime) -> ArrowStream: ...",
+            },
+        ],
+    },
+    Class {
+        name: "BhavRecord",
+        doc: "One scrip's NSE Bhavcopy record.",
+        attributes: &[
+            Attribute {
+                name: "date",
+                annotation: "str",
+            },
+            Attribute {
+                name: "series",
+                annotation: "str",
+            },
+            Attribute {
+                name: "bar",
+                annotation: "Bar",
+            },
+            Attribute {
+                name: "prev_close",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "vwap",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "trades",
+                annotation: "int | None",
+            },
+            Attribute {
+                name: "deliverable_qty",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "deliverable_pct",
+                annotation: "decimal.Decimal | None",
+            },
+        ],
+        methods: &[],
+    },
 ];
 
 /// The module-level functions.
@@ -1022,6 +1129,94 @@ pub const FUNCTIONS: &[Function] = &[
         name: "runtime_info",
         signature: "def runtime_info() -> tuple[str, int, int] | None: ...",
     },
+    Function {
+        name: "protocol_capsule",
+        signature: "def protocol_capsule() -> ArrowStream: ...",
+    },
+    Function {
+        name: "bars_to_arrow",
+        signature: "def bars_to_arrow(bars: list[Bar]) -> ArrowStream: ...",
+    },
+    Function {
+        name: "ticks_to_arrow",
+        signature: "def ticks_to_arrow(ticks: list[Tick]) -> ArrowStream: ...",
+    },
+    Function {
+        name: "export_capsule",
+        signature: "def export_capsule(bars: list[Bar]) -> Any: ...",
+    },
+    Function {
+        name: "parse_bhavcopy_csv",
+        signature: "def parse_bhavcopy_csv(csv_text: str, fallback_date: str | None = None, delivery_dat: str | None = None) -> list[BhavRecord]: ...",
+    },
+    Function {
+        name: "bhavcopy_to_bars",
+        signature: "def bhavcopy_to_bars(csv_text: str, fallback_date: str | None = None, series: str | None = 'EQ') -> list[Bar]: ...",
+    },
+    Function {
+        name: "bhavcopy_to_arrow",
+        signature: "def bhavcopy_to_arrow(csv_text: str, fallback_date: str | None = None, series: str | None = 'EQ') -> ArrowStream: ...",
+    },
+    Function {
+        name: "batch_sma",
+        signature: "def batch_sma(values: list[float], period: int) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_ema",
+        signature: "def batch_ema(values: list[float], period: int) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_rma",
+        signature: "def batch_rma(values: list[float], period: int) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_rsi",
+        signature: "def batch_rsi(values: list[float], period: int) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_bollinger",
+        signature: "def batch_bollinger(values: list[float], period: int = 20, num_std: float = 2.0) -> tuple[list[float | None], list[float | None], list[float | None]]: ...",
+    },
+    Function {
+        name: "batch_macd",
+        signature: "def batch_macd(values: list[float], fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> tuple[list[float | None], list[float | None], list[float | None]]: ...",
+    },
+    Function {
+        name: "batch_atr",
+        signature: "def batch_atr(high: list[float], low: list[float], close: list[float], period: int = 14) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_donchian",
+        signature: "def batch_donchian(high: list[float], low: list[float], period: int = 20) -> tuple[list[float | None], list[float | None], list[float | None]]: ...",
+    },
+    Function {
+        name: "batch_stochastic",
+        signature: "def batch_stochastic(high: list[float], low: list[float], close: list[float], k_period: int = 14, d_period: int = 3) -> tuple[list[float | None], list[float | None]]: ...",
+    },
+    Function {
+        name: "batch_williams_r",
+        signature: "def batch_williams_r(high: list[float], low: list[float], close: list[float], period: int = 14) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_supertrend",
+        signature: "def batch_supertrend(high: list[float], low: list[float], close: list[float], period: int = 10, multiplier: float = 3.0) -> tuple[list[float | None], list[int]]: ...",
+    },
+    Function {
+        name: "batch_vwap",
+        signature: "def batch_vwap(high: list[float], low: list[float], close: list[float], volume: list[float]) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_cpr",
+        signature: "def batch_cpr(high: list[float], low: list[float], close: list[float]) -> tuple[list[float | None], list[float | None], list[float | None], list[float | None]]: ...",
+    },
+    Function {
+        name: "batch_adx",
+        signature: "def batch_adx(high: list[float], low: list[float], close: list[float], period: int = 14) -> list[float | None]: ...",
+    },
+    Function {
+        name: "batch_obv",
+        signature: "def batch_obv(close: list[float], volume: list[float]) -> list[float | None]: ...",
+    },
 ];
 
 /// Renders the native module as a strict `.pyi` stub.
@@ -1049,7 +1244,10 @@ pub fn render_pyi() -> String {
         if !class.attributes.is_empty() {
             out.push('\n');
             for attribute in class.attributes {
-                out.push_str(&format!("    {}: {}\n", attribute.name, attribute.annotation));
+                out.push_str(&format!(
+                    "    {}: {}\n",
+                    attribute.name, attribute.annotation
+                ));
             }
         }
         if !class.methods.is_empty() {

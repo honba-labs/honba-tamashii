@@ -24,6 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 rust_decimal = { version = "1", features = ["serde-with-str"] }
 async-trait = "0.1"
 schemars = { version = "0.8", features = ["derive", "chrono", "uuid1", "rust_decimal"] }
+arrow = { version = "53", default-features = false, features = ["ffi"] }
 
 honba-tamashii-codegen = { path = "crates/honba-tamashii-codegen" }
 honba-tamashii-py      = { path = "crates/honba-tamashii-py" }
@@ -32,6 +33,9 @@ honba-codegen          = { package = "honba-tamashii-codegen", path = "crates/ho
 honba-py               = { package = "honba-tamashii-py", path = "crates/honba-tamashii-py" }
 
 # Cross-repo dependencies: the canonical foundation this bridge speaks.
-honba-core       = { path = "../honba-core" }
-honba-mon        = { path = "../honba-mon" }
-honba-me-market  = { path = "../honba-me/crates/honba-me-market" }
+honba-core          = { path = "../honba-core" }
+honba-mon           = { path = "../honba-mon" }
+honba-me-market     = { path = "../honba-me/crates/honba-me-market" }
+honba-me-feed       = { path = "../honba-me/crates/honba-me-feed" }
+honba-me-loaders    = { path = "../honba-me/crates/honba-me-loaders" }
+honba-me-indicators = { path = "../honba-me/crates/honba-me-indicators" }

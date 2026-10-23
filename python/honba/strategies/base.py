@@ -1,9 +1,15 @@
-"""The Strategy interface (ADR 008, E4-S2).
+"""The Strategy interface (ADR 008, E4-S2) and StockSharp Strategy Primitives.
 
 Mirrors the Rust ``Strategy`` trait: strategies receive typed callbacks and act
 only through their ``StrategyContext`` (``self.ctx``): read the clock, positions,
 cash and instrument metadata, and submit order intents. They never touch
 execution directly, so the same strategy runs in backtest, paper and live.
+
+Also provides specialized StockSharp-derived strategy base classes:
+- ``QuotingStrategy``: Automated quote management and pegging with tolerance bands.
+- ``ArbitrageStrategy``: Dual-leg / cash-futures spread tracking and hedged execution.
+- ``SlicingStrategy``: Institutional parent-order slicing (TWAP / iceberg child orders).
+- ``RebalancingStrategy``: Target-weight portfolio drift detection and two-phase rebalancing.
 """
 
 from __future__ import annotations
@@ -11,6 +17,7 @@ from __future__ import annotations
 import logging
 import warnings
 from abc import ABC
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from honba.entities.bar import Bar
@@ -26,8 +33,12 @@ if TYPE_CHECKING:
     from honba.strategies.manifest import ParameterSpec
 
 __all__ = [
+    "ArbitrageStrategy",
     "LEGACY_ENTRY_POINTS",
     "Parameter",
+    "QuotingStrategy",
+    "RebalancingStrategy",
+    "SlicingStrategy",
     "Strategy",
 ]
 
@@ -293,3 +304,329 @@ class Strategy(ABC):
                 f"this strategy is bound to {type(self.ctx).__name__}"
             )
         return self.ctx
+
+
+# ===========================================================================
+# StockSharp Specialized Strategy Base Classes (Phase 5.3)
+# ===========================================================================
+
+
+def _dec(v: Any) -> Decimal:
+    if isinstance(v, Decimal):
+        return v
+    return Decimal(str(v))
+
+
+class QuotingStrategy(Strategy):
+    """StockSharp-style Quoting Strategy base class.
+
+    Maintains a working limit order pegged to a target price and quantity,
+    cancelling and replacing the active quote only when price drift exceeds
+    ``price_tolerance`` or the desired quantity changes.
+    """
+
+    name: ClassVar[str] = "quoting"
+    quoting_quantity = Parameter(default=10.0, min=1.0, max=10000.0, step=1.0)
+    price_tolerance = Parameter(default=0.05, min=0.0, max=100.0, step=0.05)
+
+    def __init__(
+        self,
+        *,
+        quoting_side: str = "BUY",
+        quoting_quantity: Decimal | float | str = Decimal("10"),
+        price_tolerance: Decimal | float | str = Decimal("0.05"),
+        **kwargs: Any,
+    ) -> None:
+        self.quoting_side = quoting_side.upper()
+        self._target_qty = _dec(quoting_quantity)
+        self._filled_qty = Decimal("0")
+        self._price_tolerance = _dec(price_tolerance)
+        self._quoted_price: Decimal | None = None
+        self._quoted_qty: Decimal | None = None
+        self._active_intent: OrderIntent | None = None
+
+    @property
+    def remaining_quantity(self) -> Decimal:
+        """Remaining unfilled quote quantity."""
+        return max(Decimal("0"), self._target_qty - self._filled_qty)
+
+    @property
+    def quoted_price(self) -> Decimal | None:
+        """Currently working quote limit price, if any."""
+        return self._quoted_price
+
+    def need_requote(
+        self, target_price: Decimal | float | str, target_qty: Decimal | float | str | None = None
+    ) -> bool:
+        """Return ``True`` if the quote needs to be placed or replaced."""
+        tp = _dec(target_price)
+        tq = _dec(target_qty) if target_qty is not None else self.remaining_quantity
+        if tq <= 0:
+            return False
+        if self._quoted_price is None or self._quoted_qty is None:
+            return True
+        if self._quoted_qty != tq:
+            return True
+        return abs(tp - self._quoted_price) > self._price_tolerance
+
+    def update_quote(
+        self,
+        instrument_id: InstrumentId,
+        target_price: Decimal | float | str,
+        target_qty: Decimal | float | str | None = None,
+    ) -> OrderIntent | None:
+        """Place or replace the working quote when ``need_requote`` is ``True``."""
+        tp = _dec(target_price)
+        tq = _dec(target_qty) if target_qty is not None else self.remaining_quantity
+        if tq <= 0:
+            if self._active_intent is not None:
+                self.cancel(self._active_intent)
+                self._active_intent = None
+                self._quoted_price = None
+                self._quoted_qty = None
+            return None
+        if not self.need_requote(tp, tq):
+            return self._active_intent
+        if self._active_intent is not None:
+            self.cancel(self._active_intent)
+        if self.quoting_side == "BUY":
+            intent = OrderIntent.limit_buy(instrument_id, float(tq), float(tp))
+        else:
+            intent = OrderIntent.limit_sell(instrument_id, float(tq), float(tp))
+        self.submit(intent)
+        self._active_intent = intent
+        self._quoted_price = tp
+        self._quoted_qty = tq
+        return intent
+
+    def on_fill(self, fill: Trade) -> None:
+        self._filled_qty += _dec(fill.quantity)
+        if self.remaining_quantity <= 0:
+            self._active_intent = None
+            self._quoted_price = None
+            self._quoted_qty = None
+
+
+class ArbitrageStrategy(Strategy):
+    """StockSharp-style dual-leg Arbitrage Strategy base class.
+
+    Tracks the price spread between a primary leg and a hedge leg
+    (``spread = primary_price - hedge_ratio * hedge_price``) and dispatches
+    synchronized entry and exit orders across both legs.
+    """
+
+    name: ClassVar[str] = "arbitrage"
+    entry_spread = Parameter(default=5.0, min=0.1, max=500.0, step=0.5)
+    exit_spread = Parameter(default=0.5, min=0.0, max=100.0, step=0.1)
+
+    def __init__(
+        self,
+        *,
+        entry_spread: Decimal | float | str = Decimal("5.0"),
+        exit_spread: Decimal | float | str = Decimal("0.5"),
+        hedge_ratio: Decimal | float | str = Decimal("1.0"),
+        leg_quantity: Decimal | float | str = Decimal("1"),
+        **kwargs: Any,
+    ) -> None:
+        self._entry_spread = _dec(entry_spread)
+        self._exit_spread = _dec(exit_spread)
+        self._hedge_ratio = _dec(hedge_ratio)
+        self._leg_quantity = _dec(leg_quantity)
+        self.spread_position: int = 0  # +1 long spread, -1 short spread, 0 flat
+        self.last_spread: Decimal | None = None
+
+    def compute_spread(
+        self,
+        primary_price: Decimal | float | str,
+        hedge_price: Decimal | float | str,
+    ) -> Decimal:
+        """Compute ``primary_price - hedge_ratio * hedge_price``."""
+        sp = _dec(primary_price) - self._hedge_ratio * _dec(hedge_price)
+        self.last_spread = sp
+        return sp
+
+    def evaluate_legs(
+        self,
+        primary_instrument: InstrumentId,
+        primary_price: Decimal | float | str,
+        hedge_instrument: InstrumentId,
+        hedge_price: Decimal | float | str,
+        quantity: Decimal | float | str | None = None,
+    ) -> int:
+        """Evaluate the two legs and submit synchronized entry/exit orders when triggered.
+
+        Returns the updated ``spread_position`` (``1``, ``-1``, or ``0``).
+        """
+        spread = self.compute_spread(primary_price, hedge_price)
+        qty = float(_dec(quantity) if quantity is not None else self._leg_quantity)
+        hedge_qty = float(_dec(qty) * self._hedge_ratio)
+
+        if self.spread_position == 0:
+            if spread >= self._entry_spread:
+                # Spread is rich: sell primary, buy hedge
+                self.sell(primary_instrument, qty)
+                self.buy(hedge_instrument, hedge_qty)
+                self.spread_position = -1
+            elif spread <= -self._entry_spread:
+                # Spread is cheap: buy primary, sell hedge
+                self.buy(primary_instrument, qty)
+                self.sell(hedge_instrument, hedge_qty)
+                self.spread_position = 1
+        elif self.spread_position == -1 and spread <= self._exit_spread:
+            self.buy(primary_instrument, qty)
+            self.sell(hedge_instrument, hedge_qty)
+            self.spread_position = 0
+        elif self.spread_position == 1 and spread >= -self._exit_spread:
+            self.sell(primary_instrument, qty)
+            self.buy(hedge_instrument, hedge_qty)
+            self.spread_position = 0
+
+        return self.spread_position
+
+
+class SlicingStrategy(Strategy):
+    """StockSharp-style Order Slicing (TWAP / VWAP / Iceberg) Strategy base class.
+
+    Splits a large parent order of ``total_quantity`` into smaller child slices
+    of ``slice_size`` to minimize market impact.
+    """
+
+    name: ClassVar[str] = "slicing"
+    total_quantity = Parameter(default=100.0, min=1.0, max=1000000.0, step=10.0)
+    slice_size = Parameter(default=10.0, min=1.0, max=100000.0, step=1.0)
+
+    def __init__(
+        self,
+        *,
+        total_quantity: Decimal | float | str = Decimal("100"),
+        slice_size: Decimal | float | str = Decimal("10"),
+        side: str = "BUY",
+        **kwargs: Any,
+    ) -> None:
+        self._total_quantity = _dec(total_quantity)
+        self._slice_size = _dec(slice_size)
+        if self._slice_size <= 0:
+            raise ValueError("slice_size must be > 0")
+        self.side = side.upper()
+        self.dispatched_quantity: Decimal = Decimal("0")
+        self.filled_quantity: Decimal = Decimal("0")
+        self.slices_sent: int = 0
+
+    @property
+    def remaining_to_dispatch(self) -> Decimal:
+        """Quantity not yet dispatched in child slices."""
+        return max(Decimal("0"), self._total_quantity - self.dispatched_quantity)
+
+    @property
+    def is_complete(self) -> bool:
+        """True once all parent quantity has been dispatched."""
+        return self.remaining_to_dispatch <= 0
+
+    def next_slice_quantity(self) -> Decimal:
+        """Compute the size of the next child slice."""
+        return min(self._slice_size, self.remaining_to_dispatch)
+
+    def execute_slice(
+        self,
+        instrument_id: InstrumentId,
+        price: Decimal | float | str | None = None,
+    ) -> OrderIntent | None:
+        """Dispatch the next child order slice if ``remaining_to_dispatch > 0``."""
+        qty = self.next_slice_quantity()
+        if qty <= 0:
+            return None
+        if price is None:
+            intent = (
+                OrderIntent.market_buy(instrument_id, float(qty))
+                if self.side == "BUY"
+                else OrderIntent.market_sell(instrument_id, float(qty))
+            )
+        else:
+            px = float(_dec(price))
+            intent = (
+                OrderIntent.limit_buy(instrument_id, float(qty), px)
+                if self.side == "BUY"
+                else OrderIntent.limit_sell(instrument_id, float(qty), px)
+            )
+        self.submit(intent)
+        self.dispatched_quantity += qty
+        self.slices_sent += 1
+        return intent
+
+    def on_fill(self, fill: Trade) -> None:
+        self.filled_quantity += _dec(fill.quantity)
+
+
+class RebalancingStrategy(Strategy):
+    """StockSharp-style Portfolio Rebalancing Strategy base class.
+
+    Maintains a dictionary of ``target_weights`` (mapping symbol or instrument key
+    to target portfolio weight in ``[0, 1]``) and generates sell-first, buy-second
+    rebalancing orders whenever an instrument's weight drifts beyond
+    ``drift_threshold_bps`` basis points.
+    """
+
+    name: ClassVar[str] = "rebalancing"
+    drift_threshold_bps = Parameter(default=50.0, min=0.0, max=2000.0, step=5.0)
+
+    def __init__(
+        self,
+        target_weights: dict[str, Decimal | float | str] | None = None,
+        *,
+        drift_threshold_bps: Decimal | float | str = Decimal("50"),
+        **kwargs: Any,
+    ) -> None:
+        self.target_weights: dict[str, Decimal] = {
+            k: _dec(v) for k, v in (target_weights or {}).items()
+        }
+        self._drift_threshold = _dec(drift_threshold_bps) / Decimal("10000")
+
+    def compute_rebalance_deltas(
+        self,
+        portfolio_value: Decimal | float | str,
+        current_positions: dict[str, Decimal | float | str],
+        prices: dict[str, Decimal | float | str],
+    ) -> dict[str, Decimal]:
+        """Compute integer share deltas needed to restore ``target_weights``."""
+        nav = _dec(portfolio_value)
+        if nav <= 0:
+            return {}
+        deltas: dict[str, Decimal] = {}
+        all_keys = set(self.target_weights.keys()) | set(current_positions.keys())
+        for key in sorted(all_keys):
+            px = _dec(prices.get(key, 0))
+            if px <= 0:
+                continue
+            curr_qty = _dec(current_positions.get(key, 0))
+            curr_weight = (curr_qty * px) / nav
+            target_weight = self.target_weights.get(key, Decimal("0"))
+            if abs(target_weight - curr_weight) < self._drift_threshold:
+                continue
+            target_notional = nav * target_weight
+            target_qty = (target_notional // px)
+            delta = target_qty - curr_qty
+            if delta != 0:
+                deltas[key] = delta
+        return deltas
+
+    def rebalance(
+        self,
+        instruments: dict[str, InstrumentId],
+        portfolio_value: Decimal | float | str,
+        current_positions: dict[str, Decimal | float | str],
+        prices: dict[str, Decimal | float | str],
+    ) -> list[tuple[str, Decimal]]:
+        """Execute two-phase rebalance (sells first to free cash, then buys)."""
+        deltas = self.compute_rebalance_deltas(portfolio_value, current_positions, prices)
+        executed: list[tuple[str, Decimal]] = []
+        # Phase 1: sells
+        for key, delta in deltas.items():
+            if delta < 0 and key in instruments:
+                self.sell(instruments[key], float(-delta))
+                executed.append((key, delta))
+        # Phase 2: buys
+        for key, delta in deltas.items():
+            if delta > 0 and key in instruments:
+                self.buy(instruments[key], float(delta))
+                executed.append((key, delta))
+        return executed

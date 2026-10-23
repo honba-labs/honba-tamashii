@@ -1,7 +1,14 @@
 """Trading strategy interface, runners, and indicator library."""
 
 from honba.strategies import indicators
-from honba.strategies.base import Parameter, Strategy
+from honba.strategies.base import (
+    ArbitrageStrategy,
+    Parameter,
+    QuotingStrategy,
+    RebalancingStrategy,
+    SlicingStrategy,
+    Strategy,
+)
 from honba.strategies.context import LedgerContext, StrategyContext
 from honba.strategies.declarative import DeclarativeStrategy, Entry, TargetWeightStrategy
 from honba.strategies.portfolio import (
@@ -20,6 +27,7 @@ from honba.strategies.portfolio import (
 )
 
 __all__ = [
+    "ArbitrageStrategy",
     "DeclarativeStrategy",
     "Entry",
     "EqualWeight",
@@ -29,10 +37,13 @@ __all__ = [
     "NamedUniverse",
     "Parameter",
     "PortfolioStrategy",
+    "QuotingStrategy",
     "RebalanceSchedule",
+    "RebalancingStrategy",
     "ScheduleState",
     "SelectAll",
     "Selector",
+    "SlicingStrategy",
     "StaticUniverse",
     "Strategy",
     "StrategyContext",

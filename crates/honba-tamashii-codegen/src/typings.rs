@@ -182,7 +182,7 @@ fn typed_dict_class(name: &str, schema: &Value) -> String {
 /// A property that is not a Python identifier (`from`, `user-agent`) cannot be
 /// declared in a class body, so such an object uses the functional
 /// `TypedDict` form, which takes field names as strings.
-pub(crate) fn class(name: &str, schema: &Value) -> String {
+pub fn class(name: &str, schema: &Value) -> String {
     let declarable = schema
         .get("properties")
         .and_then(Value::as_object)

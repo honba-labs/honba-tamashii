@@ -44,9 +44,8 @@ pub fn from_py_decimal(value: &Bound<'_, PyAny>) -> PyResult<Decimal> {
             value.get_type().name()?
         )));
     };
-    Decimal::from_str(&text).map_err(|e| {
-        PyValueError::new_err(format!("{text:?} is not a decimal: {e}"))
-    })
+    Decimal::from_str(&text)
+        .map_err(|e| PyValueError::new_err(format!("{text:?} is not a decimal: {e}")))
 }
 
 /// Reads an optional Python value as an optional exact decimal.
@@ -60,11 +59,17 @@ pub fn from_py_optional_decimal(value: Option<&Bound<'_, PyAny>>) -> PyResult<Op
 
 /// Reads a Python `datetime` as a UTC timestamp.
 ///
-/// Naive datetimes are read as UTC; the domain has one time zone.
+/// Naive datetimes are read as UTC; timezone-aware datetimes are converted to UTC.
 pub fn from_py_datetime(value: &Bound<'_, PyAny>) -> PyResult<chrono::DateTime<chrono::Utc>> {
     use chrono::{DateTime, NaiveDateTime, Utc};
     if let Ok(text) = value.extract::<String>() {
         return parse_timestamp(&text);
+    }
+    if let Ok(dt) = value.extract::<DateTime<Utc>>() {
+        return Ok(dt);
+    }
+    if let Ok(dt) = value.extract::<DateTime<chrono::FixedOffset>>() {
+        return Ok(dt.with_timezone(&Utc));
     }
     let naive: Option<NaiveDateTime> = value.extract().ok();
     if let Some(naive) = naive {

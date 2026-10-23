@@ -7,23 +7,22 @@ The values that cross the boundary are exact decimals: a price is a
 from decimal import Decimal
 
 import pytest
-
-from honba import Bar, Metrics, PyContext, Runner, SMA, Strategy
+from honba import Bar, Metrics, PyContext, Runner, Sma, Strategy
 
 
 def test_sma_accumulates():
-    sma = SMA(3)
+    sma = Sma(3)
     assert sma.update(1) is None
     assert sma.update(2) is None
-    assert sma.update(3) == Decimal("2")
+    assert sma.update(3) == Decimal(2)
     # rolling window: [2, 3, 4] -> 3
-    assert sma.update(4) == Decimal("3")
+    assert sma.update(4) == Decimal(3)
 
 
 def test_sma_refuses_a_float():
     # A float would lose precision the moment it entered the domain.
     with pytest.raises(TypeError, match="floats are not accepted"):
-        SMA(3).update(1.0)
+        Sma(3).update(1.0)
 
 
 def test_runner_runs_strategy():
@@ -40,7 +39,7 @@ def test_runner_runs_strategy():
     assert len(result.orders) > 0
     assert all(o.side == "BUY" for o in result.orders)
     assert all(str(o.instrument) == "NSE:RELIANCE" for o in result.orders)
-    assert result.final_cash == Decimal("100000")
+    assert result.final_cash == Decimal(100000)
     assert result.degraded is False
 
 

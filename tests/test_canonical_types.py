@@ -7,7 +7,6 @@ in Rust, ``decimal.Decimal`` in Python, and never a float.
 from decimal import Decimal
 
 import pytest
-
 from honba import (
     DepthLevel,
     InstrumentId,
@@ -28,7 +27,7 @@ def test_a_price_is_built_from_a_decimal_string():
 
 
 def test_a_price_accepts_an_int_and_a_decimal():
-    assert Price(10).to_decimal() == Decimal("10")
+    assert Price(10).to_decimal() == Decimal(10)
     assert Price(Decimal("10.25")).to_decimal() == Decimal("10.25")
 
 
@@ -60,7 +59,7 @@ def test_price_divided_by_price_is_a_ratio():
 
 def test_quantities_compare_and_add():
     assert Quantity("10") > Quantity("9")
-    assert (Quantity("10") + Quantity("5")).to_decimal() == Decimal("15")
+    assert (Quantity("10") + Quantity("5")).to_decimal() == Decimal(15)
 
 
 def test_money_carries_its_currency():
@@ -70,7 +69,7 @@ def test_money_carries_its_currency():
     # The canonical amount is a major-unit decimal; the minor-unit form is
     # the integer number of paise.
     assert money.to_major() == Decimal("1234.50")
-    assert money.to_minor() == Decimal("123450")
+    assert money.to_minor() == Decimal(123450)
     with pytest.raises(ValueError, match="unknown currency"):
         Money("1", "JPY")
 
@@ -92,7 +91,7 @@ def test_an_instrument_id_is_canonical():
 
 def test_a_price_band_knows_what_is_inside_it():
     band = PriceBand("900", "1100", "1000", "0.10")
-    assert band.lower.to_decimal() == Decimal("900")
+    assert band.lower.to_decimal() == Decimal(900)
     assert band.band_pct == Decimal("0.10")
     assert band.contains(Price("1000"))
     assert not band.contains(Price("1200"))
@@ -100,8 +99,8 @@ def test_a_price_band_knows_what_is_inside_it():
 
 def test_a_depth_level_carries_price_and_size():
     level = DepthLevel(Price("100"), Quantity("5"), 2)
-    assert level.price.to_decimal() == Decimal("100")
-    assert level.quantity.to_decimal() == Decimal("5")
+    assert level.price.to_decimal() == Decimal(100)
+    assert level.quantity.to_decimal() == Decimal(5)
     assert level.orders_count == 2
 
 

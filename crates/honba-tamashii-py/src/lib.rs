@@ -23,10 +23,10 @@
 
 use pyo3::prelude::*;
 
+pub mod arrow;
 pub mod decimal;
 pub mod pyclasses;
 pub mod runtime;
-pub mod arrow;
 
 pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
 
@@ -34,6 +34,7 @@ pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
 #[pymodule]
 pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
+    arrow::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -45,6 +46,7 @@ pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
 /// Convenience initialization for embedded use.
 pub fn register_embedded(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
+    arrow::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -97,5 +99,7 @@ pub fn initialize_runtime() -> PyResult<()> {
 pub fn get_runtime_handle() -> PyResult<String> {
     runtime::info()
         .map(|i| format!("tokio-{}", i.flavor))
-        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the async runtime is not running"))
+        .ok_or_else(|| {
+            pyo3::exceptions::PyRuntimeError::new_err("the async runtime is not running")
+        })
 }

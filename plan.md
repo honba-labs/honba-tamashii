@@ -27,14 +27,14 @@
 ## 1. Architectural Principles & System Integration
 
 ```text
-                                  ┌────────────────────────────────────────────────────────┐
-                                  │                  Python Ecosystem                      │
+                                  ┌─────────────────────────────────────────────────────────┐
+                                  │                  Python Ecosystem                       │
                                   │    Jupyter / Polars / PyTorch / Strategy Scripts / AI   │
-                                  └───────────────────────────┬────────────────────────────┘
+                                  └───────────────────────────┬─────────────────────────────┘
                                                               │ Python Strategy / SDK
                                                               ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│  本場・魂 honba-tamashii Subsystem (PyO3 Native Bridge & Python SDK)                                         │
+│  本場・魂 honba-tamashii Subsystem (PyO3 Native Bridge & Python SDK)                                          │
 │                                                                                                              │
 │  ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────────┐  │
 │  │   Canonical Type Wrappers    │   │   GIL-Disciplined Dispatch   │   │   Zero-Copy Arrow PyCapsule      │  │
@@ -246,68 +246,68 @@ Layer 3: [honba-tamashii-py] ─────────────────
 
 ### Phase 1: Canonical Type Bindings & Scaffolding Cleanup (M0) — Week 1–2 ✅
 - [X] Consolidate the extension crate into `crates/honba-tamashii-py` and update root `Cargo.toml`.
-- [ ] Remove deleted legacy crates (`honba-kokoro-messages`, `entities`, `ports`, `risk`) from workspace dependencies.
-  - [ ] Implement PyO3 wrappers for `honba-mon` (`PyRiskEngine`, `PyRiskLimits`, `PyRiskRefusal`) and route `python/honba/risk.py` to native FFI per [Risk Migration Plan](../honba-docs/docs/architecture/migration_plan_kokoro_risk_to_mon.md).
-- [ ] Implement PyO3 wrappers for `honba-core`: `PyPrice`, `PyQuantity`, `PyMoney`, `PyInstrumentId`, `PyPriceBand`.
-- [ ] Implement full Python numeric protocol (`__add__`, `__sub__`, `__mul__`, `__eq__`, `__lt__`, etc.) and `to_decimal()`.
-- [ ] Implement `PyBar`, `PyTick`, and `PyDepthLevel` wrappers wrapping canonical `honba_core` types.
-- [ ] Replace hardcoded currency fallback in `python/honba/domain/money.py` with native `_honba.currency_minor_units()`.
-- [ ] Generate strict `.pyi` type stubs via `honba-tamashii-codegen` and pass `mypy --strict`.
+- [X] Remove deleted legacy crates (`honba-kokoro-messages`, `entities`, `ports`, `risk`) from workspace dependencies.
+  - [X] Implement PyO3 wrappers for `honba-mon` (`PyRiskEngine`, `PyRiskLimits`, `PyRiskRefusal`) and route `python/honba/risk.py` to native FFI per [Risk Migration Plan](../honba-docs/docs/architecture/migration_plan_kokoro_risk_to_mon.md).
+- [X] Implement PyO3 wrappers for `honba-core`: `PyPrice`, `PyQuantity`, `PyMoney`, `PyInstrumentId`, `PyPriceBand`.
+- [X] Implement full Python numeric protocol (`__add__`, `__sub__`, `__mul__`, `__eq__`, `__lt__`, etc.) and `to_decimal()`.
+- [X] Implement `PyBar`, `PyTick`, and `PyDepthLevel` wrappers wrapping canonical `honba_core` types.
+- [X] Replace hardcoded currency fallback in `python/honba/domain/money.py` with native `_honba.currency_minor_units()`.
+- [X] Generate strict `.pyi` type stubs via `honba-tamashii-codegen` and pass `mypy --strict`.
 
 ### Phase 2: Python-First Strategy API & GIL-Disciplined Runner (M1) — Week 3–4 ✅
 - [X] **2.1 Python-First Strategy SDK (like Nautilus & Jesse)**
-  - [ ] Implement ergonomic `Strategy` base class with lifecycle hooks: `on_start`, `on_stop`, `on_tick`, `on_bar`, `on_order_event`, `on_position_event`.
-  - [ ] Implement declarative `Parameter(default, min, max, step)` descriptor for Genetic and Bayesian optimizer chromosome extraction.
-  - [ ] Implement high-level execution helpers: `self.buy()`, `self.sell()`, `self.close_position()`, `self.cancel_all()`, and bracket/OCO orders.
-  - [ ] Provide property accessors: `self.portfolio`, `self.positions`, `self.cash`, `self.indicators`.
-- [ ] **2.2 Synchronous Pre-Trade Risk Interception (`honba-mon`)**
-  - [ ] Implement `PyContext` with synchronous validation against `honba_mon::RiskEngine`.
-  - [ ] Enforce mandatory SEBI `algo_id` validation on all order submissions from Python.
-  - [ ] Reject ungrounded limit prices outside the scrip operational circuit band.
-- [ ] **2.3 GIL Discipline & Fault Isolation**
-  - [ ] Wrap strategy callback dispatches in `std::panic::catch_unwind` and PyO3 error handlers.
-  - [ ] Implement `StrategyState::Degraded` handling with automated protective order cancellations on exception.
-  - [ ] Ensure all Rust-side calculations release the GIL via `py.allow_threads`, acquiring GIL only for Python callback invocation.
-  - [ ] Implement unit tests validating that Python strategy crashes do not panic the Rust host.
+  - [X] Implement ergonomic `Strategy` base class with lifecycle hooks: `on_start`, `on_stop`, `on_tick`, `on_bar`, `on_order_event`, `on_position_event`.
+  - [X] Implement declarative `Parameter(default, min, max, step)` descriptor for Genetic and Bayesian optimizer chromosome extraction.
+  - [X] Implement high-level execution helpers: `self.buy()`, `self.sell()`, `self.close_position()`, `self.cancel_all()`, and bracket/OCO orders.
+  - [X] Provide property accessors: `self.portfolio`, `self.positions`, `self.cash`, `self.indicators`.
+- [X] **2.2 Synchronous Pre-Trade Risk Interception (`honba-mon`)**
+  - [X] Implement `PyContext` with synchronous validation against `honba_mon::RiskEngine`.
+  - [X] Enforce mandatory SEBI `algo_id` validation on all order submissions from Python.
+  - [X] Reject ungrounded limit prices outside the scrip operational circuit band.
+- [X] **2.3 GIL Discipline & Fault Isolation**
+  - [X] Wrap strategy callback dispatches in `std::panic::catch_unwind` and PyO3 error handlers.
+  - [X] Implement `StrategyState::Degraded` handling with automated protective order cancellations on exception.
+  - [X] Ensure all Rust-side calculations release the GIL via `py.allow_threads`, acquiring GIL only for Python callback invocation.
+  - [X] Implement unit tests validating that Python strategy crashes do not panic the Rust host.
 
 ### Phase 3: Research-Live Parity Backtest Runner & Optimizer Bridge (M2) — Week 5–6 ✅
 - [X] **3.1 Institutional Backtester Integration**
-  - [ ] Integrate Python `Runner` directly with `honba-ya-backtest` and `honba-kokoro-oms`.
-  - [ ] Wire simulated execution to `honba-kokoro-portfolio` (FIFO tax-lots) and `honba-kokoro-ledger` (double-entry charges).
-  - [ ] Model accurate Indian statutory fees: STT, GST, SEBI charges, Stamp Duty, and exchange turnover fees.
-  - [ ] Return structured `PyMetrics` containing Sharpe, Sortino, Calmar, Max Drawdown, DSR, PBO, and tax breakdown.
-- [ ] **3.2 Python Optimization Interface (like Jesse)**
-  - [ ] Expose `honba.optimize(strategy_cls, config)` triggering GA, Bayesian TPE, or Walk-Forward Analysis in `honba-ya`.
-  - [ ] Export Pareto-optimal frontier and parameter sensitivity heatmaps to Pandas/Polars DataFrames.
-- [ ] **3.3 Interactive Notebook & Visualization Support**
-  - [ ] Implement `report.plot()` for Jupyter notebooks rendering equity curves, drawdowns, and trade distributions.
-  - [ ] Validate research-live parity against synthetic and historical benchmark datasets.
+  - [X] Integrate Python `Runner` directly with `honba-ya-backtest` and `honba-kokoro-oms`.
+  - [X] Wire simulated execution to `honba-kokoro-portfolio` (FIFO tax-lots) and `honba-kokoro-ledger` (double-entry charges).
+  - [X] Model accurate Indian statutory fees: STT, GST, SEBI charges, Stamp Duty, and exchange turnover fees.
+  - [X] Return structured `PyMetrics` containing Sharpe, Sortino, Calmar, Max Drawdown, DSR, PBO, and tax breakdown.
+- [X] **3.2 Python Optimization Interface (like Jesse)**
+  - [X] Expose `honba.optimize(strategy_cls, config)` triggering GA, Bayesian TPE, or Walk-Forward Analysis in `honba-ya`.
+  - [X] Export Pareto-optimal frontier and parameter sensitivity heatmaps to Pandas/Polars DataFrames.
+- [X] **3.3 Interactive Notebook & Visualization Support**
+  - [X] Implement `report.plot()` for Jupyter notebooks rendering equity curves, drawdowns, and trade distributions.
+  - [X] Validate research-live parity against synthetic and historical benchmark datasets.
 
 ### Phase 4: Zero-Copy Arrow Lakehouse & Data Accessors (M3) — Week 7–8 ✅
 - [X] Implement Arrow PyCapsule protocol (`__arrow_c_stream__`) in `crates/honba-tamashii-py/src/arrow.rs`.
-- [ ] Connect `honba.data` directly to `honba-me-feed` Parquet lakehouse datasets.
-- [ ] Provide seamless export to Polars (`pl.DataFrame`) and PyArrow (`pa.Table`) with zero memory copies.
-- [ ] Implement historical NSE Bhavcopy reader bridging `honba-me-loaders` into Python.
+- [X] Connect `honba.data` directly to `honba-me-feed` Parquet lakehouse datasets.
+- [X] Provide seamless export to Polars (`pl.DataFrame`) and PyArrow (`pa.Table`) with zero memory copies.
+- [X] Implement historical NSE Bhavcopy reader bridging `honba-me-loaders` into Python.
 
-### Phase 5: Ported StockSharp 100+ Indicators & Strategy Primitives (M4) — Week 9–10
+### Phase 5: Ported StockSharp 100+ Indicators & Strategy Primitives (M4) — Week 9–10 ✅
 > **Exposing the complete ported StockSharp Indicators (100+) & Strategy Bases to Python**:
 
-- [ ] **5.1 Expose StockSharp 100+ Indicators to Python (`honba.indicators`)**
-  - [ ] Moving Averages: `SMA`, `EMA`, `WMA`, `HMA`, `DEMA`, `TEMA`, `KAMA`, `ZLEMA`, `VWMA`, `ALMA`, `FRAMA`, `T3`, `McGinleyDynamic`.
-  - [ ] Momentum & Oscillators: `RSI`, `Stochastic`, `StochRSI`, `MACD`, `ROC`, `Momentum`, `CCI`, `WilliamsR`, `UltimateOscillator`, `AwesomeOscillator`, `AcceleratorOscillator`, `CMO`, `DPO`, `FisherTransform`, `QQE`, `TSI`.
-  - [ ] Volatility & Bands: `ATR`, `BollingerBands`, `KeltnerChannel`, `DonchianChannel`, `StandardDeviation`, `HistoricalVolatility`, `ChaikinVolatility`, `Supertrend`.
-  - [ ] Volume & Microstructure: `OBV`, `VWAP` (session, weekly, monthly + bands), `ADLine`, `CMF`, `MFI`, `VolumeProfile`, `MarketDepthImbalance`.
-  - [ ] Candlestick Patterns: Single & multi-candle detectors (`Doji`, `Hammer`, `Engulfing`, `MorningStar`, `ThreeWhiteSoldiers`).
-- [ ] **5.2 Dual-Mode Python Architecture**
-  - [ ] Stateful Streaming: `ind.update(bar.close)` / `ind.value` for live & backtesting strategy loops.
-  - [ ] Vectorized SIMD Batch Compute: Fast Arrow/Polars expressions (`pl.col("close").honba.rsi(14)`) with zero-copy C memory pass.
-- [ ] **5.3 StockSharp Strategy Base Classes (`honba.strategies.base`)**
-  - [ ] Provide specialized Python base classes: `QuotingStrategy`, `ArbitrageStrategy`, `SlicingStrategy`, `RebalancingStrategy`.
+- [X] **5.1 Expose StockSharp 100+ Indicators to Python (`honba.indicators`)**
+  - [X] Moving Averages: `SMA`, `EMA`, `WMA`, `HMA`, `DEMA`, `TEMA`, `KAMA`, `ZLEMA`, `VWMA`, `ALMA`, `FRAMA`, `T3`, `McGinleyDynamic`.
+  - [X] Momentum & Oscillators: `RSI`, `Stochastic`, `StochRSI`, `MACD`, `ROC`, `Momentum`, `CCI`, `WilliamsR`, `UltimateOscillator`, `AwesomeOscillator`, `AcceleratorOscillator`, `CMO`, `DPO`, `FisherTransform`, `QQE`, `TSI`.
+  - [X] Volatility & Bands: `ATR`, `BollingerBands`, `KeltnerChannel`, `DonchianChannel`, `StandardDeviation`, `HistoricalVolatility`, `ChaikinVolatility`, `Supertrend`.
+  - [X] Volume & Microstructure: `OBV`, `VWAP` (session, weekly, monthly + bands), `ADLine`, `CMF`, `MFI`, `VolumeProfile`, `MarketDepthImbalance`.
+  - [X] Candlestick Patterns: Single & multi-candle detectors (`Doji`, `Hammer`, `Engulfing`, `MorningStar`, `ThreeWhiteSoldiers`).
+- [X] **5.2 Dual-Mode Python Architecture**
+  - [X] Stateful Streaming: `ind.update(bar.close)` / `ind.value` for live & backtesting strategy loops.
+  - [X] Vectorized SIMD Batch Compute: Fast Arrow/Polars expressions (`pl.col("close").honba.rsi(14)`) with zero-copy C memory pass.
+- [X] **5.3 StockSharp Strategy Base Classes (`honba.strategies.base`)**
+  - [X] Provide specialized Python base classes: `QuotingStrategy`, `ArbitrageStrategy`, `SlicingStrategy`, `RebalancingStrategy`.
 
 ### Phase 6: Distribution, Documentation & Legacy Pruning (M5) — Week 11–12 ✅
 - [X] Complete pruning of dead legacy modules in `python/honba/`.
 - [ ] Configure CI matrix to build and test wheels for 5 targets (Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64) using `maturin`.
-- [ ] Verify wheel binary size budget (< 20 MB stripped).
+- [X] Verify wheel binary size budget (< 20 MB stripped).
 - [ ] Validate all `honba-examples` tests against the unified `honba` package.
 - [ ] Publish comprehensive Python developer documentation, Jupyter starter notebooks, and API reference.
 
