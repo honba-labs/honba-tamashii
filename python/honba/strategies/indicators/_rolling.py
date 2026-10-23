@@ -11,8 +11,12 @@ from honba.strategies.indicators._util import check as _check
 _RECOMPUTE_MIN = 1000
 _DROP = 1e-4  # recompute when m2 falls below this fraction of its peak since the last rebuild
 _HUGE = 1e150  # |x| above this can overflow squares/sums (1e150**2 * n stays < 1.8e308)
-_SHIFT_K2 = 1e3  # re-shift when (x - shift)**2 exceeds this multiple of the window variance
-_CANCEL = 1e-4  # rebuild when a running total falls below this fraction of its running peak
+_SHIFT_K2 = (
+    1e3  # re-shift when (x - shift)**2 exceeds this multiple of the window variance
+)
+_CANCEL = (
+    1e-4  # rebuild when a running total falls below this fraction of its running peak
+)
 _NAN = float("nan")
 _new = tuple.__new__  # builds a NamedTuple without its Python-level __new__ frame
 _NEAR = 1e-6  # RollingLinReg: rebuild when sse falls below this fraction of m2 (near-perfect fit)
@@ -44,10 +48,14 @@ class RollingSum:
         self._sum = 0.0
         self._mag = 0.0  # max |sum| since the last rebuild (warmup included)
         self._bad = 0  # unsafe (non-finite or huge) values currently in the window
-        self._dirty = False  # running state not trustworthy; rebuild once the window is safe
+        self._dirty = (
+            False  # running state not trustworthy; rebuild once the window is safe
+        )
         self._since = 0  # updates since the last rebuild
         self._every = max(_RECOMPUTE_MIN, 4 * period)
-        self._gap = max(1, period // 2)  # minimum updates between cancellation-guard rebuilds
+        self._gap = max(
+            1, period // 2
+        )  # minimum updates between cancellation-guard rebuilds
 
     def _rebuild(self) -> None:
         self._sum = math.fsum(self._w)
@@ -72,7 +80,9 @@ class RollingSum:
             self._sum += x - old if full else x
             self._since += 1
             a = abs(self._sum)
-            if not math.isfinite(a) or (a < self._mag * _CANCEL and self._since >= self._gap):
+            if not math.isfinite(a) or (
+                a < self._mag * _CANCEL and self._since >= self._gap
+            ):
                 self._rebuild()
             elif a > self._mag:
                 self._mag = a
@@ -148,7 +158,9 @@ class RollingMoments:
         self._run = 0  # consecutive identical trailing values
         self._bad = 0  # non-finite values currently in the window
         self._dirty = False  # state not trustworthy; rebuild once the window is finite
-        self._ok = False  # window full, all values safe, state clean (fast path allowed)
+        self._ok = (
+            False  # window full, all values safe, state clean (fast path allowed)
+        )
         self._tick = 0  # sliding updates so far
         self._every = max(_RECOMPUTE_MIN, 4 * period)
         self._due = self._every  # tick of the next periodic rebuild
@@ -231,7 +243,9 @@ class RollingMoments:
             self._bad += 1
         self._run = self._run + 1 if w and w[-1] == x else 1
         if self._bad:
-            self._dirty = True  # unsafe value in window: leave state alone, rebuild when clean
+            self._dirty = (
+                True  # unsafe value in window: leave state alone, rebuild when clean
+            )
             self._ok = False
             w.append(x)
             return _NAN_RAW3 if len(w) == n else None
@@ -324,11 +338,15 @@ class RollingPairMoments:
         self._sx = self._sy = 0.0  # shifts
         self._mx = self._my = 0.0  # means of the shifted values
         self._m2x = self._m2y = self._c = 0.0
-        self._px = self._py = self._pc = 0.0  # peaks of m2x, m2y, |C| since the last rebuild
+        self._px = self._py = self._pc = (
+            0.0  # peaks of m2x, m2y, |C| since the last rebuild
+        )
         self._rx = self._ry = 0  # trailing runs of identical x / y
         self._bad = 0  # pairs with an unsafe component currently in the window
         self._dirty = False
-        self._ok = False  # window full, all values safe, state clean (fast path allowed)
+        self._ok = (
+            False  # window full, all values safe, state clean (fast path allowed)
+        )
         self._tick = 0  # sliding updates so far
         self._every = max(_RECOMPUTE_MIN, 4 * period)
         self._due = self._every
@@ -342,7 +360,9 @@ class RollingPairMoments:
             self._prev: tuple[float, float] | None = None
             self.update_raw = self._raw2  # type: ignore[method-assign]
 
-    def _raw2(self, x: float, y: float) -> tuple[float, float, float, float, float] | None:
+    def _raw2(
+        self, x: float, y: float
+    ) -> tuple[float, float, float, float, float] | None:
         """Period 2: ``m2 = d**2 / 2``, ``C = dx * dy / 2`` (no state, no rebuilds)."""
         p, self._prev = self._prev, (x, y)
         if p is None:
@@ -372,7 +392,9 @@ class RollingPairMoments:
         r = self.update_raw(x, y)
         return None if r is None else _new(PairMoments, r)
 
-    def update_raw(self, x: float, y: float) -> tuple[float, float, float, float, float] | None:
+    def update_raw(
+        self, x: float, y: float
+    ) -> tuple[float, float, float, float, float] | None:
         """``(mean_x, mean_y, var_x, var_y, cov)`` as a plain tuple (``None`` during warm-up)."""
         wx, n = self._wx, self.period
         if self._ok and len(wx) == n and -_HUGE <= x <= _HUGE and -_HUGE <= y <= _HUGE:
@@ -383,7 +405,10 @@ class RollingPairMoments:
             oxs, oys = wx[0] - sx, wy[0] - sy
             wx.append(x)  # evicts the oldest pair
             wy.append(y)
-            xs, ys = x - sx, y - sy  # Welford runs on shifted values: it never sees the price level
+            xs, ys = (
+                x - sx,
+                y - sy,
+            )  # Welford runs on shifted values: it never sees the price level
             dx, dy = xs - oxs, ys - oys
             nmx, nmy = mx + dx / n, my + dy / n
             m2x = self._m2x + dx * ((xs - nmx) + (oxs - mx))
@@ -438,7 +463,9 @@ class RollingPairMoments:
             return (sx + nmx, sy + nmy, max(0.0, vx), max(0.0, vy), c / d)
         return self._slow(x, y)
 
-    def _slow(self, x: float, y: float) -> tuple[float, float, float, float, float] | None:
+    def _slow(
+        self, x: float, y: float
+    ) -> tuple[float, float, float, float, float] | None:
         wx, wy, n = self._wx, self._wy, self.period
         full = len(wx) == n
         if full and (_unsafe(wx[0]) or _unsafe(wy[0])):
@@ -448,7 +475,9 @@ class RollingPairMoments:
         self._rx = self._rx + 1 if wx and wx[-1] == x else 1
         self._ry = self._ry + 1 if wy and wy[-1] == y else 1
         if self._bad:
-            self._dirty = True  # unsafe value in window: leave state alone, rebuild when clean
+            self._dirty = (
+                True  # unsafe value in window: leave state alone, rebuild when clean
+            )
             self._ok = False
             wx.append(x)
             wy.append(y)
@@ -478,9 +507,23 @@ class RollingPairMoments:
             self._px, self._py = self._m2x, self._m2y
         self._ok = True
         if self._rx >= n:  # constant x window: exact zero variance and covariance
-            self._sx, self._mx, self._m2x, self._px, self._c, self._pc = x, 0.0, 0.0, 0.0, 0.0, 0.0
+            self._sx, self._mx, self._m2x, self._px, self._c, self._pc = (
+                x,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
         if self._ry >= n:
-            self._sy, self._my, self._m2y, self._py, self._c, self._pc = y, 0.0, 0.0, 0.0, 0.0, 0.0
+            self._sy, self._my, self._m2y, self._py, self._c, self._pc = (
+                y,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
         d = self._d
         return (
             self._sx + self._mx,
@@ -535,13 +578,17 @@ class RollingLinReg:
         self._m = 0.0
         self._m2 = 0.0
         self._t = 0.0
-        self._s = self._sc = 0.0  # compensated sum of the shifted values (+ its correction term)
+        self._s = self._sc = (
+            0.0  # compensated sum of the shifted values (+ its correction term)
+        )
         self._p2 = 0.0  # peak m2 since the last rebuild
         self._pt = 0.0  # peak |T|
         self._run = 0
         self._bad = 0
         self._dirty = False
-        self._ok = False  # window full, all values safe, state clean (fast path allowed)
+        self._ok = (
+            False  # window full, all values safe, state clean (fast path allowed)
+        )
         self._tick = 0
         self._every = max(_RECOMPUTE_MIN, 4 * period)
         self._due = self._every
@@ -553,7 +600,9 @@ class RollingLinReg:
         self._half = (period - 1) / 2.0
         self._hp = (period + 1) / 2.0
         self._kn = _SHIFT_K2 / period
-        if period == 2:  # the line through two points: closed form, no rebuilds, sse == 0
+        if (
+            period == 2
+        ):  # the line through two points: closed form, no rebuilds, sse == 0
             self._prev: float | None = None
             self.update_raw = self._raw2  # type: ignore[method-assign]
             self.update = self._update2  # type: ignore[method-assign]
@@ -678,7 +727,14 @@ class RollingLinReg:
         self._recompute()  # first full window (or recovery from a non-finite window)
         self._ok = True
         if self._run >= n:  # constant window: exactly flat, zero residual
-            self._sh, self._m, self._m2, self._t, self._p2, self._pt = y, 0.0, 0.0, 0.0, 0.0, 0.0
+            self._sh, self._m, self._m2, self._t, self._p2, self._pt = (
+                y,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
             self._s = self._sc = 0.0
         slope = self._t / self._sxx
         sse = self._m2 - self._t * slope

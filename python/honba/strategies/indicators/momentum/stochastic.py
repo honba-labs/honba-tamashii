@@ -27,7 +27,9 @@ class Stochastic(Indicator):
     raw = 100 * (close - lowest low) / (highest high - lowest low); a flat window (zero range) gives 0.
     """
 
-    def __init__(self, k_length: int = 14, k_smooth: int = 1, d_smooth: int = 3) -> None:
+    def __init__(
+        self, k_length: int = 14, k_smooth: int = 1, d_smooth: int = 3
+    ) -> None:
         self.k_length = _check(k_length)
         self.k_smooth = _check(k_smooth)
         self.d_smooth = _check(d_smooth)

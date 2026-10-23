@@ -18,7 +18,11 @@ from honba.strategies.portfolio.selection import SelectAll, Selector, TopN
 from honba.strategies.portfolio.strategy import PortfolioStrategy
 from honba.strategies.portfolio.universe import NamedUniverse, StaticUniverse, Universe
 from honba.strategies.portfolio.view import MarketView, PriceHistory
-from honba.strategies.portfolio.weighting import EqualWeight, InverseVolatility, WeightingScheme
+from honba.strategies.portfolio.weighting import (
+    EqualWeight,
+    InverseVolatility,
+    WeightingScheme,
+)
 
 __all__ = [
     "AnyOf",

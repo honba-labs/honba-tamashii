@@ -109,7 +109,9 @@ def _round_half_away(x: float) -> int:
 def _snapped(major: float, exponent: int) -> float:
     scaled = _scaled(major, exponent)
     nearest = _round_half_away(scaled)
-    return float(nearest) if abs(scaled - nearest) < _DIRECTIONAL_NOISE_MINOR else scaled
+    return (
+        float(nearest) if abs(scaled - nearest) < _DIRECTIONAL_NOISE_MINOR else scaled
+    )
 
 
 def _round_major_to_minor(major: float, exponent: int) -> int:
@@ -139,7 +141,9 @@ class Money:
 
     def __post_init__(self) -> None:
         if isinstance(self.amount, bool) or not isinstance(self.amount, int):
-            raise TypeError(f"Money amount must be int minor units, got {self.amount!r}")
+            raise TypeError(
+                f"Money amount must be int minor units, got {self.amount!r}"
+            )
         if not isinstance(self.currency, Currency):
             raise TypeError(f"Money currency must be a Currency, got {self.currency!r}")
         if abs(self.amount) > _I64_MAX:
@@ -198,7 +202,9 @@ class Money:
         return Money(-self.amount, self.currency)
 
     def __str__(self) -> str:
-        return _format_major(self.currency.value, self.amount, self.currency.minor_exponent)
+        return _format_major(
+            self.currency.value, self.amount, self.currency.minor_exponent
+        )
 
     def format_minor(self) -> str:
         """The amount in minor units with the unit name: ``1,250 paise``, ``1 cent``."""

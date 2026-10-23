@@ -17,7 +17,12 @@ from typing import Any
 from honba._native import native_attr
 from honba.strategies.manifest import StrategyManifest
 
-__all__ = ["VerifyError", "source_bundle_hash", "verify_manifest", "verify_strategy_source"]
+__all__ = [
+    "VerifyError",
+    "source_bundle_hash",
+    "verify_manifest",
+    "verify_strategy_source",
+]
 
 SIDECAR_SUFFIX = ".strategy.json"
 """The optional sidecar written beside a generated ``.py`` (ADR 0029, D16)."""
@@ -56,7 +61,11 @@ def verify_strategy_source(
 
     source_path = Path(path)
     source_text = source_path.read_text(encoding="utf-8")
-    sidecar_path = Path(sidecar) if sidecar is not None else source_path.with_suffix(SIDECAR_SUFFIX)
+    sidecar_path = (
+        Path(sidecar)
+        if sidecar is not None
+        else source_path.with_suffix(SIDECAR_SUFFIX)
+    )
     sidecar_text: str | None = None
     if sidecar_path.is_file():
         sidecar_text = sidecar_path.read_text(encoding="utf-8")
@@ -68,11 +77,15 @@ def verify_strategy_source(
         try:
             document = json.loads(sidecar_text)
         except ValueError as exc:
-            raise VerifyError("deserialize", f"sidecar is not valid JSON: {exc}") from None
+            raise VerifyError(
+                "deserialize", f"sidecar is not valid JSON: {exc}"
+            ) from None
         try:
             graph = StrategyGraph.model_validate(document)
         except ValueError as exc:
-            raise VerifyError("deserialize", f"sidecar is not a strategy graph: {exc}") from None
+            raise VerifyError(
+                "deserialize", f"sidecar is not a strategy graph: {exc}"
+            ) from None
     else:
         found = recognize(source_text)
         graph = found.graph
@@ -110,7 +123,9 @@ class VerifyError(ValueError):
         self.code = code
 
 
-def verify_manifest(manifest: StrategyManifest | Mapping[str, Any] | str) -> dict[str, Any]:
+def verify_manifest(
+    manifest: StrategyManifest | Mapping[str, Any] | str,
+) -> dict[str, Any]:
     """Compile ``manifest`` (model, JSON-shaped mapping or JSON text) to its IR dict."""
     if isinstance(manifest, StrategyManifest):
         text = json.dumps(manifest.to_json_dict())

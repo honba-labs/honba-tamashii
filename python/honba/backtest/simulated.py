@@ -188,7 +188,9 @@ class _PythonSim:
         self._from_open = False  # the current session came from a SessionOpen event
         self._opened: set[InstrumentId] = set()
         self._working: list[_Working] = []
-        self._receivables: list[tuple[int, Money]] = []  # (available from session, amount)
+        self._receivables: list[
+            tuple[int, Money]
+        ] = []  # (available from session, amount)
         self._events: list[ExecutionEvent] = []
 
     # -- cash ----------------------------------------------------------------------
@@ -244,7 +246,10 @@ class _PythonSim:
                 # The SessionOpen carried this session's bars and its key need not be a
                 # timestamp, so a bar never opens or orders sessions here; it only
                 # opens an instrument the SessionOpen left out, at the same ts.
-                if event.ts == self._session_ts and event.instrument_id not in self._opened:
+                if (
+                    event.ts == self._session_ts
+                    and event.instrument_id not in self._opened
+                ):
                     self._fill_at([event])
             elif self._session_ts is None or event.ts > self._session_ts:
                 self.open_session(event.ts, [event])
@@ -277,7 +282,9 @@ class _PythonSim:
         if settlement_days < 0:
             raise ValueError("settlement_days must be >= 0")
         if self._session_ts is not None:
-            raise RuntimeError("settlement_days can only change before the first session")
+            raise RuntimeError(
+                "settlement_days can only change before the first session"
+            )
         self.settlement_days = settlement_days
 
     def set_lot_size(self, instrument_id: InstrumentId, lot_size: float) -> None:
@@ -295,7 +302,9 @@ class _PythonSim:
         if cost.currency is not self._currency:
             # Checked here, before an order is dequeued, so a failing cost leaves the order
             # working and the state unchanged (a sell used to fail only at the proceeds sum).
-            raise ValueError(f"currency mismatch: fill cost {cost}, port {self._currency}")
+            raise ValueError(
+                f"currency mismatch: fill cost {cost}, port {self._currency}"
+            )
         return cost
 
     def _now(self) -> int:
@@ -329,12 +338,18 @@ class _PythonSim:
         """The fill price: the printed open adverse of the auction buffer and impact, if any."""
         fraction = 0.0
         if self._auction is not None:
-            fraction += self._auction.fraction  # the opening auction is crossed whatever the size
+            fraction += (
+                self._auction.fraction
+            )  # the opening auction is crossed whatever the size
         if self._impact is not None:
             fraction += self._impact.fraction(bar.instrument_id, quantity)
         if fraction <= 0.0:
             return bar.open
-        px = bar.open * (1.0 + fraction) if side is OrderSide.BUY else bar.open * (1.0 - fraction)
+        px = (
+            bar.open * (1.0 + fraction)
+            if side is OrderSide.BUY
+            else bar.open * (1.0 - fraction)
+        )
         return px if _usable_open(px) else bar.open
 
     def _fill_sell(self, w: _Working, bar: Bar) -> None:
@@ -367,7 +382,10 @@ class _PythonSim:
         available = self.available_cash
         if self._buy_cost(want, px).amount <= available.amount:
             qty = want
-        elif self.unsettled.amount > 0 and self._session - w.first_try < self.settlement_days:
+        elif (
+            self.unsettled.amount > 0
+            and self._session - w.first_try < self.settlement_days
+        ):
             return  # wait for pending sale proceeds to settle
         else:
             qty = self._affordable(
@@ -387,9 +405,13 @@ class _PythonSim:
             self._reject_part(w, want - qty, "insufficient_funds")
 
     def _buy_cost(self, qty: float, px: float) -> Money:
-        return Money.mul_qty(qty, px, self._currency) + self._costs(OrderSide.BUY, qty, px)
+        return Money.mul_qty(qty, px, self._currency) + self._costs(
+            OrderSide.BUY, qty, px
+        )
 
-    def _affordable(self, want: float, px: float, available: Money, lot: float = 1.0) -> float:
+    def _affordable(
+        self, want: float, px: float, available: Money, lot: float = 1.0
+    ) -> float:
         """Largest whole number of lots (<= ``want``) whose notional plus cost fits ``available``.
 
         Costs are assumed non-decreasing in quantity, so the answer is found by bisection
@@ -402,7 +424,9 @@ class _PythonSim:
             math.floor(available.to_major() / px / lot + _QTY_EPS),
         )
         lo = 0
-        while lo < hi:  # invariant: lo lots are affordable (0 trivially), hi + 1 are not
+        while (
+            lo < hi
+        ):  # invariant: lo lots are affordable (0 trivially), hi + 1 are not
             mid = (lo + hi + 1) // 2
             if self._buy_cost(mid * lot, px).amount <= available.amount:
                 lo = mid
@@ -435,13 +459,17 @@ class _PythonSim:
         self._events.append(Fill(trade, qty, complete))
 
     def _reject_part(self, w: _Working, qty: float, reason: str) -> None:
-        self._reject(w.order_id, dataclasses.replace(w.intent, quantity=qty), reason, self._now())
+        self._reject(
+            w.order_id, dataclasses.replace(w.intent, quantity=qty), reason, self._now()
+        )
 
     def _reject(self, order_id: str, intent: OrderIntent, reason: str, ts: int) -> None:
         self._events.append(Rejected(order_id, intent, reason, ts))
 
 
-_QTY_EPS = 1e-9  # quantities closer than this are equal (float residue from fractional fills)
+_QTY_EPS = (
+    1e-9  # quantities closer than this are equal (float residue from fractional fills)
+)
 
 
 def _usable_open(price: float) -> bool:
@@ -456,7 +484,9 @@ _NATIVE_PROPERTIES = ("session_ts", "available_cash", "unsettled")
 def _native_simulator() -> Any:
     """The native ``NextOpenSimulator`` class, or ``ImportError`` / ``RuntimeError`` if unusable."""
     cls = _native.native_attr("NextOpenSimulator")
-    missing = [n for n in (*_NATIVE_METHODS, *_NATIVE_PROPERTIES) if not hasattr(cls, n)]
+    missing = [
+        n for n in (*_NATIVE_METHODS, *_NATIVE_PROPERTIES) if not hasattr(cls, n)
+    ]
     if missing:
         raise RuntimeError(
             f"honba._honba.NextOpenSimulator lacks {missing}: the compiled extension is stale, "
@@ -491,11 +521,15 @@ def _resolve(requested: BackendChoice | None, probe: Callable[[], Any]) -> Backe
         probe()
     except ImportError as exc:
         if raw == "native":
-            raise ImportError(f"the native simulator backend was requested: {exc}") from exc
+            raise ImportError(
+                f"the native simulator backend was requested: {exc}"
+            ) from exc
         return "python"
     except RuntimeError as exc:
         if raw == "native":
-            raise RuntimeError(f"the native simulator backend was requested: {exc}") from exc
+            raise RuntimeError(
+                f"the native simulator backend was requested: {exc}"
+            ) from exc
         return "python"
     return "native"
 
@@ -547,7 +581,9 @@ def _native_costs(costs: FillCostFn, currency: Currency) -> Any:
         return pack
 
     def bridge(side: str, quantity: float, price: float) -> int:
-        cost = costs(OrderSide.BUY if side == "buy" else OrderSide.SELL, quantity, price)
+        cost = costs(
+            OrderSide.BUY if side == "buy" else OrderSide.SELL, quantity, price
+        )
         if cost.amount == 0:
             return 0
         if cost.amount > 0 and cost.currency is not currency:
@@ -610,7 +646,9 @@ class _NativeSim:
         )
         self._intents: dict[str, OrderIntent] = {}  # by native id
         self._seq = 0
-        self.positions: MutableMapping[InstrumentId, float] = _NativePositions(self._sim)
+        self.positions: MutableMapping[InstrumentId, float] = _NativePositions(
+            self._sim
+        )
         for iid, lot in (lot_sizes or {}).items():
             self.set_lot_size(iid, lot)
 
@@ -679,10 +717,14 @@ class _NativeSim:
         for raw in self._sim.drain_events():
             native_id = raw["order_id"]
 
-            def intent_of(_: str, default: OrderIntent, native_id: str = native_id) -> OrderIntent:
+            def intent_of(
+                _: str, default: OrderIntent, native_id: str = native_id
+            ) -> OrderIntent:
                 # The remembered intent (order type, prices) with the event's quantity.
                 intent = self._intents.get(native_id)
-                if intent is None:  # pragma: no cover - every accepted order is remembered
+                if (
+                    intent is None
+                ):  # pragma: no cover - every accepted order is remembered
                     return default
                 if intent.quantity != default.quantity:
                     intent = dataclasses.replace(intent, quantity=default.quantity)
@@ -690,7 +732,10 @@ class _NativeSim:
 
             out.extend(
                 events_from_native(
-                    [raw], currency=self._currency, user_id=_user_id, intent_of=intent_of
+                    [raw],
+                    currency=self._currency,
+                    user_id=_user_id,
+                    intent_of=intent_of,
                 )
             )
         working = set(self._sim.working_orders)
@@ -748,7 +793,9 @@ class NextOpenExecution(BaseExecutionPort):
             )
         # ``auto`` with impact/auction resolves to python: both are only implemented there today.
         self._backend: Backend = (
-            "python" if (impact is not None or auction is not None) else resolve_backend(backend)
+            "python"
+            if (impact is not None or auction is not None)
+            else resolve_backend(backend)
         )
         if self._backend == "native":
             self._impl: _PythonSim | _NativeSim = _NativeSim(
@@ -859,7 +906,13 @@ def group_sessions(
     """
     session_of = key or (lambda b: b.ts)
     ordered = sorted(
-        bars, key=lambda b: (session_of(b), b.ts, b.instrument_id.symbol, b.instrument_id.exchange)
+        bars,
+        key=lambda b: (
+            session_of(b),
+            b.ts,
+            b.instrument_id.symbol,
+            b.instrument_id.exchange,
+        ),
     )
     events: list[tuple[Any, int]] = []
     i = 0
@@ -888,7 +941,9 @@ def resolve_fill_costs(name: str) -> FillCostFn:
     """Map a cost-pack name to a fill-cost function (India schedules from ``markets.india``)."""
     kind = _FILL_COSTS.get(name.strip().lower())
     if kind is None:
-        raise ValueError(f"unknown cost pack {name!r}; expected one of {sorted(_FILL_COSTS)}")
+        raise ValueError(
+            f"unknown cost pack {name!r}; expected one of {sorted(_FILL_COSTS)}"
+        )
     if kind == "zero":
         return zero_costs
     from honba.markets.india.costs import (
@@ -896,11 +951,16 @@ def resolve_fill_costs(name: str) -> FillCostFn:
         nse_equity_intraday_fill_cost,
     )
 
-    return nse_equity_delivery_fill_cost if kind == "delivery" else nse_equity_intraday_fill_cost
+    return (
+        nse_equity_delivery_fill_cost
+        if kind == "delivery"
+        else nse_equity_intraday_fill_cost
+    )
 
 
 _INTRADAY = re.compile(
-    r"^\s*\d*\s*(s|sec|second|seconds|m|min|mins|minute|minutes|h|hr|hour|hours)\s*$", re.IGNORECASE
+    r"^\s*\d*\s*(s|sec|second|seconds|m|min|mins|minute|minutes|h|hr|hour|hours)\s*$",
+    re.IGNORECASE,
 )
 _IST_OFFSET = timedelta(hours=5, minutes=30)
 _EPOCH = datetime(1970, 1, 1)  # noqa: DTZ001 - naive UTC arithmetic, shifted to IST above
@@ -916,7 +976,9 @@ def session_date(ts_ns: int) -> date:
     return (_EPOCH + timedelta(seconds=ts_ns // 10**9) + _IST_OFFSET).date()
 
 
-def fill_costs_from_model(model: Any, *, currency: Currency = Currency.INR) -> FillCostFn:
+def fill_costs_from_model(
+    model: Any, *, currency: Currency = Currency.INR
+) -> FillCostFn:
     """Adapt a post-hoc ``CostModel`` (``apply(trade) -> trade``) to a :data:`FillCostFn`.
 
     The model sees a zero-cost :class:`Trade` for the fill and its returned ``costs`` is the
@@ -966,7 +1028,11 @@ def make_simulator(
       and cash rules do not apply). Kept for the cross-language conformance suite.
     """
     if fill == "next_open":
-        if auction is not None and auction.delay_bars > 0 and not is_intraday(timeframe):
+        if (
+            auction is not None
+            and auction.delay_bars > 0
+            and not is_intraday(timeframe)
+        ):
             raise ValueError(
                 f"auction.delay_bars={auction.delay_bars} counts driving bars, and timeframe "
                 f"{timeframe!r} is not intraday: the post-open delay only means anything "
@@ -1003,7 +1069,9 @@ def make_simulator(
         from honba.backtest.l2_sim import L2Execution
 
         cost_fn = resolve_fill_costs(costs) if isinstance(costs, str) else costs
-        return L2Execution(cash=cash, costs=cost_fn, long_only=long_only, lot_sizes=lot_sizes)
+        return L2Execution(
+            cash=cash, costs=cost_fn, long_only=long_only, lot_sizes=lot_sizes
+        )
     if fill == "bar_close":
         if impact is not None:
             raise ValueError(
@@ -1018,4 +1086,6 @@ def make_simulator(
         from honba.strategies.testing import BarCloseFills
 
         return BarCloseFills(currency=cash.currency)
-    raise ValueError(f"unknown fill model {fill!r}; expected 'next_open', 'l2' or 'bar_close'")
+    raise ValueError(
+        f"unknown fill model {fill!r}; expected 'next_open', 'l2' or 'bar_close'"
+    )

@@ -5,11 +5,17 @@ from honba.strategies.indicators.momentum.cci import Cci
 from honba.strategies.indicators.momentum.chande_momentum import ChandeMomentum
 from honba.strategies.indicators.momentum.connors_rsi import ConnorsRsi
 from honba.strategies.indicators.momentum.coppock_curve import CoppockCurve
-from honba.strategies.indicators.momentum.fisher_transform import FisherTransform, FisherValue
+from honba.strategies.indicators.momentum.fisher_transform import (
+    FisherTransform,
+    FisherValue,
+)
 from honba.strategies.indicators.momentum.kdj import Kdj
 from honba.strategies.indicators.momentum.kst import Kst, KstValue
 from honba.strategies.indicators.momentum.momentum_ind import Momentum
-from honba.strategies.indicators.momentum.relative_vigor_index import RelativeVigorIndex, RvgiValue
+from honba.strategies.indicators.momentum.relative_vigor_index import (
+    RelativeVigorIndex,
+    RvgiValue,
+)
 from honba.strategies.indicators.momentum.roc import Roc
 from honba.strategies.indicators.momentum.rsi import Rsi
 from honba.strategies.indicators.momentum.stoch_rsi import StochRsi, StochRsiValue

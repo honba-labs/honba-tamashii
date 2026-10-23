@@ -114,10 +114,18 @@ def _validate_trail(
             raise ValueError(f"{name} order takes no trail_percent")
         return
     if (trail_amount is None) == (trail_percent is None):
-        raise ValueError(f"{name} order requires exactly one of trail_amount or trail_percent")
-    if trail_amount is not None and not (math.isfinite(trail_amount) and trail_amount > 0):
-        raise ValueError(f"trail_amount must be finite and positive, got {trail_amount}")
-    if trail_percent is not None and not (math.isfinite(trail_percent) and 0 < trail_percent < 100):
+        raise ValueError(
+            f"{name} order requires exactly one of trail_amount or trail_percent"
+        )
+    if trail_amount is not None and not (
+        math.isfinite(trail_amount) and trail_amount > 0
+    ):
+        raise ValueError(
+            f"trail_amount must be finite and positive, got {trail_amount}"
+        )
+    if trail_percent is not None and not (
+        math.isfinite(trail_percent) and 0 < trail_percent < 100
+    ):
         raise ValueError(f"trail_percent must be in (0, 100), got {trail_percent}")
 
 
@@ -163,11 +171,15 @@ class OrderIntent:
         return cls(instrument_id, OrderSide.SELL, quantity)
 
     @classmethod
-    def limit_buy(cls, instrument_id: InstrumentId, quantity: float, price: float) -> OrderIntent:
+    def limit_buy(
+        cls, instrument_id: InstrumentId, quantity: float, price: float
+    ) -> OrderIntent:
         return cls(instrument_id, OrderSide.BUY, quantity, OrderType.LIMIT, price)
 
     @classmethod
-    def limit_sell(cls, instrument_id: InstrumentId, quantity: float, price: float) -> OrderIntent:
+    def limit_sell(
+        cls, instrument_id: InstrumentId, quantity: float, price: float
+    ) -> OrderIntent:
         return cls(instrument_id, OrderSide.SELL, quantity, OrderType.LIMIT, price)
 
     @classmethod

@@ -1,7 +1,13 @@
 """Moving averages: SMA, EMA, Wilder's RMA, WMA, HMA, VWMA, DEMA, TEMA, KAMA, McGinley, ALMA, LSMA."""
 
 from honba.strategies.indicators.moving_average.alma import Alma
-from honba.strategies.indicators.moving_average.averages import Ema, Rma, Sma, Wma, make_ma
+from honba.strategies.indicators.moving_average.averages import (
+    Ema,
+    Rma,
+    Sma,
+    Wma,
+    make_ma,
+)
 from honba.strategies.indicators.moving_average.dema import Dema
 from honba.strategies.indicators.moving_average.hma import Hma
 from honba.strategies.indicators.moving_average.kama import Kama

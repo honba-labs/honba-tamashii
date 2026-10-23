@@ -138,8 +138,12 @@ class FileBackedBucket:
 
     def write(self, key: str, state: BucketState) -> None:
         data_path, _ = self._paths(key)
-        payload = json.dumps({"tokens": state.tokens, "updated_at_ns": state.updated_at_ns})
-        tmp = data_path.with_name(f".{data_path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+        payload = json.dumps(
+            {"tokens": state.tokens, "updated_at_ns": state.updated_at_ns}
+        )
+        tmp = data_path.with_name(
+            f".{data_path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
             os.write(fd, payload.encode("utf-8"))
@@ -180,7 +184,9 @@ class RateLimiter:
         self._capacity = float(capacity)
         self._refill_rate = float(refill_rate)
         self._key = key
-        self._store: SharedBucketStore = store if store is not None else InMemoryBucket()
+        self._store: SharedBucketStore = (
+            store if store is not None else InMemoryBucket()
+        )
         self._clock = clock
 
     @property
@@ -202,7 +208,9 @@ class RateLimiter:
         if state is None:
             return BucketState(self._capacity, now_ns)
         elapsed_ns = max(0, now_ns - state.updated_at_ns)
-        tokens = min(self._capacity, state.tokens + elapsed_ns / SECOND_NS * self._refill_rate)
+        tokens = min(
+            self._capacity, state.tokens + elapsed_ns / SECOND_NS * self._refill_rate
+        )
         return BucketState(tokens, now_ns)
 
     def available_tokens(self, now_ns: int | None = None) -> float:
@@ -237,7 +245,9 @@ class RateLimiter:
                 available = self._refilled(self._store.read(self._key), now).tokens
             deficit = max(0.0, amount - available)
             if self._refill_rate <= 0:
-                raise RateLimitExceeded(f"bucket {self._key!r} is empty and has no refill rate")
+                raise RateLimitExceeded(
+                    f"bucket {self._key!r} is empty and has no refill rate"
+                )
             await asyncio.sleep(deficit / self._refill_rate)
 
 
@@ -250,7 +260,9 @@ class RateLimiterRegistry:
         store: SharedBucketStore | None = None,
         clock: Clock = time.monotonic_ns,
     ) -> None:
-        self._store: SharedBucketStore = store if store is not None else InMemoryBucket()
+        self._store: SharedBucketStore = (
+            store if store is not None else InMemoryBucket()
+        )
         self._clock = clock
         self._limiters: dict[str, RateLimiter] = {}
 

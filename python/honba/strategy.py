@@ -19,16 +19,11 @@ via ``honba-mon`` rather than crashing the host process.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from honba._honba import (
     Bar,
-    InstrumentId,
-    Metrics,
     PyContext,
-    RiskRefusalError,
-    Sma,
-    Tick,
 )
 
 T = TypeVar("T")
@@ -57,7 +52,7 @@ class PyMetrics(Generic[T]):
         orders: int,
         trades: int,
         degraded: bool,
-        errors: List[str],
+        errors: list[str],
     ):
         self.total_return = total_return
         self.cagr = cagr
@@ -141,7 +136,7 @@ class Strategy:
     @property
     def cash(self) -> Decimal:
         """Current available cash balance."""
-        return Decimal("0")
+        return Decimal(0)
 
     @property
     def indicators(self) -> dict[str, Any]:
@@ -168,9 +163,9 @@ class Strategy:
             self,
             *,
             default: Any,
-            min: Optional[Any] = None,
-            max: Optional[Any] = None,
-            step: Optional[Any] = None,
+            min: Any | None = None,
+            max: Any | None = None,
+            step: Any | None = None,
             description: str = "",
         ):
             self.default = default
@@ -182,12 +177,12 @@ class Strategy:
         def __set_name__(self, owner: type, name: str) -> None:
             self.param_name = name
 
-        def __get__(self, instance: "Strategy", owner: type) -> Any:
+        def __get__(self, instance: Strategy, owner: type) -> Any:
             if instance is None:
                 return self
             return instance._parameters.get(self.param_name, self.default)
 
-        def __set__(self, instance: "Strategy", value: Any) -> None:
+        def __set__(self, instance: Strategy, value: Any) -> None:
             instance._parameters[self.param_name] = value
 
     # ------------------------------------------------------------------
@@ -199,7 +194,7 @@ class Strategy:
         ctx: PyContext,
         instrument: str,
         quantity: Decimal | str,
-        price: Optional[Decimal | str] = None,
+        price: Decimal | str | None = None,
         order_type: str = "limit",
     ) -> Any:
         """Submit a buy order.
@@ -232,7 +227,7 @@ class Strategy:
         ctx: PyContext,
         instrument: str,
         quantity: Decimal | str,
-        price: Optional[Decimal | str] = None,
+        price: Decimal | str | None = None,
         order_type: str = "limit",
     ) -> Any:
         """Submit a sell order.
@@ -264,7 +259,7 @@ class Strategy:
         self,
         ctx: PyContext,
         instrument: str,
-        quantity: Optional[Decimal | str] = None,
+        quantity: Decimal | str | None = None,
     ) -> Any:
         """Close (or reduce) a position in *instrument*.
 

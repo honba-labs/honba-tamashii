@@ -105,7 +105,9 @@ def _parameter_layout(graph: StrategyGraph) -> dict[tuple[str, str], str]:
     return layout
 
 
-def _incoming(graph: StrategyGraph, node_id: str, port: str | None = None) -> list[tuple[str, str]]:
+def _incoming(
+    graph: StrategyGraph, node_id: str, port: str | None = None
+) -> list[tuple[str, str]]:
     return [
         (e.from_node, e.from_port)
         for e in graph.edges
@@ -113,13 +115,18 @@ def _incoming(graph: StrategyGraph, node_id: str, port: str | None = None) -> li
     ]
 
 
-def _generate_on_bar(graph: StrategyGraph, layout: dict[tuple[str, str], str]) -> list[str]:
+def _generate_on_bar(
+    graph: StrategyGraph, layout: dict[tuple[str, str], str]
+) -> list[str]:
     """The body of ``on_bar`` for the supported pipeline; comments mark the rest."""
     lines: list[str] = []
     by_id = {n.id: n for n in graph.nodes}
     prev_needed: set[str] = set()
     for node in graph.nodes:
-        if node.type == "condition" and node.params.get("op") in ("crosses_above", "crosses_below"):
+        if node.type == "condition" and node.params.get("op") in (
+            "crosses_above",
+            "crosses_below",
+        ):
             prev_needed.add(node.id)
 
     for nid in _topo_order(graph):
@@ -130,7 +137,9 @@ def _generate_on_bar(graph: StrategyGraph, layout: dict[tuple[str, str], str]) -
         if node.type == "indicator":
             lines.append(f"        {local} = self._{local}.update_bar(bar)")
         elif node.type == "benchmark":
-            lines.append(f"        {local} = None  # benchmark series is not modelled yet")
+            lines.append(
+                f"        {local} = None  # benchmark series is not modelled yet"
+            )
         elif node.type == "condition":
             lines.extend(_condition_lines(graph, node, local, prev_needed))
         elif node.type == "logic":
@@ -139,7 +148,9 @@ def _generate_on_bar(graph: StrategyGraph, layout: dict[tuple[str, str], str]) -
             lines.append(f"        {local} = {float(node.params.get('value', 1.0))!r}")
         elif node.type == "risk":
             src = _first_signal(graph, nid)
-            lines.append(f"        {local} = {src or 'False'}  # risk gate: {node.display()!r}")
+            lines.append(
+                f"        {local} = {src or 'False'}  # risk gate: {node.display()!r}"
+            )
         elif node.type == "order":
             lines.extend(_order_lines(graph, node))
         elif node.type == "transform":
@@ -161,7 +172,9 @@ def _condition_lines(
     left_expr = _ident(left) if left else "bar.close"
     threshold = node.params.get("threshold")
     right_expr = (
-        _ident(right) if right else repr(float(threshold if threshold is not None else 0.0))
+        _ident(right)
+        if right
+        else repr(float(threshold if threshold is not None else 0.0))
     )
     if node.id in prev_needed:
         symbol = ">" if op == "crosses_above" else "<"
@@ -241,7 +254,9 @@ def generate(graph: StrategyGraph) -> str:
     out: list[str] = []
     out.append(f'"""{klass}: generated from a Honba StrategyGraph (schema_version 1).')
     out.append("")
-    out.append("DO NOT EDIT by hand: ``honba.strategies.graph_codegen`` regenerates this file")
+    out.append(
+        "DO NOT EDIT by hand: ``honba.strategies.graph_codegen`` regenerates this file"
+    )
     out.append("from the graph; see the builder block below for the lossless source.")
     out.append('"""')
     out.append("")
@@ -297,14 +312,18 @@ def generate(graph: StrategyGraph) -> str:
     for node in _indicator_instances(graph):
         for pname, pvalue in node.params.items():
             attr = layout[(node.id, pname)]
-            out.append(f"    {attr} = Parameter(default={pvalue!r}, description={pname!r})")
+            out.append(
+                f"    {attr} = Parameter(default={pvalue!r}, description={pname!r})"
+            )
     if not _indicator_instances(graph):
         out.append("    pass")
     out.append("")
     out.append("    def on_start(self) -> None:")
     started = False
     for node in _indicator_instances(graph):
-        kwargs = ", ".join(f"{p}=self.{layout[(node.id, p)]}" for p in sorted(node.params))
+        kwargs = ", ".join(
+            f"{p}=self.{layout[(node.id, p)]}" for p in sorted(node.params)
+        )
         call = f"build_indicator({node.indicator!r}{', ' if kwargs else ''}{kwargs})"
         out.append(f"        self._{_ident(node.id)} = {call}")
         started = True

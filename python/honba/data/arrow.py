@@ -9,8 +9,9 @@ PyCapsule Interface (``__arrow_c_stream__`` / ``__arrow_c_schema__``).
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from honba._honba import (
     ArrowStream,
@@ -139,7 +140,9 @@ def load_bars(
             return stream.to_polars()
         except ImportError:
             return stream.to_pyarrow()
-    raise ValueError(f"unsupported backend {backend!r}; expected 'auto', 'polars', 'pyarrow', or 'arrow'")
+    raise ValueError(
+        f"unsupported backend {backend!r}; expected 'auto', 'polars', 'pyarrow', or 'arrow'"
+    )
 
 
 def load_ticks(
@@ -167,7 +170,9 @@ def load_ticks(
             return stream.to_polars()
         except ImportError:
             return stream.to_pyarrow()
-    raise ValueError(f"unsupported backend {backend!r}; expected 'auto', 'polars', 'pyarrow', or 'arrow'")
+    raise ValueError(
+        f"unsupported backend {backend!r}; expected 'auto', 'polars', 'pyarrow', or 'arrow'"
+    )
 
 
 def load_bhavcopy_day(
@@ -202,4 +207,6 @@ def load_bhavcopy_day(
 
     if as_arrow:
         return bhavcopy_to_arrow(csv_text, fallback_date=fallback_date, series=series)
-    return parse_bhavcopy_csv(csv_text, fallback_date=fallback_date, delivery_dat=delivery_dat)
+    return parse_bhavcopy_csv(
+        csv_text, fallback_date=fallback_date, delivery_dat=delivery_dat
+    )

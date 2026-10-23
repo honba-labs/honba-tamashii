@@ -117,7 +117,9 @@ class Instrument:
         if not (math.isfinite(quantity) and math.isfinite(price)):
             raise ValueError("quantity and price must be finite")
         if not self.is_on_tick(price):
-            raise ValueError(f"settlement price {price} is not on tick {self.tick_size}")
+            raise ValueError(
+                f"settlement price {price} is not on tick {self.tick_size}"
+            )
         return Money.mul_qty(quantity, price, Currency(self.currency))
 
 

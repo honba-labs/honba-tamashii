@@ -96,7 +96,12 @@ __all__ = [
 
 
 _FINISHED = frozenset(
-    {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED}
+    {
+        OrderStatus.FILLED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REJECTED,
+        OrderStatus.EXPIRED,
+    }
 )
 
 
@@ -218,14 +223,18 @@ class StrategyRunner:
             _STAGE_OWNERS[id(risk)] = weakref.ref(self)
         self._risk = risk
         self._risk_limits = risk_limits
-        self._trading_state: TradingState | None = None  # None: Active (needs no extension)
+        self._trading_state: TradingState | None = (
+            None  # None: Active (needs no extension)
+        )
         self._audit: list[RiskRefused | OrderRejected] = []
         self._orders: dict[str, tuple[InstrumentId, OrderSide]] = {}
         self._last_px: dict[InstrumentId, float] = {}
         # Latest (bid, ask) per instrument: the price collar's expected_price source.
         self._last_quote: dict[InstrumentId, tuple[float, float]] = {}
         self._pre_gate: list[Rejected] = []
-        self._port = adapt_port(execution)  # event stream + cancel(order_id, now), bound once
+        self._port = adapt_port(
+            execution
+        )  # event stream + cancel(order_id, now), bound once
         self._now = 0
         self._states: dict[str, OrderState] = {}
         self._released: dict[InstrumentId, float] = {}
@@ -370,7 +379,9 @@ class StrategyRunner:
 
     def _drain(self) -> list[OrderIntent]:
         if _overrides(self.strategy, "drain_intents"):
-            return self.strategy.drain_intents()  # deprecated override, honoured until 0.3
+            return (
+                self.strategy.drain_intents()
+            )  # deprecated override, honoured until 0.3
         return self.ctx.drain_intents()
 
     def _flush_cancels(self) -> None:
@@ -458,12 +469,16 @@ class StrategyRunner:
                 },
             )
 
-    def _gate(self, order_id: str, intent: OrderIntent, ts_init: int) -> RiskRefusal | None:
+    def _gate(
+        self, order_id: str, intent: OrderIntent, ts_init: int
+    ) -> RiskRefusal | None:
         """The stage (or, without one, the state rules) over the order about to be submitted."""
         iid = intent.instrument_id
         position = self.ctx.position(iid) + self.working_exposure(iid, intent.side)
         if self._risk is None:
-            return check_state(intent.side, intent.quantity, position, self.trading_state)
+            return check_state(
+                intent.side, intent.quantity, position, self.trading_state
+            )
         request: dict[str, Any] = {
             "order_id": order_id,
             "instrument_id": f"{iid.symbol}.{iid.exchange}",
@@ -487,7 +502,9 @@ class StrategyRunner:
         decision = self._risk.check(request)
         if decision.approved:
             return None
-        return RiskRefusal(str(decision.code), str(decision.rule), dict(decision.context))
+        return RiskRefusal(
+            str(decision.code), str(decision.rule), dict(decision.context)
+        )
 
     def _refuse(
         self, order_id: str, intent: OrderIntent, refusal: RiskRefusal, ts_init: int
@@ -519,7 +536,9 @@ class StrategyRunner:
         if isinstance(ev, Fill):
             state = self._states.get(ev.trade.order_id or "")
             if state is not None:
-                complete = state.filled_qty + ev.trade.quantity + _QTY_EPS >= state.quantity
+                complete = (
+                    state.filled_qty + ev.trade.quantity + _QTY_EPS >= state.quantity
+                )
                 try:
                     state.apply(OrderEvent.fill(ev.trade.quantity, complete))
                 except IllegalTransition:
@@ -573,7 +592,9 @@ class StrategyRunner:
         if ts_ns > 0:
             from datetime import datetime, timezone
 
-            bar_date = datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc).strftime("%Y-%m-%d")
+            bar_date = datetime.fromtimestamp(ts_ns / 1e9, tz=timezone.utc).strftime(
+                "%Y-%m-%d"
+            )
         else:
             bar_date = "?"
         self.logger.info(
@@ -599,7 +620,9 @@ class StrategyRunner:
 
     def _release(self, intent: OrderIntent) -> None:
         if _overrides(self.strategy, "handle_rejected"):
-            self.strategy.handle_rejected(intent)  # deprecated override, honoured until 0.3
+            self.strategy.handle_rejected(
+                intent
+            )  # deprecated override, honoured until 0.3
         else:
             self.ctx.release(intent)
 

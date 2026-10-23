@@ -22,7 +22,9 @@ class Selector(Protocol):
 class SelectAll:
     """Keep every member."""
 
-    def select(self, members: Sequence[InstrumentId], view: MarketView) -> Sequence[InstrumentId]:
+    def select(
+        self, members: Sequence[InstrumentId], view: MarketView
+    ) -> Sequence[InstrumentId]:
         return list(members)
 
 
@@ -47,7 +49,9 @@ class TopN:
         self.score = score
         self.descending = descending
 
-    def select(self, members: Sequence[InstrumentId], view: MarketView) -> Sequence[InstrumentId]:
+    def select(
+        self, members: Sequence[InstrumentId], view: MarketView
+    ) -> Sequence[InstrumentId]:
         sign = -1.0 if self.descending else 1.0
         ranked: list[tuple[float, str, str, InstrumentId]] = []
         for iid in dict.fromkeys(members):

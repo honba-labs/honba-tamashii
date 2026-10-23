@@ -20,6 +20,8 @@ from honba._honba import (
     BhavRecord,
     bhavcopy_to_arrow,
     bhavcopy_to_bars,
+)
+from honba._honba import (
     parse_bhavcopy_csv as parse_bhavcopy_records,
 )
 from honba.domain.bar import Bar
@@ -67,17 +69,29 @@ def parse_bhavcopy_csv(csv_content: str, exchange: str = "NSE") -> dict[str, Bar
 
     sym_col = field_map.get("TCKRSYMB") or field_map.get("SYMBOL")
     series_col = field_map.get("SCTYSRS") or field_map.get("SERIES")
-    open_col = field_map.get("OPNPRIC") or field_map.get("OPEN_PRICE") or field_map.get("OPEN")
-    high_col = field_map.get("HGHPRIC") or field_map.get("HIGH_PRICE") or field_map.get("HIGH")
-    low_col = field_map.get("LWPRIC") or field_map.get("LOW_PRICE") or field_map.get("LOW")
-    close_col = field_map.get("CLSPRIC") or field_map.get("CLOSE_PRICE") or field_map.get("CLOSE")
+    open_col = (
+        field_map.get("OPNPRIC") or field_map.get("OPEN_PRICE") or field_map.get("OPEN")
+    )
+    high_col = (
+        field_map.get("HGHPRIC") or field_map.get("HIGH_PRICE") or field_map.get("HIGH")
+    )
+    low_col = (
+        field_map.get("LWPRIC") or field_map.get("LOW_PRICE") or field_map.get("LOW")
+    )
+    close_col = (
+        field_map.get("CLSPRIC")
+        or field_map.get("CLOSE_PRICE")
+        or field_map.get("CLOSE")
+    )
     qty_col = (
         field_map.get("TTLTRADGVOL")
         or field_map.get("TTLTRADQTY")
         or field_map.get("TTL_TRD_QNTY")
         or field_map.get("TOTTRDQTY")
     )
-    date_col = field_map.get("TRADDT") or field_map.get("DATE1") or field_map.get("TIMESTAMP")
+    date_col = (
+        field_map.get("TRADDT") or field_map.get("DATE1") or field_map.get("TIMESTAMP")
+    )
 
     if not all([sym_col, open_col, high_col, low_col, close_col, qty_col]):
         first_hdr = str(reader.fieldnames[0]) if reader.fieldnames else ""
@@ -113,7 +127,9 @@ def parse_bhavcopy_csv(csv_content: str, exchange: str = "NSE") -> dict[str, Bar
         raw_date_str = (row.get(date_col) or "").strip() if date_col else ""
         bar_date = _parse_date(raw_date_str) or dt.datetime.now(IST).date()
 
-        ts = int(dt.datetime.combine(bar_date, dt.time(9, 15), tzinfo=IST).timestamp() * 1e9)
+        ts = int(
+            dt.datetime.combine(bar_date, dt.time(9, 15), tzinfo=IST).timestamp() * 1e9
+        )
         inst_id = InstrumentId(symbol=raw_sym, exchange=exchange)
 
         b = Bar(
@@ -164,10 +180,14 @@ class NseBhavcopyProvider:
 
         if self._client is None or self._client.is_closed:
             limits = httpx.Limits(
-                max_keepalive_connections=self.max_workers * 2, max_connections=self.max_workers * 4
+                max_keepalive_connections=self.max_workers * 2,
+                max_connections=self.max_workers * 4,
             )
             self._client = httpx.Client(
-                headers=DEFAULT_HEADERS, timeout=self.timeout, limits=limits, follow_redirects=True
+                headers=DEFAULT_HEADERS,
+                timeout=self.timeout,
+                limits=limits,
+                follow_redirects=True,
             )
         return self._client
 
@@ -194,14 +214,25 @@ class NseBhavcopyProvider:
         self, session_date: dt.date, client: Any = None
     ) -> dict[str, Bar]:
         date_str = session_date.strftime("%Y%m%d")
-        xz_cache_file = self.cache_dir / f"bhavcopy_{date_str}.csv.xz" if self.cache_dir else None
-        csv_cache_file = self.cache_dir / f"bhavcopy_{date_str}.csv" if self.cache_dir else None
+        xz_cache_file = (
+            self.cache_dir / f"bhavcopy_{date_str}.csv.xz" if self.cache_dir else None
+        )
+        csv_cache_file = (
+            self.cache_dir / f"bhavcopy_{date_str}.csv" if self.cache_dir else None
+        )
 
         if xz_cache_file and xz_cache_file.exists():
             try:
                 with lzma.open(xz_cache_file, mode="rt", encoding="utf-8") as f:
                     return parse_bhavcopy_csv(f.read())
-            except (OSError, lzma.LZMAError, EOFError, UnicodeDecodeError, ValueError, KeyError) as exc:
+            except (
+                OSError,
+                lzma.LZMAError,
+                EOFError,
+                UnicodeDecodeError,
+                ValueError,
+                KeyError,
+            ) as exc:
                 logger.warning("Error reading xz cache %s: %s", xz_cache_file, exc)
 
         if csv_cache_file and csv_cache_file.exists():
@@ -213,7 +244,9 @@ class NseBhavcopyProvider:
                             f.write(content_str)
                         csv_cache_file.unlink(missing_ok=True)
                     except (OSError, lzma.LZMAError) as e:
-                        logger.debug("Failed auto-compression of %s: %s", csv_cache_file, e)
+                        logger.debug(
+                            "Failed auto-compression of %s: %s", csv_cache_file, e
+                        )
                 return parse_bhavcopy_csv(content_str)
             except (OSError, UnicodeDecodeError, ValueError, KeyError) as exc:
                 logger.warning("Error reading csv cache %s: %s", csv_cache_file, exc)
@@ -235,7 +268,9 @@ class NseBhavcopyProvider:
                         with zipfile.ZipFile(io.BytesIO(content)) as z:
                             for name in z.namelist():
                                 if name.lower().endswith(".csv"):
-                                    csv_text = z.read(name).decode("utf-8", errors="ignore")
+                                    csv_text = z.read(name).decode(
+                                        "utf-8", errors="ignore"
+                                    )
                                     break
                     except zipfile.BadZipFile:
                         continue
@@ -248,10 +283,14 @@ class NseBhavcopyProvider:
                     if parsed:
                         if xz_cache_file:
                             try:
-                                with lzma.open(xz_cache_file, mode="wt", encoding="utf-8") as f:
+                                with lzma.open(
+                                    xz_cache_file, mode="wt", encoding="utf-8"
+                                ) as f:
                                     f.write(csv_text)
                             except (OSError, lzma.LZMAError) as e:
-                                logger.warning("Could not write xz cache %s: %s", xz_cache_file, e)
+                                logger.warning(
+                                    "Could not write xz cache %s: %s", xz_cache_file, e
+                                )
                         return parsed
             except Exception as exc:  # noqa: BLE001
                 logger.debug("Failed to fetch %s: %s", url, exc)

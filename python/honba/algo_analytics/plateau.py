@@ -72,7 +72,10 @@ class PlateauGates:
     min_flatness_score: float = 0.4
 
     def __post_init__(self) -> None:
-        if not (math.isfinite(self.min_flatness_score) and 0.0 <= self.min_flatness_score <= 1.0):
+        if not (
+            math.isfinite(self.min_flatness_score)
+            and 0.0 <= self.min_flatness_score <= 1.0
+        ):
             raise ValueError(
                 "min_flatness_score must be a finite number in [0, 1], "
                 f"got {self.min_flatness_score}"
@@ -155,7 +158,9 @@ class PlateauResult:
             lines.append("RESULT: PASSED")
         else:
             failed = sum(1 for ok in self.checks.values() if not ok)
-            lines.append(f"RESULT: FAILED ({failed} of {len(self.checks)} checks failed)")
+            lines.append(
+                f"RESULT: FAILED ({failed} of {len(self.checks)} checks failed)"
+            )
         return "\n".join(lines)
 
 
@@ -169,7 +174,9 @@ def heatmap(grid: Grid) -> list[list[float | None]]:
     scores = _normalise(grid)
     dims = {len(c) for c in scores}
     if dims != {2}:
-        raise ValueError(f"heatmap needs a two-dimensional grid, got dimensions {sorted(dims)}")
+        raise ValueError(
+            f"heatmap needs a two-dimensional grid, got dimensions {sorted(dims)}"
+        )
     rows = sorted({c[0] for c in scores})
     cols = sorted({c[1] for c in scores})
     return [[scores.get((r, c)) for c in cols] for r in rows]
@@ -224,7 +231,9 @@ def plateau(
             f"parameter(s) {missing}: every grid axis must be an attribute of the strategy"
         )
     coords = list(itertools.product(*axes))
-    _steps({c: 0.0 for c in coords})  # refuse a surface with no adjacent step, before running
+    _steps(
+        {c: 0.0 for c in coords}
+    )  # refuse a surface with no adjacent step, before running
 
     gates = PlateauGates(min_flatness_score=min_flatness_score)
     grid: dict[Coord, float] = {}
@@ -269,8 +278,14 @@ def _validate_params(params: Mapping[str, Sequence[float]]) -> list[tuple[float,
         if len(set(axis)) != len(axis):
             raise ValueError(f"parameter {name!r} has duplicate values: {list(axis)}")
         for v in axis:
-            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
-                raise ValueError(f"parameter {name!r} values must be finite numbers, got {v!r}")
+            if (
+                isinstance(v, bool)
+                or not isinstance(v, (int, float))
+                or not math.isfinite(v)
+            ):
+                raise ValueError(
+                    f"parameter {name!r} values must be finite numbers, got {v!r}"
+                )
         axes.append(axis)
     return axes
 
@@ -285,13 +300,21 @@ def _normalise(grid: Grid) -> dict[Coord, float]:
         try:
             key = tuple(coord)
         except TypeError as e:
-            raise ValueError(f"grid coordinates must be sequences, got {coord!r}") from e
+            raise ValueError(
+                f"grid coordinates must be sequences, got {coord!r}"
+            ) from e
         if not key:
             raise ValueError("grid coordinates must not be empty")
         dims.add(len(key))
         for v in key:
-            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
-                raise ValueError(f"grid coordinate {key} must hold finite numbers, got {v!r}")
+            if (
+                isinstance(v, bool)
+                or not isinstance(v, (int, float))
+                or not math.isfinite(v)
+            ):
+                raise ValueError(
+                    f"grid coordinate {key} must hold finite numbers, got {v!r}"
+                )
         score = float(value)
         if not math.isfinite(score):
             raise ValueError(f"score at {list(key)} must be finite, got {value!r}")

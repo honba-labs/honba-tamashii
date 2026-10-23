@@ -19,7 +19,9 @@ class ConnorsRsi(Indicator):
     100 * (count of the previous ``rank_length`` 1-bar ROC values <= current) / rank_length.
     """
 
-    def __init__(self, rsi_length: int = 3, streak_length: int = 2, rank_length: int = 100) -> None:
+    def __init__(
+        self, rsi_length: int = 3, streak_length: int = 2, rank_length: int = 100
+    ) -> None:
         self.rsi_length = _check(rsi_length)
         self.streak_length = _check(streak_length)
         self.rank_length = _check(rank_length)

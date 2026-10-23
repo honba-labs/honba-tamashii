@@ -114,7 +114,9 @@ class FileSecretStore(SecretStore):
         """Re-encrypt every stored secret under ``new_key`` and atomically replace the file."""
         rotated_fernet = Fernet(_fernet_key(new_key))
         payload = {
-            key: rotated_fernet.encrypt(self._fernet.decrypt(value.encode("ascii"))).decode("ascii")
+            key: rotated_fernet.encrypt(
+                self._fernet.decrypt(value.encode("ascii"))
+            ).decode("ascii")
             for key, value in self._read().items()
         }
         self._master_key = new_key

@@ -91,15 +91,15 @@ def bs_greeks(
 
     if kind == OptionKind.CALL:
         delta = _norm_cdf(d1)
-        theta = -(spot * pdf_d1 * iv) / (2.0 * math.sqrt(tau)) - r * strike * discount * _norm_cdf(
-            d2
-        )
+        theta = -(spot * pdf_d1 * iv) / (
+            2.0 * math.sqrt(tau)
+        ) - r * strike * discount * _norm_cdf(d2)
         rho = strike * tau * discount * _norm_cdf(d2)
     else:
         delta = _norm_cdf(d1) - 1.0
-        theta = -(spot * pdf_d1 * iv) / (2.0 * math.sqrt(tau)) + r * strike * discount * _norm_cdf(
-            -d2
-        )
+        theta = -(spot * pdf_d1 * iv) / (
+            2.0 * math.sqrt(tau)
+        ) + r * strike * discount * _norm_cdf(-d2)
         rho = -strike * tau * discount * _norm_cdf(-d2)
 
     gamma = pdf_d1 / (spot * sigma_sqrt_tau)

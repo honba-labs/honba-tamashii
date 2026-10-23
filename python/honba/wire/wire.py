@@ -429,7 +429,10 @@ class Position(_Wire):
             pnl = data.get("realized_pnl")
             if isinstance(pnl, (int, float)) and not isinstance(pnl, bool):
                 currency = data.get("currency")
-                return {**data, "realized_pnl": {"amount": float(pnl), "currency": currency}}
+                return {
+                    **data,
+                    "realized_pnl": {"amount": float(pnl), "currency": currency},
+                }
         return data
 
 
@@ -613,8 +616,12 @@ def loads(kind: str, data: str | bytes) -> Any:
     """
     adapter = _ADAPTERS.get(kind)
     if adapter is None:
-        raise ValueError(f"unknown wire kind {kind!r}; expected one of {sorted(MODELS)}")
-    obj = json.loads(data, object_pairs_hook=_no_duplicate_keys, parse_constant=_no_constant)
+        raise ValueError(
+            f"unknown wire kind {kind!r}; expected one of {sorted(MODELS)}"
+        )
+    obj = json.loads(
+        data, object_pairs_hook=_no_duplicate_keys, parse_constant=_no_constant
+    )
     return adapter.validate_python(obj)
 
 
@@ -622,8 +629,12 @@ def loads_many(kind: str, data: str | bytes) -> list[Any]:
     """Parse a JSON array of ``kind`` values with the same strict rules as ``loads``."""
     adapter = _ADAPTERS.get(kind)
     if adapter is None:
-        raise ValueError(f"unknown wire kind {kind!r}; expected one of {sorted(MODELS)}")
-    items = json.loads(data, object_pairs_hook=_no_duplicate_keys, parse_constant=_no_constant)
+        raise ValueError(
+            f"unknown wire kind {kind!r}; expected one of {sorted(MODELS)}"
+        )
+    items = json.loads(
+        data, object_pairs_hook=_no_duplicate_keys, parse_constant=_no_constant
+    )
     if not isinstance(items, list):
         raise TypeError(f"expected a JSON array of {kind}, got {type(items).__name__}")
     return [adapter.validate_python(item) for item in items]

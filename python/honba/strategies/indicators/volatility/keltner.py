@@ -29,7 +29,9 @@ class Keltner(Indicator):
 
     The EMA is SMA-seeded; ATR needs a previous close so it appears after ``atr_length + 1`` bars."""
 
-    def __init__(self, length: int = 20, atr_length: int = 10, mult: float = 2.0) -> None:
+    def __init__(
+        self, length: int = 20, atr_length: int = 10, mult: float = 2.0
+    ) -> None:
         self.length, self.atr_length = _check(length), _check(atr_length)
         if mult < 0:
             raise ValueError("mult must be >= 0")

@@ -128,7 +128,9 @@ class MetricDefinition(_Command):
     unit: WireUnitType | None = None
     description: Str | None = None
     has_period: Annotated[bool, Strict()] = Field(default=False, alias="hasPeriod")
-    has_timeframe: Annotated[bool, Strict()] = Field(default=False, alias="hasTimeframe")
+    has_timeframe: Annotated[bool, Strict()] = Field(
+        default=False, alias="hasTimeframe"
+    )
     default_period: Str | None = Field(default=None, alias="defaultPeriod")
     default_timeframe: Str | None = Field(default=None, alias="defaultTimeframe")
     filterable: Annotated[bool, Strict()] = True
@@ -174,7 +176,11 @@ def _check_value(op: FilterOp, value: Any) -> Any:
             return value
         return _metric_ref(value, op)
     if op is FilterOp.BETWEEN:
-        if not (isinstance(value, list) and len(value) == 2 and all(map(_is_finite_number, value))):
+        if not (
+            isinstance(value, list)
+            and len(value) == 2
+            and all(map(_is_finite_number, value))
+        ):
             raise ValueError("between: value must be a list of two finite numbers")
         return value
     if op in _SET_OPS:

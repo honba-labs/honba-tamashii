@@ -37,9 +37,13 @@ class Vwap(Indicator):
 
     @property
     def warmup(self) -> None:
-        return None  # session-anchored: a value exists from the first bar of each session
+        return (
+            None  # session-anchored: a value exists from the first bar of each session
+        )
 
-    def update(self, high: float, low: float, close: float, volume: float, ts: int) -> VwapValue:
+    def update(
+        self, high: float, low: float, close: float, volume: float, ts: int
+    ) -> VwapValue:
         day = ist_session_day(int(ts))
         if day != self._day:
             self._day = day

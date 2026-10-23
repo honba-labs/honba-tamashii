@@ -15,12 +15,18 @@ class ParabolicSar(Indicator):
     enters the previous two bars' range; on reversal it jumps to the prior extreme point.
     """
 
-    def __init__(self, start: float = 0.02, increment: float = 0.02, maximum: float = 0.2) -> None:
+    def __init__(
+        self, start: float = 0.02, increment: float = 0.02, maximum: float = 0.2
+    ) -> None:
         if start <= 0 or increment <= 0:
             raise ValueError("start and increment must be > 0")
         if maximum < start:
             raise ValueError(f"maximum must be >= start, got {maximum} < {start}")
-        self.start, self.increment, self.maximum = float(start), float(increment), float(maximum)
+        self.start, self.increment, self.maximum = (
+            float(start),
+            float(increment),
+            float(maximum),
+        )
         self._p1: tuple[float, float] | None = None  # previous bar (high, low)
         self._p2: tuple[float, float] | None = None  # bar before that
         self._long = True
@@ -43,13 +49,23 @@ class ParabolicSar(Indicator):
         if self._long:
             sar = min(sar, p1[1], p2[1])
             if low < sar:  # reverse to short
-                self._long, sar, self._ep, self._af = False, max(self._ep, high), low, self.start
+                self._long, sar, self._ep, self._af = (
+                    False,
+                    max(self._ep, high),
+                    low,
+                    self.start,
+                )
             elif high > self._ep:
                 self._ep, self._af = high, min(self._af + self.increment, self.maximum)
         else:
             sar = max(sar, p1[0], p2[0])
             if high > sar:  # reverse to long
-                self._long, sar, self._ep, self._af = True, min(self._ep, low), high, self.start
+                self._long, sar, self._ep, self._af = (
+                    True,
+                    min(self._ep, low),
+                    high,
+                    self.start,
+                )
             elif low < self._ep:
                 self._ep, self._af = low, min(self._af + self.increment, self.maximum)
         self._sar = sar

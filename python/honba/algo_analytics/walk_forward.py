@@ -66,7 +66,9 @@ class FoldStats:
     n_trades: int = 0
 
 
-def stats_from_result(result: BacktestResult, *, periods_per_year: float = 252.0) -> FoldStats:
+def stats_from_result(
+    result: BacktestResult, *, periods_per_year: float = 252.0
+) -> FoldStats:
     """Read a fold's statistics off a finished ``BacktestResult``.
 
     Level metrics come from the session; the Sharpe is read off the equity
@@ -203,7 +205,8 @@ class WalkForwardResult:
         return {
             "mean_oos_sharpe": self.mean_oos_sharpe > gates.min_mean_oos_sharpe,
             "oos_sharpe_std": self.oos_sharpe_std < gates.max_oos_sharpe_std,
-            "profitable_folds": self.profitable_fraction >= gates.min_profitable_fraction,
+            "profitable_folds": self.profitable_fraction
+            >= gates.min_profitable_fraction,
         }
 
     @property
@@ -271,7 +274,9 @@ def train_test_split(
     train_end_d = _as_date(train_end, "train_end")
     end_d = _as_date(end, "end")
     if not start_d < train_end_d < end_d:
-        raise ValueError(f"need start < train_end < end, got {start_d} / {train_end_d} / {end_d}")
+        raise ValueError(
+            f"need start < train_end < end, got {start_d} / {train_end_d} / {end_d}"
+        )
     run = _run_factory(symbol, exchange, data, periods_per_year, backtest_kwargs)
     return (
         run(strategy, start_d, train_end_d),
@@ -398,5 +403,9 @@ def _as_date(value: date | str, name: str) -> date:
         try:
             return date.fromisoformat(value)
         except ValueError as e:
-            raise ValueError(f"{name} must be an ISO date (YYYY-MM-DD), got {value!r}") from e
-    raise TypeError(f"{name} must be a date or ISO date string, got {type(value).__name__}")
+            raise ValueError(
+                f"{name} must be an ISO date (YYYY-MM-DD), got {value!r}"
+            ) from e
+    raise TypeError(
+        f"{name} must be a date or ISO date string, got {type(value).__name__}"
+    )

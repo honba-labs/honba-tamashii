@@ -31,7 +31,9 @@ class Sma(Indicator):
         return self._sum / self.period if len(self._w) == self.period else None
 
 
-@indicator("ema", "moving_average", warmup=lambda s: 1 if s.seed == "first" else s.period)
+@indicator(
+    "ema", "moving_average", warmup=lambda s: 1 if s.seed == "first" else s.period
+)
 class Ema(Indicator):
     """EMA with alpha = 2/(period+1).
 
@@ -97,10 +99,14 @@ class Wma(Indicator):
         self._den = period * (period + 1) / 2
         self._bad = 0  # unsafe (non-finite or huge) values currently in the window
         self._dirty = False
-        self._ok = False  # window full, all values safe, state clean (fast path allowed)
+        self._ok = (
+            False  # window full, all values safe, state clean (fast path allowed)
+        )
         self._since = 0
         self._every = max(_RECOMPUTE_MIN, 4 * period)
-        self._gap = max(1, period // 2)  # minimum updates between cancellation-guard rebuilds
+        self._gap = max(
+            1, period // 2
+        )  # minimum updates between cancellation-guard rebuilds
 
     def _recompute(self) -> None:
         self._sum = math.fsum(self._w)
@@ -123,7 +129,11 @@ class Wma(Indicator):
             self._since = t
             a = num if num >= 0.0 else -num
             mag = self._mag
-            if t >= self._every or not (a < _INF) or (a < mag * _CANCEL and t >= self._gap):
+            if (
+                t >= self._every
+                or not (a < _INF)
+                or (a < mag * _CANCEL and t >= self._gap)
+            ):
                 self._num = num
                 self._recompute()
                 num = self._num
@@ -153,7 +163,9 @@ class Wma(Indicator):
             self._num += len(w) * x
             self._since += 1
             a = abs(self._num)
-            if not math.isfinite(a) or (a < self._mag * _CANCEL and self._since >= self._gap):
+            if not math.isfinite(a) or (
+                a < self._mag * _CANCEL and self._since >= self._gap
+            ):
                 self._recompute()
             elif a > self._mag:
                 self._mag = a

@@ -75,7 +75,9 @@ def plan_folds(
     if test_months < 1:
         raise ValueError(f"test_months must be >= 1, got {test_months}")
     if n_folds < 2:
-        raise ValueError(f"n_folds must be >= 2 so the fold spread is measurable, got {n_folds}")
+        raise ValueError(
+            f"n_folds must be >= 2 so the fold spread is measurable, got {n_folds}"
+        )
     if window not in ("expanding", "rolling"):
         raise ValueError(f"window must be 'expanding' or 'rolling', got {window!r}")
     if start >= end:

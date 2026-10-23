@@ -98,7 +98,9 @@ class IllegalTransition(ValueError):
 class IllegalStatusTransition(IllegalTransition):
     """The transition table marks this ``(state, event)`` cell illegal."""
 
-    def __init__(self, status: OrderStatus, cancel_requested: bool, event: OrderEventKind) -> None:
+    def __init__(
+        self, status: OrderStatus, cancel_requested: bool, event: OrderEventKind
+    ) -> None:
         self.status = status
         self.cancel_requested = cancel_requested
         self.event = event
@@ -142,14 +144,21 @@ class InvalidQuantity(IllegalTransition):
 
 
 _TERMINAL = frozenset(
-    {OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED}
+    {
+        OrderStatus.FILLED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REJECTED,
+        OrderStatus.EXPIRED,
+    }
 )
 _TERMINAL_KIND = {
     OrderStatus.CANCELLED: OrderEventKind.CANCELLED,
     OrderStatus.REJECTED: OrderEventKind.REJECTED,
     OrderStatus.EXPIRED: OrderEventKind.EXPIRED,
 }
-_WORKING = frozenset({OrderStatus.SUBMITTED, OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED})
+_WORKING = frozenset(
+    {OrderStatus.SUBMITTED, OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED}
+)
 
 
 def _check_qty(value: float) -> None:
@@ -198,7 +207,11 @@ class OrderState:
             if self.status is not OrderStatus.SUBMITTED:
                 return False
             self.status = OrderStatus.ACCEPTED
-        elif kind in (OrderEventKind.REJECTED, OrderEventKind.CANCELLED, OrderEventKind.EXPIRED):
+        elif kind in (
+            OrderEventKind.REJECTED,
+            OrderEventKind.CANCELLED,
+            OrderEventKind.EXPIRED,
+        ):
             if self.status in _TERMINAL:
                 return False
             self._terminate(

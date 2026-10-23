@@ -7,7 +7,9 @@ from honba.strategies.indicators._util import check as _check
 from honba.strategies.indicators.moving_average import Ema
 
 
-@indicator("force_index", "volume", inputs=("close", "volume"), warmup=lambda s: s.period + 1)
+@indicator(
+    "force_index", "volume", inputs=("close", "volume"), warmup=lambda s: s.period + 1
+)
 class ForceIndex(Indicator):
     """Elder force index: EMA(change(close) * volume, n), SMA-seeded; first value after ``period + 1`` bars."""
 

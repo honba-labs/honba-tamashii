@@ -21,7 +21,12 @@ from collections.abc import Callable
 from importlib.metadata import entry_points
 from typing import Any, cast
 
-from honba.adapters.base import Adapter, ExecutionClient, FullAdapterClient, MarketDataClient
+from honba.adapters.base import (
+    Adapter,
+    ExecutionClient,
+    FullAdapterClient,
+    MarketDataClient,
+)
 from honba.adapters.errors import AdapterError, AdapterNotFound
 
 __all__ = [
@@ -58,7 +63,9 @@ class AdapterRegistry:
         self._discovered = False
         self._errors: dict[str, str] = {}
 
-    def register(self, name: str, factory: AdapterFactory, *, replace: bool = False) -> None:
+    def register(
+        self, name: str, factory: AdapterFactory, *, replace: bool = False
+    ) -> None:
         """Register ``factory`` under ``name``.
 
         Raises :class:`AdapterError` on a duplicate unless ``replace`` is set, because a
@@ -123,7 +130,11 @@ class AdapterRegistry:
             return self._factories[name]
         except KeyError:
             installed = ", ".join(sorted(self._factories)) or "none"
-            detail = f" (entry point failed: {self._errors[name]})" if name in self._errors else ""
+            detail = (
+                f" (entry point failed: {self._errors[name]})"
+                if name in self._errors
+                else ""
+            )
             raise AdapterNotFound(
                 f"no adapter registered as {name!r}; installed adapters: {installed}{detail}"
             ) from None
@@ -183,7 +194,9 @@ def default_registry() -> AdapterRegistry:
     return _DEFAULT_REGISTRY
 
 
-def register_adapter(name: str, factory: AdapterFactory, *, replace: bool = False) -> None:
+def register_adapter(
+    name: str, factory: AdapterFactory, *, replace: bool = False
+) -> None:
     """Register an adapter in the default registry."""
     _DEFAULT_REGISTRY.register(name, factory, replace=replace)
 

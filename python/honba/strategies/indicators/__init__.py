@@ -45,7 +45,9 @@ def list_indicators(family: str | None = None) -> list[str]:
     """Indicator kinds, optionally only those in ``family``."""
     if family is not None and family not in FAMILIES:
         raise ValueError(f"unknown family {family!r}; choose from {list(FAMILIES)}")
-    return sorted(k for k, c in _base._REGISTRY.items() if family is None or c.family == family)
+    return sorted(
+        k for k, c in _base._REGISTRY.items() if family is None or c.family == family
+    )
 
 
 def build_indicator(kind: str, **params):

@@ -24,7 +24,9 @@ class EaseOfMovement(Indicator):
         self._sma = Sma(period)
         self._prev: float | None = None
 
-    def update(self, high: float, low: float, close: float, volume: float) -> float | None:
+    def update(
+        self, high: float, low: float, close: float, volume: float
+    ) -> float | None:
         hl2 = (high + low) / 2.0
         prev, self._prev = self._prev, hl2
         if prev is None:

@@ -68,7 +68,9 @@ class ExecutionAdapterGateway:
     one handed out are new.
     """
 
-    def __init__(self, adapter: ExecutionAdapter, *, product: Product = Product.INTRADAY) -> None:
+    def __init__(
+        self, adapter: ExecutionAdapter, *, product: Product = Product.INTRADAY
+    ) -> None:
         self._adapter = adapter
         self._product = product
         self._seen = 0
@@ -98,7 +100,9 @@ class ExecutionAdapterGateway:
     async def cancel_order(self, venue_id: str) -> None:
         await self._adapter.cancel_order(venue_id)
 
-    async def modify_order(self, venue_id: str, quantity: float, price: float | None) -> None:
+    async def modify_order(
+        self, venue_id: str, quantity: float, price: float | None
+    ) -> None:
         await self._adapter.modify_order(venue_id, quantity=quantity, price=price)
 
     async def next_fill(self) -> str | None:

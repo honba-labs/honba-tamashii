@@ -21,7 +21,11 @@ class Ichimoku(Indicator):
     ``(span_a, span_b)`` or ``None`` until warm."""
 
     def __init__(
-        self, tenkan: int = 9, kijun: int = 26, senkou_b: int = 52, displacement: int = 26
+        self,
+        tenkan: int = 9,
+        kijun: int = 26,
+        senkou_b: int = 52,
+        displacement: int = 26,
     ) -> None:
         self._n = (_check(tenkan), _check(kijun), _check(senkou_b))
         self._h: deque[float] = deque(maxlen=max(self._n))

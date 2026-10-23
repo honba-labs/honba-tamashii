@@ -182,7 +182,9 @@ class Expired:
     venue_order_id: str | None = None
 
 
-ExecutionEvent = Submitted | Accepted | Rejected | Fill | CancelRequested | Cancelled | Expired
+ExecutionEvent = (
+    Submitted | Accepted | Rejected | Fill | CancelRequested | Cancelled | Expired
+)
 
 
 def event_order_id(ev: ExecutionEvent) -> str:
@@ -317,10 +319,16 @@ def rejection_from_event(ev: ExecutionEvent) -> OrderRejection | None:
     """
     if isinstance(ev, Rejected):
         return OrderRejection(
-            ev.order_id, ev.intent, ev.reason, ev.ts, cancelled=ev.reason == CANCELLED_REASON
+            ev.order_id,
+            ev.intent,
+            ev.reason,
+            ev.ts,
+            cancelled=ev.reason == CANCELLED_REASON,
         )
     if isinstance(ev, Cancelled):
-        return OrderRejection(ev.order_id, ev.intent, CANCELLED_REASON, ev.ts, cancelled=True)
+        return OrderRejection(
+            ev.order_id, ev.intent, CANCELLED_REASON, ev.ts, cancelled=True
+        )
     if isinstance(ev, Expired):
         return OrderRejection(ev.order_id, ev.intent, EXPIRED_REASON, ev.ts)
     return None
@@ -374,7 +382,9 @@ class LegacyPortEvents:
         return out
 
 
-def _cancel_binder(port: object, *, warn: bool = True) -> Callable[[str, int], None] | None:
+def _cancel_binder(
+    port: object, *, warn: bool = True
+) -> Callable[[str, int], None] | None:
     """``port.cancel`` as ``(order_id, now)``, adapting a one-argument legacy cancel.
 
     ``inspect.signature`` decides: two positional parameters (or ``*args``) are the current
@@ -391,9 +401,12 @@ def _cancel_binder(port: object, *, warn: bool = True) -> Callable[[str, int], N
     positional = [
         p
         for p in params
-        if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        if p.kind
+        in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
     ]
-    if len(positional) >= 2 or any(p.kind is inspect.Parameter.VAR_POSITIONAL for p in params):
+    if len(positional) >= 2 or any(
+        p.kind is inspect.Parameter.VAR_POSITIONAL for p in params
+    ):
         return cancel
     if warn:
         warnings.warn(
@@ -482,7 +495,9 @@ class BaseExecutionPort(ABC):
 
     # -- buffered shim: the legacy pair over drain_events (removed in 0.3.0) -----------------
     def _shim_buffers(self) -> tuple[list[Trade], list[OrderRejection]]:
-        buffers: tuple[list[Trade], list[OrderRejection]] | None = getattr(self, "_shim_buf", None)
+        buffers: tuple[list[Trade], list[OrderRejection]] | None = getattr(
+            self, "_shim_buf", None
+        )
         if buffers is None:
             buffers = ([], [])
             self._shim_buf = buffers  # type: ignore[attr-defined]

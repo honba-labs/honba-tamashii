@@ -80,7 +80,9 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 def _non_empty(field: str, value: object) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise RequestValidationError(field, "invalid_value", f"{field} must be a non-empty string")
+        raise RequestValidationError(
+            field, "invalid_value", f"{field} must be a non-empty string"
+        )
     return value
 
 
@@ -98,7 +100,9 @@ def schema() -> ApiRequest:
     return ApiRequest("GET", "/schema")
 
 
-def instruments(*, exchange: str | None = None, symbol: str | None = None) -> ApiRequest:
+def instruments(
+    *, exchange: str | None = None, symbol: str | None = None
+) -> ApiRequest:
     query: dict[str, Any] = {}
     if exchange is not None:
         query["exchange"] = _non_empty("exchange", exchange)
@@ -119,7 +123,9 @@ def _id_text(value: object, field: str = "id") -> str:
     symbol, dot, exchange = text.rpartition(".")
     if not dot or not symbol or not exchange or text != text.strip():
         raise RequestValidationError(
-            field, "invalid_instrument_id", f"instrument id {value!r} is not SYMBOL.EXCHANGE"
+            field,
+            "invalid_instrument_id",
+            f"instrument id {value!r} is not SYMBOL.EXCHANGE",
         )
     return text
 
@@ -166,17 +172,23 @@ def place_order(
     ledger row is always ``day`` today.
     """
     if side not in _ORDER_SIDES:
-        raise RequestValidationError("side", "invalid_value", f"side must be buy or sell: {side!r}")
+        raise RequestValidationError(
+            "side", "invalid_value", f"side must be buy or sell: {side!r}"
+        )
     if (
         isinstance(qty, bool)
         or not isinstance(qty, (int, float))
         or not math.isfinite(qty)
         or qty <= 0
     ):
-        raise RequestValidationError("qty", "invalid_value", f"qty must be > 0, got {qty!r}")
+        raise RequestValidationError(
+            "qty", "invalid_value", f"qty must be > 0, got {qty!r}"
+        )
     if order_type not in _ORDER_TYPES:
         raise RequestValidationError(
-            "order_type", "invalid_value", f"order_type must be market or limit: {order_type!r}"
+            "order_type",
+            "invalid_value",
+            f"order_type must be market or limit: {order_type!r}",
         )
     if order_type == "limit" and price is None:
         raise RequestValidationError("price", "missing", "limit orders need price")
@@ -186,7 +198,9 @@ def place_order(
         or not math.isfinite(price)
         or price <= 0
     ):
-        raise RequestValidationError("price", "invalid_value", f"price must be > 0, got {price!r}")
+        raise RequestValidationError(
+            "price", "invalid_value", f"price must be > 0, got {price!r}"
+        )
     text = _id_text(instrument_id, "instrument_id")
     symbol, _, exchange = text.rpartition(".")
     body: dict[str, Any] = {
@@ -208,7 +222,9 @@ def place_order(
 def cancel_order(order_id: str) -> ApiRequest:
     """``DELETE /orders/{id}``: cancel a working order. The server answers 200 for a terminal or
     unknown id too, so the caller reads the ledger to tell what happened."""
-    return ApiRequest("DELETE", f"/orders/{quote(_non_empty('order_id', order_id), safe='')}")
+    return ApiRequest(
+        "DELETE", f"/orders/{quote(_non_empty('order_id', order_id), safe='')}"
+    )
 
 
 _MAX_NS = 2**63 - 1
@@ -241,7 +257,9 @@ def _to_ns_unbounded(field: str, value: object) -> tuple[str, int]:
             delta = value.astimezone(timezone.utc) - _EPOCH
         except OverflowError:
             raise bad("invalid_time", f"{field} {value!r} is out of range") from None
-        ns = (delta.days * 86_400 + delta.seconds) * 1_000_000_000 + delta.microseconds * 1000
+        ns = (
+            delta.days * 86_400 + delta.seconds
+        ) * 1_000_000_000 + delta.microseconds * 1000
         # Duck-typed (no pandas import): pandas.Timestamp keeps its 0-999 ns remainder here.
         sub = getattr(value, "nanosecond", 0)
         if isinstance(sub, int) and 0 <= sub < 1000:
@@ -311,7 +329,9 @@ def bars(
     if end is not None:
         query["to"] = end[0]
     if start is not None and end is not None and start[1] >= end[1]:
-        raise RequestValidationError("to", "empty_range", "`from` must be strictly before `to`")
+        raise RequestValidationError(
+            "to", "empty_range", "`from` must be strictly before `to`"
+        )
     return ApiRequest("GET", path, query or None)
 
 
@@ -323,7 +343,9 @@ def quotes(
 ) -> ApiRequest:
     items = [symbols] if isinstance(symbols, str) else list(symbols)
     if not items:
-        raise RequestValidationError("symbols", "missing_symbols", "at least one symbol is needed")
+        raise RequestValidationError(
+            "symbols", "missing_symbols", "at least one symbol is needed"
+        )
     for item in items:
         if not isinstance(item, str) or not item.strip() or "," in item:
             raise RequestValidationError(
@@ -339,13 +361,17 @@ def quotes(
     return ApiRequest("GET", "/quotes", query)
 
 
-def depth(instrument_id: str | InstrumentId, *, levels: int | None = None) -> ApiRequest:
+def depth(
+    instrument_id: str | InstrumentId, *, levels: int | None = None
+) -> ApiRequest:
     path = f"/depth/{_id_path_segment(instrument_id)}"
     if levels is None:
         return ApiRequest("GET", path)
     if isinstance(levels, bool) or not isinstance(levels, int) or not 1 <= levels <= 50:
         raise RequestValidationError(
-            "depth", "out_of_range", f"levels must be an integer in 1..={MAX_DEPTH_LEVELS}"
+            "depth",
+            "out_of_range",
+            f"levels must be an integer in 1..={MAX_DEPTH_LEVELS}",
         )
     return ApiRequest("GET", path, {"depth": levels})
 
@@ -375,7 +401,9 @@ def strategies() -> ApiRequest:
 
 def compile_strategy(manifest: Any) -> ApiRequest:
     """``POST /strategies``: the manifest goes under a ``manifest`` key (no source)."""
-    return ApiRequest("POST", "/strategies", body={"manifest": _manifest_body(manifest)})
+    return ApiRequest(
+        "POST", "/strategies", body={"manifest": _manifest_body(manifest)}
+    )
 
 
 def _compact_json(value: Any) -> str:
@@ -409,7 +437,9 @@ def _filter_body(filters: Any) -> dict[str, Any]:
         try:
             ScreenerFilterGroup.model_validate(raw)
         except ValidationError as exc:
-            raise bad(f"filter group does not validate: {exc.errors()[0]['msg']}") from exc
+            raise bad(
+                f"filter group does not validate: {exc.errors()[0]['msg']}"
+            ) from exc
         items = []
         for item in raw["items"]:
             item = plain(item)
@@ -421,7 +451,9 @@ def _filter_body(filters: Any) -> dict[str, Any]:
             try:
                 ScreenerFilterPredicate.model_validate(item)
             except ValidationError as exc:
-                raise bad(f"predicate does not validate: {exc.errors()[0]['msg']}") from exc
+                raise bad(
+                    f"predicate does not validate: {exc.errors()[0]['msg']}"
+                ) from exc
             items.append(dict(item))
         return {"operator": raw["operator"], "items": items}
 
@@ -439,7 +471,9 @@ def screener_scan(
 ) -> ApiRequest:
     """``GET /screener/scan``: ``universe`` and ``filters`` travel as JSON text in the query."""
     items = (
-        [universe] if isinstance(universe, str) or hasattr(universe, "symbol") else list(universe)  # type: ignore[arg-type]
+        [universe]
+        if isinstance(universe, str) or hasattr(universe, "symbol")
+        else list(universe)  # type: ignore[arg-type]
     )
     if not items:
         raise RequestValidationError(
@@ -451,7 +485,9 @@ def screener_scan(
             "too_many_rows",
             f"universe has {len(items)} instruments, over the limit of {MAX_SCREENER_UNIVERSE}",
         )
-    query: dict[str, Any] = {"universe": _compact_json([_id_text(i, "universe") for i in items])}
+    query: dict[str, Any] = {
+        "universe": _compact_json([_id_text(i, "universe") for i in items])
+    }
     if filters is not None:
         query["filters"] = _compact_json(_filter_body(filters))
     if tf is not None:
@@ -471,7 +507,9 @@ def _run_id_segment(run_id: object) -> str:
     """A run id as one path segment. Only emptiness is checked here: an ill-formed id is a
     404 from the server (ADR 0017 decision 7), and nothing can escape the segment."""
     if not isinstance(run_id, str) or not run_id.strip():
-        raise RequestValidationError("run_id", "invalid_value", "run_id must be a non-empty string")
+        raise RequestValidationError(
+            "run_id", "invalid_value", "run_id must be a non-empty string"
+        )
     return quote(run_id, safe="")
 
 
@@ -479,7 +517,9 @@ def _when(field: str, value: object) -> str:
     """A start/end bound as the server's text: ``date`` -> ``YYYY-MM-DD``, ``datetime`` ->
     RFC 3339 (naive means UTC), a string is passed through (the server validates it)."""
     if isinstance(value, datetime):
-        return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
+        return (
+            value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        ).isoformat()
     if isinstance(value, date):
         return value.isoformat()
     return _non_empty(field, value)
@@ -498,7 +538,9 @@ def submit_backtest(
     """``POST /backtests``. ``seed`` is required and non-zero (ADR 0017 decision 6); unset
     optional fields are left out so the server's defaults apply."""
     if isinstance(seed, bool) or not isinstance(seed, int) or not 0 < seed < 2**64:
-        raise RequestValidationError("seed", "invalid_value", "seed must be an integer >= 1")
+        raise RequestValidationError(
+            "seed", "invalid_value", "seed must be an integer >= 1"
+        )
     body: dict[str, Any] = {
         "strategy": _non_empty("strategy", strategy),
         "universe": _non_empty("universe", universe)
@@ -518,7 +560,9 @@ def submit_backtest(
             or initial_capital <= 0
         ):
             raise RequestValidationError(
-                "initial_capital", "invalid_value", "initial_capital must be a positive number"
+                "initial_capital",
+                "invalid_value",
+                "initial_capital must be a positive number",
             )
         body["initial_capital"] = float(initial_capital)
     return ApiRequest("POST", "/backtests", body=body)
@@ -543,11 +587,15 @@ def backtest_events(run_id: str, *, resume_from_seq: int | None = None) -> ApiRe
     if resume_from_seq is not None:
         if isinstance(resume_from_seq, bool) or not isinstance(resume_from_seq, int):
             raise RequestValidationError(
-                "resume_from_seq", "invalid_value", "resume_from_seq must be a non-negative integer"
+                "resume_from_seq",
+                "invalid_value",
+                "resume_from_seq must be a non-negative integer",
             )
         if resume_from_seq < 0:
             raise RequestValidationError(
                 "resume_from_seq", "invalid_value", "resume_from_seq must be >= 0"
             )
         query["resume_from_seq"] = resume_from_seq
-    return ApiRequest("GET", f"/backtests/{_run_id_segment(run_id)}/events", query or None)
+    return ApiRequest(
+        "GET", f"/backtests/{_run_id_segment(run_id)}/events", query or None
+    )

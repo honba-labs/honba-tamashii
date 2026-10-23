@@ -8,7 +8,12 @@ from honba.strategies.indicators._base import Indicator, indicator
 from honba.strategies.indicators._rolling import RollingPairMoments
 
 
-@indicator("correlation", "statistical", inputs=("close", "benchmark"), warmup=lambda s: s.length)
+@indicator(
+    "correlation",
+    "statistical",
+    inputs=("close", "benchmark"),
+    warmup=lambda s: s.length,
+)
 class Correlation(Indicator):
     """Pearson correlation of close vs benchmark PRICES over ``length`` bars.
 

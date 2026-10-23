@@ -131,7 +131,9 @@ def check_state(
     """
     state = str(trading_state)
     if state == "halted":
-        return RiskRefusal("risk_trading_halted", "trading_halted", {"rule": "trading_halted"})
+        return RiskRefusal(
+            "risk_trading_halted", "trading_halted", {"rule": "trading_halted"}
+        )
     if state != "reducing":
         return None
     sign = 1.0 if getattr(side, "value", side) == "BUY" else -1.0

@@ -154,6 +154,7 @@ Layer 3: [honba-tamashii-py] ─────────────────
   ```python
   from honba import Strategy, Bar, Tick, PyContext, OrderAck, FillReport
 
+
   class MomentumAlpha(Strategy):
       def setup(self, ctx: PyContext) -> None:
           """Called once before market data starts."""
@@ -228,7 +229,9 @@ Layer 3: [honba-tamashii-py] ─────────────────
     from honba import indicators
 
     # Vectorized compute over Polars series / NumPy arrays
-    supertrend, direction = indicators.supertrend(high, low, close, period=10, multiplier=3.0)
+    supertrend, direction = indicators.supertrend(
+        high, low, close, period=10, multiplier=3.0
+    )
     cpr = indicators.cpr(high, low, close)
     ```
 

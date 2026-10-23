@@ -38,7 +38,9 @@ class RelativeVigorIndex(Indicator):
         self._num, self._den = Sma(length), Sma(length)
         self._r: deque[float] = deque(maxlen=4)
 
-    def update(self, open: float, high: float, low: float, close: float) -> RvgiValue | None:
+    def update(
+        self, open: float, high: float, low: float, close: float
+    ) -> RvgiValue | None:
         self._co.append(close - open)
         self._hl.append(high - low)
         if len(self._co) < 4:

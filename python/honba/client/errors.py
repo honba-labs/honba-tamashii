@@ -72,7 +72,9 @@ class ApiError(Exception):
         self.status = status
         self.retryable = retryable
         self.context = context
-        self.category = category if category is not None else CATEGORY_OF_CODE.get(code, "unknown")
+        self.category = (
+            category if category is not None else CATEGORY_OF_CODE.get(code, "unknown")
+        )
         self.api_version = api_version
 
 
@@ -126,7 +128,9 @@ class InvalidResponseError(ApiError):
     does not parse). ``code`` is ``invalid_response``; the cause, if any, is chained."""
 
     def __init__(self, message: str, *, status: int | None = None) -> None:
-        super().__init__("invalid_response", message, status=status, category="internal")
+        super().__init__(
+            "invalid_response", message, status=status, category="internal"
+        )
 
 
 class RunTimeoutError(Exception):
@@ -219,7 +223,9 @@ def error_from_envelope(status: int, body: Any) -> ApiError:
         or not isinstance(detail.get("code"), str)
         or not isinstance(detail.get("message"), str)
     ):
-        return InvalidResponseError(f"HTTP {status} without an error envelope", status=status)
+        return InvalidResponseError(
+            f"HTTP {status} without an error envelope", status=status
+        )
     code = detail["code"]
     api_version = body.get("api_version")
     cls = ERROR_CLASS_OF_CODE.get(code, ApiError)

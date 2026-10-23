@@ -23,7 +23,9 @@ class ChaikinOscillator(Indicator):
         self._ad = AccumulationDistribution()
         self._f, self._s = Ema(fast), Ema(slow)
 
-    def update(self, high: float, low: float, close: float, volume: float) -> float | None:
+    def update(
+        self, high: float, low: float, close: float, volume: float
+    ) -> float | None:
         ad = self._ad.update(high, low, close, volume)
         f, s = self._f.update(ad), self._s.update(ad)
         return None if f is None or s is None else f - s

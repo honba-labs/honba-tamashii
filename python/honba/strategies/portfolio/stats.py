@@ -10,7 +10,9 @@ from honba.entities.instrument import InstrumentId
 from honba.strategies.portfolio.view import MarketView
 
 
-def return_stdev(view: MarketView, instrument_id: InstrumentId, lookback: int) -> float | None:
+def return_stdev(
+    view: MarketView, instrument_id: InstrumentId, lookback: int
+) -> float | None:
     """Sample stdev of simple returns over the last ``lookback`` closes, else ``None``.
 
     ``lookback`` closes give ``lookback - 1`` returns; at least two returns are needed, so

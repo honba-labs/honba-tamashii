@@ -17,7 +17,9 @@ class HistoricalVolatility(Indicator):
     Population stdev of log returns. ``periods_per_year`` defaults to 252 NSE/BSE trading days
     (pass bars per year for intraday data). A non-positive price yields a 0.0 log return."""
 
-    def __init__(self, length: int = 10, periods_per_year: float = TRADING_DAYS_PER_YEAR) -> None:
+    def __init__(
+        self, length: int = 10, periods_per_year: float = TRADING_DAYS_PER_YEAR
+    ) -> None:
         self.length = _check(length)
         if periods_per_year <= 0:
             raise ValueError("periods_per_year must be > 0")
@@ -31,4 +33,6 @@ class HistoricalVolatility(Indicator):
             return None
         r = math.log(close / prev) if close > 0 and prev > 0 else 0.0
         out = self._s.update(r)
-        return None if out is None else 100.0 * out[1] * math.sqrt(self.periods_per_year)
+        return (
+            None if out is None else 100.0 * out[1] * math.sqrt(self.periods_per_year)
+        )

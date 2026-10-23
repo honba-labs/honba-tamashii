@@ -16,7 +16,9 @@ class Alma(Indicator):
     i = 0 is the oldest bar in the window. Weights are normalised to sum to 1.
     """
 
-    def __init__(self, period: int = 9, offset: float = 0.85, sigma: float = 6.0) -> None:
+    def __init__(
+        self, period: int = 9, offset: float = 0.85, sigma: float = 6.0
+    ) -> None:
         self.period = _check(period)
         if not 0.0 <= offset <= 1.0:
             raise ValueError(f"offset must be in [0, 1], got {offset}")

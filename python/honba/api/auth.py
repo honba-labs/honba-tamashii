@@ -170,7 +170,9 @@ class FileTokenStore(TokenStore):
                     scopes=[str(s) for s in t.get("scopes", [])],
                     label=str(t.get("label", "")),
                     expires_at=t.get("expires_at"),
-                    created_at=str(t.get("created_at", datetime.now(timezone.utc).isoformat())),
+                    created_at=str(
+                        t.get("created_at", datetime.now(timezone.utc).isoformat())
+                    ),
                 )
                 records.append(record)
             with self._lock:
@@ -189,7 +191,9 @@ class FileTokenStore(TokenStore):
     def validate(self, token: str) -> TokenInfo:
         self._load()
         if not token:
-            raise AuthError(AuthErrorCode.MISSING_TOKEN, "Authorization header missing or empty")
+            raise AuthError(
+                AuthErrorCode.MISSING_TOKEN, "Authorization header missing or empty"
+            )
         with self._lock:
             for record in self._records:
                 if record.matches_token(token):
@@ -199,7 +203,9 @@ class FileTokenStore(TokenStore):
                             f"Token {record.token_id} has expired",
                             context={"token_id": record.token_id},
                         )
-                    return TokenInfo(token_id=record.token_id, scopes=list(record.scopes))
+                    return TokenInfo(
+                        token_id=record.token_id, scopes=list(record.scopes)
+                    )
         raise AuthError(
             AuthErrorCode.INVALID_TOKEN,
             "Invalid or unknown token",
@@ -327,7 +333,11 @@ class AuthLayer:
         log.info(json.dumps(entry, separators=(",", ":")))
 
     def extract(
-        self, method: str, path: str, auth_header: str | None, client_ip: str | None = None
+        self,
+        method: str,
+        path: str,
+        auth_header: str | None,
+        client_ip: str | None = None,
     ) -> TokenInfo | None:
         """Extract and validate token from Authorization header.
 
@@ -349,7 +359,8 @@ class AuthLayer:
                 client_ip=client_ip,
             )
             raise AuthError(
-                AuthErrorCode.MISSING_TOKEN, "Authorization header missing or not Bearer"
+                AuthErrorCode.MISSING_TOKEN,
+                "Authorization header missing or not Bearer",
             )
 
         token = auth_header[7:].strip()

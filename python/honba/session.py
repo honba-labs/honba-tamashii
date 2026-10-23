@@ -148,7 +148,9 @@ class BacktestConfig:
 
     symbol: str
     exchange: str = "NSE"
-    start: str | date | datetime = ""  # required in practice; validated in __post_init__
+    start: str | date | datetime = (
+        ""  # required in practice; validated in __post_init__
+    )
     end: str | date | datetime = ""
     timeframe: str = "1d"
     cash: float = 1_000_000.0
@@ -218,7 +220,9 @@ class BacktestResult:
     ctx: StrategyContext | None = None
     # Derived
     metrics: dict[str, float] = field(default_factory=dict)
-    equity_curve: list[tuple[int, float]] = field(default_factory=list)  # (ts_ns, equity)
+    equity_curve: list[tuple[int, float]] = field(
+        default_factory=list
+    )  # (ts_ns, equity)
     # Optional narrative / debug
     notes: list[str] = field(default_factory=list)
 
@@ -360,7 +364,9 @@ class BacktestSession:
             from honba.markets.india.settlement import settlement_days_for
 
             self.execution.set_settlement_days(
-                settlement_days_for(self.config.exchange, as_of=session_date(_bar_ts(bars[0])))
+                settlement_days_for(
+                    self.config.exchange, as_of=session_date(_bar_ts(bars[0]))
+                )
             )
 
         # --- 3. Drive -----------------------------------------------------------
@@ -540,7 +546,9 @@ class Honba:
         resolved_data = data if data is not None else _default_data_provider()
         cost_model = costs if _is_cost_model(costs) else None
         resolved_execution = (
-            execution if execution is not None else _default_execution(config, cost_model)
+            execution
+            if execution is not None
+            else _default_execution(config, cost_model)
         )
 
         stage = (
@@ -593,7 +601,11 @@ def _resolve_strategy(
             f"got {strategy!r}"
         )
 
-    from honba.strategies.loader import find_catalog, load_catalog_strategy, load_strategy
+    from honba.strategies.loader import (
+        find_catalog,
+        load_catalog_strategy,
+        load_strategy,
+    )
 
     path = Path(strategy)
     if path.suffix == ".py":
@@ -612,7 +624,9 @@ def _default_data_provider() -> DataProvider:
     to pass data= explicitly in early development.
     """
     try:
-        from honba.data import get_default_provider  # pyright: ignore[reportAttributeAccessIssue]
+        from honba.data import (
+            get_default_provider,  # pyright: ignore[reportAttributeAccessIssue]
+        )
 
         return get_default_provider()
     except ImportError as e:
@@ -627,7 +641,9 @@ def _is_cost_model(costs: object) -> TypeGuard[CostModel]:
     return not isinstance(costs, str) and hasattr(costs, "apply")
 
 
-def _default_execution(config: BacktestConfig, cost_model: CostModel | None) -> ExecutionPortLike:
+def _default_execution(
+    config: BacktestConfig, cost_model: CostModel | None
+) -> ExecutionPortLike:
     """Build the simulated execution port for the config (``honba.backtest.simulated``).
 
     A pack name or fill-cost function is charged by the simulator itself; a post-hoc
@@ -652,7 +668,9 @@ def _default_execution(config: BacktestConfig, cost_model: CostModel | None) -> 
     )
 
 
-def _risk_stage(limits: RiskLimits, config: BacktestConfig, instrument: Instrument) -> RiskStage:
+def _risk_stage(
+    limits: RiskLimits, config: BacktestConfig, instrument: Instrument
+) -> RiskStage:
     """The native stage over ``limits`` for the run's one instrument (market-neutral profile)."""
     iid = instrument.instrument_id
     return RiskStage(
@@ -714,10 +732,14 @@ def _bar_ts(bar: Bar) -> int:
             val = getattr(bar, attr)
             if val is not None:
                 return int(val)
-    raise AttributeError(f"Bar {bar!r} has no known timestamp field (ts_init / ts_event / ts)")
+    raise AttributeError(
+        f"Bar {bar!r} has no known timestamp field (ts_init / ts_event / ts)"
+    )
 
 
-_QTY_EPS = 1e-9  # quantities closer than this are equal (float residue from fractional fills)
+_QTY_EPS = (
+    1e-9  # quantities closer than this are equal (float residue from fractional fills)
+)
 
 
 def _compute_metrics(
@@ -747,7 +769,9 @@ def _compute_metrics(
     """
     ledger_cash = ctx.cash()
     currency = ledger_cash.currency if isinstance(ledger_cash, Money) else Currency.INR
-    ordered_fills = sorted(fills, key=lambda f: f.ts)  # stable: submission order within a ts
+    ordered_fills = sorted(
+        fills, key=lambda f: f.ts
+    )  # stable: submission order within a ts
 
     metrics: dict[str, float] = {
         "initial_cash": float(initial_cash),
@@ -772,12 +796,16 @@ def _compute_metrics(
         while fill is not None and fill.ts <= ts:
             cash = cash + _fill_cash_flow(fill, currency)
             signed = fill.quantity if fill.side is OrderSide.BUY else -fill.quantity
-            positions[fill.instrument_id] = positions.get(fill.instrument_id, 0.0) + signed
+            positions[fill.instrument_id] = (
+                positions.get(fill.instrument_id, 0.0) + signed
+            )
             last_close.setdefault(fill.instrument_id, fill.price)
             fill = next(pending, None)
         equity_curve.append((ts, cash.to_major() + _marked(positions, last_close)))
 
-    final_cash = ledger_cash.to_major() if isinstance(ledger_cash, Money) else float(ledger_cash)
+    final_cash = (
+        ledger_cash.to_major() if isinstance(ledger_cash, Money) else float(ledger_cash)
+    )
     metrics["final_cash"] = final_cash
     final_positions = ctx.positions()
     for f in ordered_fills:  # a held instrument with no bar is marked at its last fill
@@ -793,14 +821,22 @@ def _compute_metrics(
 
 def _fill_cash_flow(fill: Trade, currency: Currency) -> Money:
     notional = Money.mul_qty(fill.quantity, fill.price, currency)
-    costs = fill.costs if fill.costs.amount else Money.zero(currency)  # zero is currency-neutral
+    costs = (
+        fill.costs if fill.costs.amount else Money.zero(currency)
+    )  # zero is currency-neutral
     if fill.side is OrderSide.BUY:
         return Money.zero(currency) - (notional + costs)
     return notional - costs
 
 
-def _marked(positions: Mapping[InstrumentId, float], prices: Mapping[InstrumentId, float]) -> float:
-    return sum(qty * prices.get(iid, 0.0) for iid, qty in positions.items() if abs(qty) > _QTY_EPS)
+def _marked(
+    positions: Mapping[InstrumentId, float], prices: Mapping[InstrumentId, float]
+) -> float:
+    return sum(
+        qty * prices.get(iid, 0.0)
+        for iid, qty in positions.items()
+        if abs(qty) > _QTY_EPS
+    )
 
 
 def _round_trips(fills: Sequence[Trade]) -> int:

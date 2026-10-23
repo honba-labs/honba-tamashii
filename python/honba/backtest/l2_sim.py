@@ -70,10 +70,18 @@ from honba.strategies.execution import (
 
 __all__ = ["L2Execution", "TopOfBook"]
 
-_QTY_EPS = 1e-9  # quantities closer than this are equal (float residue from fractional fills)
+_QTY_EPS = (
+    1e-9  # quantities closer than this are equal (float residue from fractional fills)
+)
 _NS_PER_DAY = 86_400_000_000_000
 _DEFAULT_CLOSE_NS = 86_340_000_000_000  # 23:59:00 UTC into the day
-_NATIVE_METHODS = ("advance_to", "on_session_close", "on_quote", "on_trade", "set_position")
+_NATIVE_METHODS = (
+    "advance_to",
+    "on_session_close",
+    "on_quote",
+    "on_trade",
+    "set_position",
+)
 
 
 class TopOfBook(NamedTuple):
@@ -229,8 +237,12 @@ class _PythonL2:
         ):
             self._reject(order_id, intent, qty, "invalid_order", ts)
             return
-        expire_at = self._close_after(ts) if intent.time_in_force is TimeInForce.DAY else None
-        self._working.append(_Working(order_id, intent, qty, 0.0, limit, armed, expire_at))
+        expire_at = (
+            self._close_after(ts) if intent.time_in_force is TimeInForce.DAY else None
+        )
+        self._working.append(
+            _Working(order_id, intent, qty, 0.0, limit, armed, expire_at)
+        )
         if armed is None:
             self._aggress(len(self._working) - 1, ts, True)
 
@@ -257,7 +269,12 @@ class _PythonL2:
     def on_quote(self, q: QuoteTick) -> None:
         """Update the book, then match working orders in time priority."""
         self._advance(q.ts)
-        self._books[q.instrument_id] = [q.bid_price, q.ask_price, q.bid_size, q.ask_size]
+        self._books[q.instrument_id] = [
+            q.bid_price,
+            q.ask_price,
+            q.bid_size,
+            q.ask_size,
+        ]
         i = 0
         while i < len(self._working):
             w = self._working[i]
@@ -283,7 +300,9 @@ class _PythonL2:
                 and w.intent.instrument_id == t.instrument_id
                 and w.limit is not None
             ):
-                through = px <= w.limit if w.intent.side is OrderSide.BUY else px >= w.limit
+                through = (
+                    px <= w.limit if w.intent.side is OrderSide.BUY else px >= w.limit
+                )
             if through and left > _QTY_EPS:
                 assert w.limit is not None
                 filled, removed = self._execute(i, left, w.limit, ts, True)
@@ -344,7 +363,9 @@ class _PythonL2:
             return w.intent
         return dataclasses.replace(w.intent, quantity=w.remaining)
 
-    def _reject(self, order_id: str, intent: OrderIntent, qty: float, reason: str, ts: int) -> None:
+    def _reject(
+        self, order_id: str, intent: OrderIntent, qty: float, reason: str, ts: int
+    ) -> None:
         if intent.quantity != qty:
             intent = dataclasses.replace(intent, quantity=qty)
         self._events.append(Rejected(order_id, intent, reason, ts))
@@ -365,7 +386,11 @@ class _PythonL2:
         if touch is not None and w.limit is not None:
             ok = touch[0] <= w.limit if side is OrderSide.BUY else touch[0] >= w.limit
             touch = touch if ok else None
-        if first and tif is TimeInForce.FOK and (touch is None or touch[1] + _QTY_EPS < remaining):
+        if (
+            first
+            and tif is TimeInForce.FOK
+            and (touch is None or touch[1] + _QTY_EPS < remaining)
+        ):
             self._working.pop(idx)
             self._reject(w.order_id, w.intent, w.remaining, "fok_unfillable", ts)
             return True
@@ -427,7 +452,9 @@ class _PythonL2:
         iid = w.intent.instrument_id
         signed = qty if w.intent.side is OrderSide.BUY else -qty
         held = self.positions.get(iid, 0.0) + signed
-        self.positions.pop(iid, None)  # the native book re-appends: last updated is last
+        self.positions.pop(
+            iid, None
+        )  # the native book re-appends: last updated is last
         if abs(held) > _QTY_EPS:
             self.positions[iid] = held
         self._fees += cost
@@ -448,13 +475,17 @@ class _PythonL2:
         if cost.amount == 0:
             return 0
         if cost.currency is not self._currency:
-            raise ValueError(f"currency mismatch: fill cost {cost}, port {self._currency}")
+            raise ValueError(
+                f"currency mismatch: fill cost {cost}, port {self._currency}"
+            )
         if cost.amount < 0:
             raise ValueError(f"fill cost must not be negative, got {cost}")
         return cost.amount
 
     def _buy_cost(self, qty: float, px: float) -> int:
-        return Money.mul_qty(qty, px, self._currency).amount + self._costs(OrderSide.BUY, qty, px)
+        return Money.mul_qty(qty, px, self._currency).amount + self._costs(
+            OrderSide.BUY, qty, px
+        )
 
     def _affordable(self, want: float, px: float, available: int, lot: float) -> float:
         """Largest whole number of lots (<= ``want``) whose notional plus cost fits."""
@@ -504,7 +535,9 @@ class _NativeL2:
         )
         self._intents: dict[str, OrderIntent] = {}
         self._seq = 0
-        self.positions: MutableMapping[InstrumentId, float] = _NativeL2Positions(self._sim)
+        self.positions: MutableMapping[InstrumentId, float] = _NativeL2Positions(
+            self._sim
+        )
         for iid, lot in (lot_sizes or {}).items():
             self.set_lot_size(iid, lot)
 
@@ -569,9 +602,13 @@ class _NativeL2:
         for raw in self._sim.drain_events():
             native_id = raw["order_id"]
 
-            def intent_of(_: str, default: OrderIntent, native_id: str = native_id) -> OrderIntent:
+            def intent_of(
+                _: str, default: OrderIntent, native_id: str = native_id
+            ) -> OrderIntent:
                 intent = self._intents.get(native_id)
-                if intent is None:  # pragma: no cover - every accepted order is remembered
+                if (
+                    intent is None
+                ):  # pragma: no cover - every accepted order is remembered
                     return default
                 if intent.quantity != default.quantity:
                     intent = dataclasses.replace(intent, quantity=default.quantity)
@@ -579,7 +616,10 @@ class _NativeL2:
 
             out.extend(
                 events_from_native(
-                    [raw], currency=self._currency, user_id=_user_id, intent_of=intent_of
+                    [raw],
+                    currency=self._currency,
+                    user_id=_user_id,
+                    intent_of=intent_of,
                 )
             )
         working = set(self._sim.working_orders)
@@ -692,9 +732,13 @@ class L2Execution(BaseExecutionPort):
         self._backend: Backend = resolve_l2_backend(backend)
         self._impl: _PythonL2 | _NativeL2
         if self._backend == "native":
-            self._impl = _NativeL2(cash=cash, costs=costs, long_only=long_only, lot_sizes=lot_sizes)
+            self._impl = _NativeL2(
+                cash=cash, costs=costs, long_only=long_only, lot_sizes=lot_sizes
+            )
         else:
-            self._impl = _PythonL2(cash=cash, costs=costs, long_only=long_only, lot_sizes=lot_sizes)
+            self._impl = _PythonL2(
+                cash=cash, costs=costs, long_only=long_only, lot_sizes=lot_sizes
+            )
 
     @property
     def backend(self) -> Backend:

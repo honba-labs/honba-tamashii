@@ -7,7 +7,12 @@ from honba.strategies.indicators._util import check as _check
 from honba.strategies.indicators.moving_average import Ema
 
 
-@indicator("volume_oscillator", "volume", inputs=("volume",), warmup=lambda s: max(s.short, s.long))
+@indicator(
+    "volume_oscillator",
+    "volume",
+    inputs=("volume",),
+    warmup=lambda s: max(s.short, s.long),
+)
 class VolumeOscillator(Indicator):
     """Volume oscillator: 100 * (EMA(volume, short) - EMA(volume, long)) / EMA(volume, long); 0 if the long EMA is 0."""
 

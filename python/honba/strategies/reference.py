@@ -44,7 +44,9 @@ class SmaCrossover(Strategy):
 
     name = "sma_crossover"
 
-    def __init__(self, instrument_id: InstrumentId, fast: int, slow: int, quantity: float) -> None:
+    def __init__(
+        self, instrument_id: InstrumentId, fast: int, slow: int, quantity: float
+    ) -> None:
         if not 0 < fast < slow:
             raise ValueError("SMA periods must be positive and fast < slow")
         self.instrument_id = instrument_id
@@ -127,7 +129,10 @@ class ContractProbe(Strategy):
 
     def on_quote(self, quote: QuoteTick) -> None:
         self._observe("on_quote")
-        if not self.ctx.busy(self.instrument_id) and self.ctx.position(self.instrument_id) > 0:
+        if (
+            not self.ctx.busy(self.instrument_id)
+            and self.ctx.position(self.instrument_id) > 0
+        ):
             self.ctx.submit(
                 OrderIntent.limit_sell(self.instrument_id, self._lot(), quote.ask_price)
             )
@@ -139,12 +144,17 @@ class ContractProbe(Strategy):
         pos, tick = self.ctx.position(self.instrument_id), self._tick()
         if pos == 0:
             self.ctx.submit(
-                OrderIntent.stop_buy(self.instrument_id, self._lot(), trade.price + tick)
+                OrderIntent.stop_buy(
+                    self.instrument_id, self._lot(), trade.price + tick
+                )
             )
         elif pos > 0:
             self.ctx.submit(
                 OrderIntent.stop_limit_sell(
-                    self.instrument_id, self._lot(), trade.price - tick, trade.price - 2 * tick
+                    self.instrument_id,
+                    self._lot(),
+                    trade.price - tick,
+                    trade.price - 2 * tick,
                 )
             )
 

@@ -25,7 +25,9 @@ __all__ = [
 ]
 
 try:  # pragma: no cover - the native module is absent in a source-only checkout
-    from honba._honba import nse_equity_settlement_days as _native_nse_equity_settlement_days
+    from honba._honba import (
+        nse_equity_settlement_days as _native_nse_equity_settlement_days,
+    )
 except ImportError:  # pragma: no cover
     _native_nse_equity_settlement_days = None
 

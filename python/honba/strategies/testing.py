@@ -54,7 +54,9 @@ class ReplayResult:
     fills: list[Trade] = field(default_factory=list)
 
 
-def replay(strategy: Strategy, bars: Iterable[Bar], fill_delay: int = 0) -> ReplayResult:
+def replay(
+    strategy: Strategy, bars: Iterable[Bar], fill_delay: int = 0
+) -> ReplayResult:
     """Replays ``bars``. ``fill_delay=0`` fills at the instrument's last close;
     ``fill_delay=n`` fills at the open of the bar ``n`` bars later, like a live runner.
     Within each fill batch, sells execute before buys so liquidation funds purchases.
@@ -114,7 +116,11 @@ def replay(strategy: Strategy, bars: Iterable[Bar], fill_delay: int = 0) -> Repl
                     else stop.peak * (1.0 - (stop.intent.trail_percent or 0.0) / 100.0)
                 )
                 if bar.low <= trigger_px:
-                    fill_px = min(bar.open, trigger_px) if bar.open <= trigger_px else trigger_px
+                    fill_px = (
+                        min(bar.open, trigger_px)
+                        if bar.open <= trigger_px
+                        else trigger_px
+                    )
                     triggered.append((stop.intent, fill_px))
                 else:
                     remaining_stops.append(stop)
@@ -123,10 +129,15 @@ def replay(strategy: Strategy, bars: Iterable[Bar], fill_delay: int = 0) -> Repl
                 trigger_px = (
                     stop.trough + stop.intent.trail_amount
                     if stop.intent.trail_amount is not None
-                    else stop.trough * (1.0 + (stop.intent.trail_percent or 0.0) / 100.0)
+                    else stop.trough
+                    * (1.0 + (stop.intent.trail_percent or 0.0) / 100.0)
                 )
                 if bar.high >= trigger_px:
-                    fill_px = max(bar.open, trigger_px) if bar.open >= trigger_px else trigger_px
+                    fill_px = (
+                        max(bar.open, trigger_px)
+                        if bar.open >= trigger_px
+                        else trigger_px
+                    )
                     triggered.append((stop.intent, fill_px))
                 else:
                     remaining_stops.append(stop)
@@ -159,7 +170,9 @@ def replay(strategy: Strategy, bars: Iterable[Bar], fill_delay: int = 0) -> Repl
             else:
                 queue.append((i + fill_delay, intent))
         if fill_delay == 0:
-            immediate = [it for it in intents if it.order_type is not OrderType.TRAILING_STOP]
+            immediate = [
+                it for it in intents if it.order_type is not OrderType.TRAILING_STOP
+            ]
             intents_to_fill = sorted(
                 immediate, key=lambda it: 0 if it.side is OrderSide.SELL else 1
             )
@@ -178,7 +191,9 @@ def _fill(
     ts: int,
     order_id: str | None = None,
 ) -> None:
-    fill = Trade(intent.instrument_id, intent.side, intent.quantity, price, ts, order_id)
+    fill = Trade(
+        intent.instrument_id, intent.side, intent.quantity, price, ts, order_id
+    )
     result.fills.append(fill)
     strategy.handle_fill(fill)
 
@@ -200,7 +215,10 @@ class BarCloseFills:
     """
 
     def __init__(
-        self, flat_cost: float = 0.0, cost_bps: float = 0.0, currency: Currency = Currency.INR
+        self,
+        flat_cost: float = 0.0,
+        cost_bps: float = 0.0,
+        currency: Currency = Currency.INR,
     ) -> None:
         self._flat_cost = _checked("flat_cost", flat_cost, MAX_FLAT_COST)
         self._cost_bps = _checked("cost_bps", cost_bps, MAX_COST_BPS)
@@ -226,7 +244,11 @@ class BarCloseFills:
                         else peak * (1.0 - (intent.trail_percent or 0.0) / 100.0)
                     )
                     if event.low <= trigger:
-                        px = min(event.open, trigger) if event.open <= trigger else trigger
+                        px = (
+                            min(event.open, trigger)
+                            if event.open <= trigger
+                            else trigger
+                        )
                         self._fill_order(order_id, intent, px, event.ts)
                     else:
                         remaining.append((order_id, intent, peak, trough))
@@ -238,7 +260,11 @@ class BarCloseFills:
                         else trough * (1.0 + (intent.trail_percent or 0.0) / 100.0)
                     )
                     if event.high >= trigger:
-                        px = max(event.open, trigger) if event.open >= trigger else trigger
+                        px = (
+                            max(event.open, trigger)
+                            if event.open >= trigger
+                            else trigger
+                        )
                         self._fill_order(order_id, intent, px, event.ts)
                     else:
                         remaining.append((order_id, intent, peak, trough))
@@ -246,13 +272,19 @@ class BarCloseFills:
 
     def submit(self, order_id: str, intent: OrderIntent, ts: int) -> None:
         if self._last_price is None:
-            raise RuntimeError(f"order {order_id} submitted before any bar: no price to fill at")
+            raise RuntimeError(
+                f"order {order_id} submitted before any bar: no price to fill at"
+            )
         if intent.order_type is OrderType.TRAILING_STOP:
-            self._resting_trailing.append((order_id, intent, self._last_price, self._last_price))
+            self._resting_trailing.append(
+                (order_id, intent, self._last_price, self._last_price)
+            )
             return
         self._fill_order(order_id, intent, self._last_price, ts)
 
-    def _fill_order(self, order_id: str, intent: OrderIntent, price: float, ts: int) -> None:
+    def _fill_order(
+        self, order_id: str, intent: OrderIntent, price: float, ts: int
+    ) -> None:
         costs = self._costs(intent.quantity, price)
         fill_ts = max(self._next_ts, ts)
         self._next_ts = fill_ts + 1
@@ -271,7 +303,9 @@ class BarCloseFills:
     def _costs(self, quantity: float, price: float) -> Money:
         # Per leg, then sum (ADR 0011): the same float operations as Rust's FillCosts.
         flat = Money.from_major(self._flat_cost, self._currency)
-        bps = Money.from_major(quantity * price * self._cost_bps / 10_000.0, self._currency)
+        bps = Money.from_major(
+            quantity * price * self._cost_bps / 10_000.0, self._currency
+        )
         return flat + bps
 
     def drain_fills(self) -> list[Trade]:
@@ -279,7 +313,9 @@ class BarCloseFills:
         return fills
 
 
-def from_wire_messages(payload: str | bytes) -> list[tuple[Bar | QuoteTick | TradeTick, int]]:
+def from_wire_messages(
+    payload: str | bytes,
+) -> list[tuple[Bar | QuoteTick | TradeTick, int]]:
     """Parse a JSON list of wire ``Message``s into ``(domain event, ts_init)`` pairs.
 
     Parsed strictly (``honba.entities.wire.loads_many``). Only market data (bar,

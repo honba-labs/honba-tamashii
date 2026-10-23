@@ -5,7 +5,12 @@ from __future__ import annotations
 from honba.strategies.indicators._base import Indicator, indicator
 
 
-@indicator("advance_decline_line", "breadth", inputs=("advances", "declines"), warmup=lambda s: 1)
+@indicator(
+    "advance_decline_line",
+    "breadth",
+    inputs=("advances", "declines"),
+    warmup=lambda s: 1,
+)
 class AdvanceDeclineLine(Indicator):
     """Cumulative sum of (advances - declines); starts at the first bar's net advances."""
 

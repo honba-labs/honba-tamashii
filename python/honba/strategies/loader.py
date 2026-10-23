@@ -91,7 +91,9 @@ def _strategy_classes(module: ModuleType) -> list[type[Strategy]]:
     return [
         obj
         for _, obj in inspect.getmembers(module, inspect.isclass)
-        if issubclass(obj, Strategy) and obj is not Strategy and obj.__module__ == module.__name__
+        if issubclass(obj, Strategy)
+        and obj is not Strategy
+        and obj.__module__ == module.__name__
     ]
 
 
@@ -104,8 +106,14 @@ def load_strategy(path: str | Path) -> type[Strategy]:
     module = _import_file(path, f"honba_user_strategy_{path.stem}_{digest}")
     classes = _strategy_classes(module)
     if len(classes) != 1:
-        found = "no Strategy subclass" if not classes else f"{len(classes)} Strategy subclasses"
-        raise CatalogError(f"{path}: expected exactly one Strategy subclass, found {found}")
+        found = (
+            "no Strategy subclass"
+            if not classes
+            else f"{len(classes)} Strategy subclasses"
+        )
+        raise CatalogError(
+            f"{path}: expected exactly one Strategy subclass, found {found}"
+        )
     return classes[0]
 
 
@@ -123,12 +131,16 @@ def find_catalog(
     environ = os.environ if environ is None else environ
     if explicit is not None:
         if not _is_catalog(Path(explicit)):
-            raise CatalogError(f"{explicit} is not a honba-strategies catalog (no registry.json)")
+            raise CatalogError(
+                f"{explicit} is not a honba-strategies catalog (no registry.json)"
+            )
         return Path(explicit).resolve()
     env = environ.get(CATALOG_ENV, "").strip()
     if env:
         if not _is_catalog(Path(env)):
-            raise CatalogError(f"${CATALOG_ENV}={env} is not a catalog (no registry.json)")
+            raise CatalogError(
+                f"${CATALOG_ENV}={env} is not a catalog (no registry.json)"
+            )
         return Path(env).resolve()
     if search_from is not None:
         start = Path(search_from).resolve()
@@ -136,15 +148,21 @@ def find_catalog(
             candidate = base.parent / CATALOG_DIRNAME
             if _is_catalog(candidate):
                 return candidate.resolve()
-    raise CatalogError(f"honba-strategies catalog not found: pass its path or set ${CATALOG_ENV}.")
+    raise CatalogError(
+        f"honba-strategies catalog not found: pass its path or set ${CATALOG_ENV}."
+    )
 
 
-_SKIPPED_DIRS = frozenset({"node_modules", "__pycache__", "venv", "site-packages", "build", "dist"})
+_SKIPPED_DIRS = frozenset(
+    {"node_modules", "__pycache__", "venv", "site-packages", "build", "dist"}
+)
 
 
 def _scannable(relative: Path) -> bool:
     """False for hidden (``.git``, ``.venv``) and vendor directories anywhere in the path."""
-    return not any(part.startswith(".") or part in _SKIPPED_DIRS for part in relative.parts)
+    return not any(
+        part.startswith(".") or part in _SKIPPED_DIRS for part in relative.parts
+    )
 
 
 def _read_registry(path: Path) -> object:
@@ -166,7 +184,9 @@ def _registry_entries(catalog: Path) -> dict[str, str]:
         raise CatalogError(f"malformed registry {top_path}: expected a JSON object")
     listed = top.get("strategies", [])
     if not isinstance(listed, list):
-        raise CatalogError(f"malformed registry {top_path}: 'strategies' must be a list")
+        raise CatalogError(
+            f"malformed registry {top_path}: 'strategies' must be a list"
+        )
     for e in listed:
         if not (
             isinstance(e, dict)
@@ -212,7 +232,9 @@ def _directory_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
-def _load_module_isolated(strategy_dir: Path, catalog: Path, module_name: str) -> ModuleType:
+def _load_module_isolated(
+    strategy_dir: Path, catalog: Path, module_name: str
+) -> ModuleType:
     """Import ``strategy.py`` with its directory chain on ``sys.path``, then undo the leaks.
 
     The strategy directory, its two parents and the catalog root are on ``sys.path`` only
@@ -255,7 +277,9 @@ def load_catalog_strategy(name: str, catalog: str | Path) -> CatalogStrategy:
             f"strategy {name!r}: path {entries[name]!r} resolves outside the catalog {catalog}"
         )
     if not (strategy_dir / "strategy.py").is_file():
-        raise CatalogError(f"strategy {name!r}: {strategy_dir / 'strategy.py'} not found")
+        raise CatalogError(
+            f"strategy {name!r}: {strategy_dir / 'strategy.py'} not found"
+        )
     module = _load_module_isolated(strategy_dir, catalog, f"honba_catalog_{name}")
     classes = _strategy_classes(module)
     named = [c for c in classes if getattr(c, "name", None) == name]
@@ -264,7 +288,9 @@ def load_catalog_strategy(name: str, catalog: str | Path) -> CatalogStrategy:
     elif len(classes) == 1:
         cls = classes[0]
     else:
-        raise CatalogError(f"{strategy_dir / 'strategy.py'}: expected one Strategy named {name!r}")
+        raise CatalogError(
+            f"{strategy_dir / 'strategy.py'}: expected one Strategy named {name!r}"
+        )
     return CatalogStrategy(
         name=name,
         path=strategy_dir,

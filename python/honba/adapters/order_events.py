@@ -43,9 +43,13 @@ _EPS = 1e-9
 
 #: A status is *working* once the venue has acknowledged it. ``FILLED`` is included because a
 #: poll can first see a completed order (an instant fill) with no earlier ack to diff against.
-_WORKING = frozenset({OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED})
+_WORKING = frozenset(
+    {OrderStatus.ACCEPTED, OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED}
+)
 _PRE_ACK = frozenset({OrderStatus.INITIALIZED, OrderStatus.SUBMITTED})
-_TERMINAL = frozenset({OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED})
+_TERMINAL = frozenset(
+    {OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED}
+)
 
 #: Monotone rank for a status moving backwards. Terminal statuses share the top rank, so a move
 #: to a terminal from any working state is forward.
@@ -157,7 +161,9 @@ def reduce_order_report(
         remainder = new.quantity - new.filled_quantity
         intent = _open_intent(new, remainder)
         if new.status is OrderStatus.CANCELLED:
-            events.append(Cancelled(new.order_id, intent, new.ts_event, new.venue_order_id))
+            events.append(
+                Cancelled(new.order_id, intent, new.ts_event, new.venue_order_id)
+            )
         elif new.status is OrderStatus.REJECTED:
             events.append(
                 Rejected(
@@ -169,6 +175,8 @@ def reduce_order_report(
                 )
             )
         else:
-            events.append(Expired(new.order_id, intent, new.ts_event, new.venue_order_id))
+            events.append(
+                Expired(new.order_id, intent, new.ts_event, new.venue_order_id)
+            )
 
     return ReportReduction(events=tuple(events))

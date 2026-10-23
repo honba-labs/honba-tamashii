@@ -37,7 +37,14 @@ class UltimateOscillator(Indicator):
         tm = self._tr_middle.update(tr)
         bs = self._bp_slow.update(bp)
         ts = self._tr_slow.update(tr)
-        if bf is None or tf is None or bm is None or tm is None or bs is None or ts is None:
+        if (
+            bf is None
+            or tf is None
+            or bm is None
+            or tm is None
+            or bs is None
+            or ts is None
+        ):
             return None
         af = bf / tf if tf != 0 else 0.0
         am = bm / tm if tm != 0 else 0.0

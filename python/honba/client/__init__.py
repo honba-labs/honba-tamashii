@@ -69,7 +69,13 @@ from honba.client.models import (
     ScreenerResultRow,
 )
 from honba.client.requests import ApiRequest, TimeLike
-from honba.client.transport import HttpTransport, InprocTransport, Response, RetryPolicy, Transport
+from honba.client.transport import (
+    HttpTransport,
+    InprocTransport,
+    Response,
+    RetryPolicy,
+    Transport,
+)
 
 __all__ = [
     "ApiError",

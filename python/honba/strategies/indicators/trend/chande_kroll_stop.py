@@ -41,7 +41,9 @@ class ChandeKrollStop(Indicator):
         self._hs: deque[float] = deque(maxlen=q)
         self._ls: deque[float] = deque(maxlen=q)
 
-    def update(self, high: float, low: float, close: float) -> ChandeKrollStopValue | None:
+    def update(
+        self, high: float, low: float, close: float
+    ) -> ChandeKrollStopValue | None:
         self._h.append(high)
         self._l.append(low)
         atr = self._atr.update(high, low, close)

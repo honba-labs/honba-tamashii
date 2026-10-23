@@ -41,7 +41,9 @@ def sharpe_ratio(
         )
 
     curve = list(equity)
-    returns = [after / before - 1.0 for before, after in pairwise(curve) if before > 0.0]
+    returns = [
+        after / before - 1.0 for before, after in pairwise(curve) if before > 0.0
+    ]
     if len(returns) < 2:
         return 0.0
 

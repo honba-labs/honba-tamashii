@@ -17,12 +17,17 @@ class EnvelopeValue:
 
 
 @indicator(
-    "envelope", "volatility", outputs=("upper", "middle", "lower"), warmup=lambda s: s.length
+    "envelope",
+    "volatility",
+    outputs=("upper", "middle", "lower"),
+    warmup=lambda s: s.length,
 )
 class Envelope(Indicator):
     """Envelope: MA(close, length) * (1 +/- percent/100); ``ma_type`` is 'sma' (default) or 'ema' (SMA-seeded)."""
 
-    def __init__(self, length: int = 20, percent: float = 10.0, ma_type: str = "sma") -> None:
+    def __init__(
+        self, length: int = 20, percent: float = 10.0, ma_type: str = "sma"
+    ) -> None:
         self.length = _check(length)
         if percent < 0:
             raise ValueError("percent must be >= 0")

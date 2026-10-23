@@ -77,7 +77,12 @@ def indicator(
     def wrap(cls):
         if kind in _REGISTRY:
             raise ValueError(f"indicator {kind!r} registered twice")
-        cls.kind, cls.family, cls.inputs, cls.outputs = kind, family, tuple(inputs), tuple(outputs)
+        cls.kind, cls.family, cls.inputs, cls.outputs = (
+            kind,
+            family,
+            tuple(inputs),
+            tuple(outputs),
+        )
         if warmup is None:
             cls.warmup = property(lambda self: None)
         elif warmup is not _UNSET:
@@ -92,7 +97,9 @@ def get(kind: str) -> type[Indicator]:
     try:
         return _REGISTRY[kind]
     except KeyError:
-        raise ValueError(f"unknown indicator {kind!r}; choose from {sorted(_REGISTRY)}") from None
+        raise ValueError(
+            f"unknown indicator {kind!r}; choose from {sorted(_REGISTRY)}"
+        ) from None
 
 
 def spec(kind: str) -> dict:

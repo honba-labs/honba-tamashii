@@ -22,7 +22,9 @@ from honba.query.parser import FilterParseError, parse_filters
 from honba.screener.catalog import MetricCatalog, MetricResolutionError, load_catalog
 from honba.screener.presets import list_presets, resolve_preset_key
 
-app = typer.Typer(help="Screener commands: scan, explain, metrics, presets", no_args_is_help=True)
+app = typer.Typer(
+    help="Screener commands: scan, explain, metrics, presets", no_args_is_help=True
+)
 metrics_app = typer.Typer(help="Browse the metric catalog", no_args_is_help=True)
 presets_app = typer.Typer(help="Browse named criteria presets", no_args_is_help=True)
 
@@ -206,15 +208,21 @@ def _build_scan_request(
 
 @app.command("explain")
 def explain_cmd(
-    market: Annotated[str, typer.Option("--market", "-m", help="Market identifier")] = "india",
-    types: Annotated[list[str] | None, typer.Option("--type", "-T", help="Asset type(s)")] = None,
+    market: Annotated[
+        str, typer.Option("--market", "-m", help="Market identifier")
+    ] = "india",
+    types: Annotated[
+        list[str] | None, typer.Option("--type", "-T", help="Asset type(s)")
+    ] = None,
     all_listings: Annotated[
         bool, typer.Option("--all-listings", "-a", help="Include non-primary listings")
     ] = False,
     timescale: Annotated[
         str | None, typer.Option("--timescale", "-t", help="Default timeframe")
     ] = None,
-    period: Annotated[str | None, typer.Option("--period", "-p", help="Default period")] = None,
+    period: Annotated[
+        str | None, typer.Option("--period", "-p", help="Default period")
+    ] = None,
     columns: Annotated[
         str | None, typer.Option("--columns", "-c", help="Comma-separated metric keys")
     ] = None,
@@ -226,7 +234,9 @@ def explain_cmd(
     ] = None,
     limit: Annotated[int, typer.Option("--limit", "-l", help="Max results")] = 50,
     offset: Annotated[int, typer.Option("--offset", "-o", help="Offset")] = 0,
-    filters: Annotated[list[str] | None, typer.Argument(help="Trailing filter words")] = None,
+    filters: Annotated[
+        list[str] | None, typer.Argument(help="Trailing filter words")
+    ] = None,
 ) -> None:
     """Parse and validate; print the parse tree and resolved request without running."""
     catalog = load_catalog()
@@ -250,15 +260,21 @@ def explain_cmd(
 
 @app.command("scan")
 def scan_cmd(
-    market: Annotated[str, typer.Option("--market", "-m", help="Market identifier")] = "india",
-    types: Annotated[list[str] | None, typer.Option("--type", "-T", help="Asset type(s)")] = None,
+    market: Annotated[
+        str, typer.Option("--market", "-m", help="Market identifier")
+    ] = "india",
+    types: Annotated[
+        list[str] | None, typer.Option("--type", "-T", help="Asset type(s)")
+    ] = None,
     all_listings: Annotated[
         bool, typer.Option("--all-listings", "-a", help="Include non-primary listings")
     ] = False,
     timescale: Annotated[
         str | None, typer.Option("--timescale", "-t", help="Default timeframe")
     ] = None,
-    period: Annotated[str | None, typer.Option("--period", "-p", help="Default period")] = None,
+    period: Annotated[
+        str | None, typer.Option("--period", "-p", help="Default period")
+    ] = None,
     columns: Annotated[
         str | None, typer.Option("--columns", "-c", help="Comma-separated metric keys")
     ] = None,
@@ -271,13 +287,18 @@ def scan_cmd(
     limit: Annotated[int, typer.Option("--limit", "-l", help="Max results")] = 50,
     offset: Annotated[int, typer.Option("--offset", "-o", help="Offset")] = 0,
     print_request: Annotated[
-        bool, typer.Option("--print-request", "-P", help="Emit resolved request JSON and exit")
+        bool,
+        typer.Option(
+            "--print-request", "-P", help="Emit resolved request JSON and exit"
+        ),
     ] = False,
     format: Annotated[
-        str, typer.Option("--format", "-f", help="Output format: table, json, csv, plain")
+        str,
+        typer.Option("--format", "-f", help="Output format: table, json, csv, plain"),
     ] = "table",
     fetch: Annotated[
-        str, typer.Option("--fetch", "-F", help="Missing-data policy: auto, never, force")
+        str,
+        typer.Option("--fetch", "-F", help="Missing-data policy: auto, never, force"),
     ] = "auto",
     asof: Annotated[
         str | None,
@@ -287,7 +308,9 @@ def scan_cmd(
             help="Point-in-time evaluation date (YYYY-MM-DD) for historical backtest screening",
         ),
     ] = None,
-    filters: Annotated[list[str] | None, typer.Argument(help="Trailing filter words")] = None,
+    filters: Annotated[
+        list[str] | None, typer.Argument(help="Trailing filter words")
+    ] = None,
 ) -> None:
     """Run a scan and render results (or print the request JSON)."""
     catalog = load_catalog()
@@ -336,7 +359,9 @@ def scan_cmd(
         try:
             asof_date = dt.date.fromisoformat(asof)
         except ValueError:
-            err_console.print(f"[red]Invalid --asof date:[/red] {asof!r} (expected YYYY-MM-DD)")
+            err_console.print(
+                f"[red]Invalid --asof date:[/red] {asof!r} (expected YYYY-MM-DD)"
+            )
             raise typer.Exit(code=1)
 
     response = source.scan(req, asof=asof_date)
@@ -371,8 +396,12 @@ def scan_cmd(
 
 @app.command("ask")
 def ask_cmd(
-    query_text: Annotated[list[str], typer.Argument(help="Free-text query to translate and run")],
-    market: Annotated[str, typer.Option("--market", "-m", help="Market identifier")] = "india",
+    query_text: Annotated[
+        list[str], typer.Argument(help="Free-text query to translate and run")
+    ],
+    market: Annotated[
+        str, typer.Option("--market", "-m", help="Market identifier")
+    ] = "india",
     timescale: Annotated[
         str | None, typer.Option("--timescale", "-t", help="Default timeframe")
     ] = None,
@@ -381,10 +410,14 @@ def ask_cmd(
     ] = None,
     limit: Annotated[int, typer.Option("--limit", "-l", help="Max results")] = 50,
     yes: Annotated[
-        bool, typer.Option("--yes", "-y", help="Execute scan without interactive confirmation")
+        bool,
+        typer.Option(
+            "--yes", "-y", help="Execute scan without interactive confirmation"
+        ),
     ] = False,
     format: Annotated[
-        str, typer.Option("--format", "-f", help="Output format: table, json, csv, plain")
+        str,
+        typer.Option("--format", "-f", help="Output format: table, json, csv, plain"),
     ] = "table",
 ) -> None:
     """Translate natural language into validated filters and run the scan (Design.md Section 13)."""

@@ -68,9 +68,14 @@ _SERIES: dict[InstrumentId, tuple[tuple[float, float], ...]] = {
 }
 _INSTRUMENTS: tuple[Instrument, ...] = (
     Instrument(
-        InstrumentId("RELIANCE", "NSE"), InstrumentKind.EQUITY, lot_size=1.0, tick_size=0.05
+        InstrumentId("RELIANCE", "NSE"),
+        InstrumentKind.EQUITY,
+        lot_size=1.0,
+        tick_size=0.05,
     ),
-    Instrument(InstrumentId("TCS", "NSE"), InstrumentKind.EQUITY, lot_size=1.0, tick_size=0.05),
+    Instrument(
+        InstrumentId("TCS", "NSE"), InstrumentKind.EQUITY, lot_size=1.0, tick_size=0.05
+    ),
 )
 _SUPPORTED: frozenset[Capability] = frozenset(
     {
@@ -98,7 +103,9 @@ def _load_instruments_from_store() -> tuple[Instrument, ...]:
             import duckdb
 
             with duckdb.connect(str(db_path), read_only=True) as con:
-                rows = con.execute("SELECT symbol FROM companies ORDER BY symbol").fetchall()
+                rows = con.execute(
+                    "SELECT symbol FROM companies ORDER BY symbol"
+                ).fetchall()
                 if rows:
                     insts = list(_INSTRUMENTS)
                     seen = {i.instrument_id for i in insts}
@@ -201,7 +208,9 @@ class FakeAdapter(Adapter):
     async def search_instruments(self, query: str) -> list[Instrument]:
         self.require_connected()
         needle = query.strip().upper()
-        return [i for i in self._instruments.values() if needle in i.instrument_id.symbol]
+        return [
+            i for i in self._instruments.values() if needle in i.instrument_id.symbol
+        ]
 
     async def quote(self, instrument_id: InstrumentId) -> QuoteTick:
         self.require_connected()
@@ -238,7 +247,9 @@ class FakeAdapter(Adapter):
                 store = ParquetBarStore()
                 start_date = start.date() if isinstance(start, dt.datetime) else start
                 end_date = end.date() if isinstance(end, dt.datetime) else end
-                real_bars = store.read(instrument_id, "1D", DateInterval(start_date, end_date))
+                real_bars = store.read(
+                    instrument_id, "1D", DateInterval(start_date, end_date)
+                )
                 if real_bars:
                     start_ns = int(start.timestamp() * 1e9)
                     end_ns = int(end.timestamp() * 1e9)
@@ -331,7 +342,9 @@ class FakeAdapter(Adapter):
         self._seq += 1
         order_id = client_order_id or f"{self.name}-{self._seq}"
         quote = await self.quote(intent.instrument_id)
-        fill_price = quote.ask_price if intent.side is OrderSide.BUY else quote.bid_price
+        fill_price = (
+            quote.ask_price if intent.side is OrderSide.BUY else quote.bid_price
+        )
         marketable = (
             intent.order_type is OrderType.MARKET
             or (
@@ -424,7 +437,11 @@ class FakeAdapter(Adapter):
         if report is None:
             raise AdapterError(f"unknown order {order_id!r}")
         state = self._states[order_id]
-        if state.status in (OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED):
+        if state.status in (
+            OrderStatus.FILLED,
+            OrderStatus.CANCELLED,
+            OrderStatus.REJECTED,
+        ):
             return  # cancelling a terminal order is a no-op, not an error
         state.apply(OrderEvent.cancel_requested())
         state.apply(OrderEvent.cancelled())
@@ -540,7 +557,8 @@ class FakeAdapter(Adapter):
                     instrument_id,
                     "1D",
                     DateInterval(
-                        now_date - dt.timedelta(days=90), now_date + dt.timedelta(days=365)
+                        now_date - dt.timedelta(days=90),
+                        now_date + dt.timedelta(days=365),
                     ),
                 )
                 if bars:
@@ -575,7 +593,10 @@ class FakeAdapter(Adapter):
     def _emit(self, instrument_id: InstrumentId) -> None:
         quote = self._quote_at(instrument_id, 0)
         for mode, callback, instruments in self._subscriptions.values():
-            if instrument_id in instruments and mode in (StreamMode.QUOTE, StreamMode.LTP):
+            if instrument_id in instruments and mode in (
+                StreamMode.QUOTE,
+                StreamMode.LTP,
+            ):
                 callback(quote)
 
     def _book_fill(self, report: OrderReport) -> None:

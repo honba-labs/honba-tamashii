@@ -7,7 +7,10 @@ from honba.strategies.indicators._rolling import RollingPairMoments
 
 
 @indicator(
-    "covariance", "statistical", inputs=("close", "benchmark"), warmup=lambda s: s.length + 1
+    "covariance",
+    "statistical",
+    inputs=("close", "benchmark"),
+    warmup=lambda s: s.length + 1,
 )
 class Covariance(Indicator):
     """Sample covariance (divisor n-1) of asset and benchmark simple returns.

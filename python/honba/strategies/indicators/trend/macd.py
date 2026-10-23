@@ -23,7 +23,9 @@ class MacdValue:
     warmup=lambda s: s._slow.warmup + s._signal.warmup - 1,
 )
 class Macd(Indicator):
-    def __init__(self, fast: int = 12, slow: int = 26, signal: int = 9, seed: str = "sma") -> None:
+    def __init__(
+        self, fast: int = 12, slow: int = 26, signal: int = 9, seed: str = "sma"
+    ) -> None:
         if not 0 < _check(fast) < _check(slow):
             raise ValueError(f"fast must be less than slow, got {fast} and {slow}")
         self._fast, self._slow, self._signal = (

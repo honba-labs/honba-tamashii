@@ -124,7 +124,9 @@ class HttpTransport:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         if not base_url.startswith(("http://", "https://")):
-            raise ValueError(f"base_url must start with http:// or https://, got {base_url!r}")
+            raise ValueError(
+                f"base_url must start with http:// or https://, got {base_url!r}"
+            )
         if not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout must be a positive number of seconds")
         self._retry = retry or RetryPolicy.none()
@@ -159,14 +161,18 @@ class HttpTransport:
             self._sleep(self._retry.delays[attempt])
         raise AssertionError("unreachable")  # pragma: no cover
 
-    def _send(self, method: str, path: str, query: Mapping[str, Any] | None, body: Any) -> Response:
+    def _send(
+        self, method: str, path: str, query: Mapping[str, Any] | None, body: Any
+    ) -> Response:
         try:
             http = self._http.request(
                 method,
                 path,
                 params=dict(query) if query else None,
                 content=_dumps(body).encode() if body is not None else None,
-                headers={"content-type": "application/json"} if body is not None else None,
+                headers={"content-type": "application/json"}
+                if body is not None
+                else None,
             )
         except httpx.TimeoutException as exc:
             raise TransportApiError(

@@ -93,7 +93,9 @@ def fetch_large_midcap_universe(category: str = "ALL") -> list[CompanyMetadata]:
 
     if category_norm in ("MID_CAP", "MID", "ALL"):
         try:
-            results.extend(_load_csv(NSE_NIFTY_MIDCAP_150_URL, "MID_CAP", "NIFTY MIDCAP 150"))
+            results.extend(
+                _load_csv(NSE_NIFTY_MIDCAP_150_URL, "MID_CAP", "NIFTY MIDCAP 150")
+            )
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as e:
             logger.warning(f"Failed to fetch Nifty Midcap 150 list from NSE: {e}")
 
@@ -367,7 +369,9 @@ class DuckDbFundamentalsStore:
             large_count = _fetch_scalar(
                 "SELECT count(*) FROM companies WHERE cap_category='LARGE_CAP'"
             )
-            mid_count = _fetch_scalar("SELECT count(*) FROM companies WHERE cap_category='MID_CAP'")
+            mid_count = _fetch_scalar(
+                "SELECT count(*) FROM companies WHERE cap_category='MID_CAP'"
+            )
 
         return {
             "db_path": str(self.db_path),
@@ -443,7 +447,9 @@ def fetch_and_parse_company(
 
     statements_records: list[tuple[str, str, str, str, str, float]] = []
 
-    def _extract_statements(df: pd.DataFrame | None, period: str, stmt_name: str) -> None:
+    def _extract_statements(
+        df: pd.DataFrame | None, period: str, stmt_name: str
+    ) -> None:
         if df is None or df.empty:
             return
         for col in df.columns:
@@ -458,7 +464,14 @@ def fetch_and_parse_company(
                         v_float = float(val)  # type: ignore[arg-type]
                         if pd.notna(v_float):
                             statements_records.append(
-                                (comp.symbol, period, stmt_name, d_str, str(item), v_float)
+                                (
+                                    comp.symbol,
+                                    period,
+                                    stmt_name,
+                                    d_str,
+                                    str(item),
+                                    v_float,
+                                )
                             )
                     except (ValueError, TypeError):
                         continue
@@ -489,7 +502,9 @@ def fetch_and_parse_company(
                 d_str = str(d.date())
                 d_date = d.date()
                 as_of_ns = int(
-                    dt.datetime.combine(d_date, dt.time(18, 0), tzinfo=dt.timezone.utc).timestamp()
+                    dt.datetime.combine(
+                        d_date, dt.time(18, 0), tzinfo=dt.timezone.utc
+                    ).timestamp()
                     * 1e9
                 )
             except (ValueError, TypeError, AttributeError):
@@ -497,12 +512,19 @@ def fetch_and_parse_company(
 
             rev = _safe_get(
                 fin_df,
-                ["Total Revenue", "Operating Revenue", "Gross Revenue", "Net Interest Income"],
+                [
+                    "Total Revenue",
+                    "Operating Revenue",
+                    "Gross Revenue",
+                    "Net Interest Income",
+                ],
                 d,
             )
             ebitda = _safe_get(fin_df, ["EBITDA", "Normalized EBITDA"], d)
             ebit = _safe_get(
-                fin_df, ["EBIT", "Operating Income", "Pretax Income", "Net Operating Profit"], d
+                fin_df,
+                ["EBIT", "Operating Income", "Pretax Income", "Net Operating Profit"],
+                d,
             )
             net_inc = _safe_get(
                 fin_df,
@@ -529,12 +551,17 @@ def fetch_and_parse_company(
             total_debt = _safe_get(bs_df, ["Total Debt", "Net Debt"], d)
             cash = _safe_get(
                 bs_df,
-                ["Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"],
+                [
+                    "Cash And Cash Equivalents",
+                    "Cash Cash Equivalents And Short Term Investments",
+                ],
                 d,
             )
 
             ocf = _safe_get(
-                cf_df, ["Operating Cash Flow", "Cash Flows From Used In Operating Activities"], d
+                cf_df,
+                ["Operating Cash Flow", "Cash Flows From Used In Operating Activities"],
+                d,
             )
             fcf = _safe_get(cf_df, ["Free Cash Flow"], d)
             if fcf is None and ocf is not None:
@@ -542,15 +569,23 @@ def fetch_and_parse_company(
                 fcf = ocf - abs(capex)
 
             cap_employed = (
-                (tot_assets - cur_liab) if tot_assets and tot_assets > cur_liab else tot_assets
+                (tot_assets - cur_liab)
+                if tot_assets and tot_assets > cur_liab
+                else tot_assets
             )
             roce = (
-                (ebit / cap_employed * 100) if ebit and cap_employed and cap_employed > 0 else None
+                (ebit / cap_employed * 100)
+                if ebit and cap_employed and cap_employed > 0
+                else None
             )
-            roe = (net_inc / equity * 100) if net_inc and equity and equity > 0 else None
+            roe = (
+                (net_inc / equity * 100) if net_inc and equity and equity > 0 else None
+            )
             op_margin = (ebit / rev * 100) if ebit and rev and rev > 0 else None
             net_margin = (net_inc / rev * 100) if net_inc and rev and rev > 0 else None
-            debt_eq = (total_debt / equity) if total_debt and equity and equity > 0 else None
+            debt_eq = (
+                (total_debt / equity) if total_debt and equity and equity > 0 else None
+            )
 
             ratios_records.append(
                 (
@@ -625,11 +660,31 @@ def fetch_and_parse_company(
                 )
             if rev is not None:
                 metrics_records.append(
-                    ("NSE", comp.symbol, "total_revenue", period, "1D", rev, None, d_str, as_of_ns)
+                    (
+                        "NSE",
+                        comp.symbol,
+                        "total_revenue",
+                        period,
+                        "1D",
+                        rev,
+                        None,
+                        d_str,
+                        as_of_ns,
+                    )
                 )
             if net_inc is not None:
                 metrics_records.append(
-                    ("NSE", comp.symbol, "net_income", period, "1D", net_inc, None, d_str, as_of_ns)
+                    (
+                        "NSE",
+                        comp.symbol,
+                        "net_income",
+                        period,
+                        "1D",
+                        net_inc,
+                        None,
+                        d_str,
+                        as_of_ns,
+                    )
                 )
 
     _compute_period_ratios(fin_y, bs_y, cf_y, "FY")
@@ -699,7 +754,9 @@ def download_fundamentals_to_duckdb(
     if skip_existing:
         try:
             with store._get_connection() as con:
-                existing = {r[0] for r in con.execute("SELECT symbol FROM companies").fetchall()}
+                existing = {
+                    r[0] for r in con.execute("SELECT symbol FROM companies").fetchall()
+                }
             companies = [c for c in companies if c.symbol not in existing]
         except (duckdb.Error, OSError):
             pass

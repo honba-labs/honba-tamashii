@@ -191,7 +191,9 @@ class UniverseHistory:
 _HISTORY_REGISTRY: dict[str, UniverseHistory] = {}
 
 
-def register_universe_history(history: UniverseHistory, *, replace: bool = False) -> None:
+def register_universe_history(
+    history: UniverseHistory, *, replace: bool = False
+) -> None:
     """Register a point-in-time history for ``resolve_universe(as_of=...)``.
 
     Raises:
@@ -237,7 +239,9 @@ def _find_data_root() -> Path:
     return find_data_root()
 
 
-def save_universe_history(history: UniverseHistory, data_dir: Path | None = None) -> Path:
+def save_universe_history(
+    history: UniverseHistory, data_dir: Path | None = None
+) -> Path:
     """Write ``history`` to the Parquet constituent catalog; returns the path.
 
     Creates ``<data root>/constituents/`` on first write; the data root itself
@@ -251,15 +255,21 @@ def save_universe_history(history: UniverseHistory, data_dir: Path | None = None
     table = pa.table(
         {
             "symbol": pa.array([c.symbol for c in history.constituents], pa.string()),
-            "included_from": pa.array([c.included_from for c in history.constituents], pa.date32()),
-            "excluded_on": pa.array([c.excluded_on for c in history.constituents], pa.date32()),
+            "included_from": pa.array(
+                [c.included_from for c in history.constituents], pa.date32()
+            ),
+            "excluded_on": pa.array(
+                [c.excluded_on for c in history.constituents], pa.date32()
+            ),
         }
     )
     pq.write_table(table, path)
     return path
 
 
-def load_universe_history(name: str, *, data_dir: Path | None = None) -> UniverseHistory | None:
+def load_universe_history(
+    name: str, *, data_dir: Path | None = None
+) -> UniverseHistory | None:
     """Read a history from the Parquet catalog; None when it was never saved."""
     import pyarrow.parquet as pq
 

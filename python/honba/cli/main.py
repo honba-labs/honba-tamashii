@@ -11,7 +11,9 @@ from honba.cli.schema import app as schema_app
 from honba.cli.screener import app as screener_app
 from honba.cli.strategy import verify
 
-app = typer.Typer(help="Honba - AI-native trading for Indian markets", no_args_is_help=True)
+app = typer.Typer(
+    help="Honba - AI-native trading for Indian markets", no_args_is_help=True
+)
 
 app.add_typer(ai_app, name="ai")
 app.add_typer(data_app, name="data")

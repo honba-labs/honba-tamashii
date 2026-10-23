@@ -6,7 +6,10 @@ from honba.strategies.indicators.moving_average import Sma
 
 
 @indicator(
-    "awesome_oscillator", "momentum", inputs=("high", "low"), warmup=lambda s: max(s.fast, s.slow)
+    "awesome_oscillator",
+    "momentum",
+    inputs=("high", "low"),
+    warmup=lambda s: max(s.fast, s.slow),
 )
 class AwesomeOscillator(Indicator):
     """Awesome Oscillator: SMA(fast) - SMA(slow) of the median price (high + low) / 2."""

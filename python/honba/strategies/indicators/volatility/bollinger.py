@@ -17,7 +17,10 @@ class BollingerValue:
 
 
 @indicator(
-    "bollinger", "volatility", outputs=("upper", "middle", "lower"), warmup=lambda s: s.period
+    "bollinger",
+    "volatility",
+    outputs=("upper", "middle", "lower"),
+    warmup=lambda s: s.period,
 )
 class Bollinger(Indicator):
     """Bands at ``mult`` (upper) and ``mult_lower`` (default ``mult``) population
@@ -38,4 +41,6 @@ class Bollinger(Indicator):
         if r is None:
             return None
         mean, _, std = r
-        return BollingerValue(mean + self.mult * std, mean, mean - self.mult_lower * std)
+        return BollingerValue(
+            mean + self.mult * std, mean, mean - self.mult_lower * std
+        )

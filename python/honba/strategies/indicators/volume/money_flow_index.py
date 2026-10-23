@@ -24,7 +24,9 @@ class MoneyFlowIndex(Indicator):
         self._pos = RollingSum(period)
         self._neg = RollingSum(period)
 
-    def update(self, high: float, low: float, close: float, volume: float) -> float | None:
+    def update(
+        self, high: float, low: float, close: float, volume: float
+    ) -> float | None:
         tp = (high + low + close) / 3.0
         prev, self._prev = self._prev, tp
         if prev is None:

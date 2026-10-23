@@ -9,7 +9,9 @@ import typer
 
 from honba.strategies.indicators import FAMILIES, indicator_spec, list_indicators
 
-app = typer.Typer(help="Discover the built-in technical indicators.", no_args_is_help=True)
+app = typer.Typer(
+    help="Discover the built-in technical indicators.", no_args_is_help=True
+)
 
 
 def _fail(msg: str) -> NoReturn:
@@ -19,8 +21,12 @@ def _fail(msg: str) -> NoReturn:
 
 @app.command("list")
 def list_cmd(
-    family: str = typer.Option(None, "--family", "-f", help=f"One of: {', '.join(FAMILIES)}"),
-    as_json: bool = typer.Option(False, "--json", "-j", help="Machine-readable output."),
+    family: str = typer.Option(
+        None, "--family", "-f", help=f"One of: {', '.join(FAMILIES)}"
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", "-j", help="Machine-readable output."
+    ),
 ) -> None:
     """List indicators, grouped by family."""
     try:
@@ -43,7 +49,9 @@ def list_cmd(
 @app.command()
 def show(
     kind: str = typer.Argument(..., help="Indicator kind, e.g. rsi"),
-    as_json: bool = typer.Option(False, "--json", "-j", help="Machine-readable output."),
+    as_json: bool = typer.Option(
+        False, "--json", "-j", help="Machine-readable output."
+    ),
 ) -> None:
     """Show an indicator's family, inputs, outputs and parameters (with defaults)."""
     try:

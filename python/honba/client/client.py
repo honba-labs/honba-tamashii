@@ -42,7 +42,9 @@ _M = TypeVar("_M", bound=BaseModel)
 
 def _positive(field: str, value: float) -> None:
     if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
-        raise RequestValidationError(field, "invalid_value", f"{field} must be > 0 seconds")
+        raise RequestValidationError(
+            field, "invalid_value", f"{field} must be > 0 seconds"
+        )
 
 
 class Client:
@@ -143,7 +145,9 @@ class Client:
         data = self._data(rq.quotes(symbols, venue=venue, as_of=as_of))
         return self._parse_list(data, "quotes", QuoteTick)
 
-    def depth(self, instrument_id: str | InstrumentId, *, levels: int | None = None) -> Depth:
+    def depth(
+        self, instrument_id: str | InstrumentId, *, levels: int | None = None
+    ) -> Depth:
         """``GET /depth/{id}``: the order book (``levels`` per side, 1..=50, default 5).
 
         A bar-only data source has no book: ``MarketDataUnavailableApiError``.
@@ -365,7 +369,9 @@ class Client:
         stream = getattr(self._transport, "stream", None)
         if stream is None:
             raise UnsupportedApiError(
-                "unsupported", "this transport does not support event streaming", status=501
+                "unsupported",
+                "this transport does not support event streaming",
+                status=501,
             )
         request = rq.backtest_events(run_id, resume_from_seq=resume_from_seq)
         bad_frames: list[str] = []
@@ -379,10 +385,17 @@ class Client:
             if on_frame is not None:
                 on_frame(frame)
 
-        stream(request.method, request.path, query=request.query, body=None, on_frame=handle)
+        stream(
+            request.method,
+            request.path,
+            query=request.query,
+            body=None,
+            on_frame=handle,
+        )
         if bad_frames:
             raise InvalidResponseError(
-                f"run event stream carried a non-JSON frame: {bad_frames[0]}", status=200
+                f"run event stream carried a non-JSON frame: {bad_frames[0]}",
+                status=200,
             )
         return self.backtest(run_id)
 
@@ -451,7 +464,8 @@ class Client:
             return model.model_validate(data)
         except ValidationError as exc:
             raise InvalidResponseError(
-                f"{model.__name__} payload does not parse: {exc.error_count()} errors", status=200
+                f"{model.__name__} payload does not parse: {exc.error_count()} errors",
+                status=200,
             ) from exc
 
     @staticmethod
@@ -463,5 +477,6 @@ class Client:
             return [model.model_validate(row) for row in rows]
         except ValidationError as exc:
             raise InvalidResponseError(
-                f"{model.__name__} payload does not parse: {exc.error_count()} errors", status=200
+                f"{model.__name__} payload does not parse: {exc.error_count()} errors",
+                status=200,
             ) from exc

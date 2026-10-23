@@ -6,7 +6,12 @@ from honba.strategies.indicators._base import Indicator, indicator
 from honba.strategies.indicators.moving_average import Ema
 
 
-@indicator("mcclellan_oscillator", "breadth", inputs=("advances", "declines"), warmup=lambda s: 1)
+@indicator(
+    "mcclellan_oscillator",
+    "breadth",
+    inputs=("advances", "declines"),
+    warmup=lambda s: 1,
+)
 class McClellanOscillator(Indicator):
     """EMA(fast) - EMA(slow) of net advances (advances - declines), defaults 19/39.
 

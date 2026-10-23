@@ -25,7 +25,9 @@ def resolve_fno_instrument(symbol: str, exchange: str = "NSE") -> Instrument:
 
     # Calculate expiry date
     if parsed.expiry_day is not None:
-        expiry_date = datetime.date(parsed.expiry_year, parsed.expiry_month, parsed.expiry_day)
+        expiry_date = datetime.date(
+            parsed.expiry_year, parsed.expiry_month, parsed.expiry_day
+        )
     else:
         # Last Thursday of month
         year = parsed.expiry_year

@@ -76,7 +76,15 @@ BROKER_SDK_MODULES: frozenset[str] = frozenset(
 DEFAULT_FORBIDDEN: frozenset[str] = BROKER_ADAPTER_PACKAGES | BROKER_SDK_MODULES
 
 _SKIP_DIRS = frozenset(
-    {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", "build", "dist"}
+    {
+        "__pycache__",
+        ".git",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "build",
+        "dist",
+    }
 )
 
 
@@ -125,13 +133,18 @@ def find_boundary_violations(
         if _SKIP_DIRS & set(path.parts):
             continue
         resolved = path.resolve()
-        if any(resolved == exempt_dir or exempt_dir in resolved.parents for exempt_dir in exempt):
+        if any(
+            resolved == exempt_dir or exempt_dir in resolved.parents
+            for exempt_dir in exempt
+        ):
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError as error:
             violations.append(
-                BoundaryViolation(path, error.lineno or 0, "<unparsed>", f"syntax error: {error}")
+                BoundaryViolation(
+                    path, error.lineno or 0, "<unparsed>", f"syntax error: {error}"
+                )
             )
             continue
         for line, module in _imported_modules(tree):
@@ -139,7 +152,9 @@ def find_boundary_violations(
             if top not in forbidden and top.lower() not in lowered:
                 continue
             reason = (
-                "a broker adapter package" if top in BROKER_ADAPTER_PACKAGES else "a broker SDK"
+                "a broker adapter package"
+                if top in BROKER_ADAPTER_PACKAGES
+                else "a broker SDK"
             )
             violations.append(BoundaryViolation(path, line, module, reason))
     return violations

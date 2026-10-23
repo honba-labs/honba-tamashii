@@ -39,8 +39,17 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, NoReturn, cast
 
-from honba.adapters.base import Adapter, ExecutionAdapter, MarketDataAdapter, MarketDataClient
-from honba.adapters.capabilities import AdapterCapabilities, Capability, capability_for_method
+from honba.adapters.base import (
+    Adapter,
+    ExecutionAdapter,
+    MarketDataAdapter,
+    MarketDataClient,
+)
+from honba.adapters.capabilities import (
+    AdapterCapabilities,
+    Capability,
+    capability_for_method,
+)
 from honba.adapters.errors import AdapterError, CapabilityError
 from honba.adapters.models import (
     Funds,
@@ -105,7 +114,9 @@ def _expect(condition: bool, message: str) -> None:
         _fail(message)
 
 
-async def _call(label: str, target: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+async def _call(
+    label: str, target: Callable[..., Any], *args: Any, **kwargs: Any
+) -> Any:
     """Call ``target``, turning any unexpected failure into a violation naming the call.
 
     Only :class:`~honba.adapters.errors.AdapterError` subclasses may escape the contract, so
@@ -140,7 +151,9 @@ def _expect_kind(label: str, value: Any, *types: type) -> None:
         _fail(f"{label} returned {type(value).__name__}, expected {expected}")
 
 
-async def _refuses(label: str, call: Callable[[], Any], expected: type[Exception]) -> None:
+async def _refuses(
+    label: str, call: Callable[[], Any], expected: type[Exception]
+) -> None:
     """``call`` must raise ``expected``. Anything else, including silence, is a violation."""
     try:
         result = call()
@@ -151,9 +164,13 @@ async def _refuses(label: str, call: Callable[[], Any], expected: type[Exception
     except ContractViolation:
         raise
     except Exception as error:  # noqa: BLE001
-        _fail(f"{label} raised {type(error).__name__}, expected {expected.__name__}: {error}")
+        _fail(
+            f"{label} raised {type(error).__name__}, expected {expected.__name__}: {error}"
+        )
     returned = type(result).__name__ if result is not None else "None"
-    _fail(f"{label} returned {returned} while not connected, expected {expected.__name__}")
+    _fail(
+        f"{label} returned {returned} while not connected, expected {expected.__name__}"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,7 +193,9 @@ def _probe_from(
     return _Probe(
         instrument_id=first.instrument_id,
         product=min(caps.products, key=lambda p: p.value),
-        unknown_instrument=InstrumentId("HONBA-CONTRACT-UNKNOWN", first.instrument_id.exchange),
+        unknown_instrument=InstrumentId(
+            "HONBA-CONTRACT-UNKNOWN", first.instrument_id.exchange
+        ),
         unknown_order="honba-contract-unknown-order",
         unknown_subscription="honba-contract-unknown-subscription",
         client_order_id="honba-contract-probe",
@@ -204,7 +223,10 @@ def _args_for(method: str, probe: _Probe) -> tuple[tuple, dict]:
     if method == "search_instruments":
         return (probe.instrument_id.symbol,), {}
     if method == "subscribe":
-        return ((probe.instrument_id,), {"mode": StreamMode.QUOTE, "callback": lambda _event: None})
+        return (
+            (probe.instrument_id,),
+            {"mode": StreamMode.QUOTE, "callback": lambda _event: None},
+        )
     if method in {"unsubscribe"}:
         return (probe.unknown_subscription,), {}
     if method == "place_order":
@@ -243,7 +265,11 @@ def _out_of_order_probe(adapter: Any) -> str:
 
 
 def _missing(adapter: Any, protocol: type) -> list[str]:
-    return [name for name in _methods_of(protocol) if not callable(getattr(adapter, name, None))]
+    return [
+        name
+        for name in _methods_of(protocol)
+        if not callable(getattr(adapter, name, None))
+    ]
 
 
 def _verify_roles(adapter: Any) -> None:
@@ -278,17 +304,29 @@ async def _verify_descriptor(adapter: Adapter) -> None:
 
 async def _verify_lifecycle(adapter: Adapter) -> None:
     """No work before ``connect()``; a real session after; repeated transitions are errors."""
-    _expect(adapter.is_connected() is False, "is_connected() must be False on a fresh adapter")
+    _expect(
+        adapter.is_connected() is False,
+        "is_connected() must be False on a fresh adapter",
+    )
     await _refuses(
-        "require_connected() before connect", lambda: adapter.require_connected(), AdapterError
+        "require_connected() before connect",
+        lambda: adapter.require_connected(),
+        AdapterError,
     )
     probe = _out_of_order_probe(adapter)
-    await _refuses(f"{probe}() before connect", lambda: getattr(adapter, probe)(), AdapterError)
+    await _refuses(
+        f"{probe}() before connect", lambda: getattr(adapter, probe)(), AdapterError
+    )
     session = await _call("connect()", adapter.connect)
     _expect_kind("connect()", session, SessionInfo)
-    _expect(isinstance(session.mode, RunMode), "connect() must report the RunMode it opened in")
+    _expect(
+        isinstance(session.mode, RunMode),
+        "connect() must report the RunMode it opened in",
+    )
     _expect(bool(session.user_id.strip()), "connect() must report a non-blank user_id")
-    _expect(adapter.is_connected() is True, "is_connected() must be True after connect()")
+    _expect(
+        adapter.is_connected() is True, "is_connected() must be True after connect()"
+    )
     current = await _call("session()", adapter.session)
     _expect_kind("session()", current, SessionInfo)
     _expect(
@@ -311,9 +349,9 @@ async def _verify_capability_refusals(adapter: Adapter, probe: _Probe) -> None:
             args, kwargs = _args_for(method, probe)
             await _refuses(
                 f"{method}() without capability {capability.value}",
-                lambda method=method, args=args, kwargs=kwargs: getattr(adapter, method)(
-                    *args, **kwargs
-                ),
+                lambda method=method, args=args, kwargs=kwargs: getattr(
+                    adapter, method
+                )(*args, **kwargs),
                 CapabilityError,
             )
 
@@ -331,10 +369,14 @@ async def _verify_order_type_refusals(adapter: Adapter, probe: _Probe) -> None:
         return
     if caps.supports_order_type(OrderType.TRAILING_STOP):
         return
-    intent = OrderIntent.trailing_stop_sell(probe.instrument_id, probe.quantity, trail_percent=1.0)
+    intent = OrderIntent.trailing_stop_sell(
+        probe.instrument_id, probe.quantity, trail_percent=1.0
+    )
     await _refuses(
         f"place_order() with undeclared order type {OrderType.TRAILING_STOP.value}",
-        lambda: cast(ExecutionAdapter, adapter).place_order(intent, product=probe.product),
+        lambda: cast(ExecutionAdapter, adapter).place_order(
+            intent, product=probe.product
+        ),
         CapabilityError,
     )
 
@@ -345,9 +387,14 @@ async def _verify_market_data(adapter: Any, probe: _Probe) -> None:
     if caps.supports(Capability.INSTRUMENT_MASTER):
         instruments = await _call("instruments()", adapter.instruments)
         _expect_kind("instruments()", instruments, Instrument)
-        _expect(bool(instruments), "instruments() returned nothing; there is nothing to trade")
+        _expect(
+            bool(instruments),
+            "instruments() returned nothing; there is nothing to trade",
+        )
         ids = [i.instrument_id for i in instruments]
-        _expect(len(set(ids)) == len(ids), "instruments() returned duplicate instrument ids")
+        _expect(
+            len(set(ids)) == len(ids), "instruments() returned duplicate instrument ids"
+        )
         found = await _call(
             f"search_instruments({probe.instrument_id.symbol!r})",
             adapter.search_instruments,
@@ -361,7 +408,10 @@ async def _verify_market_data(adapter: Any, probe: _Probe) -> None:
     if caps.supports(Capability.QUOTES):
         quote = await _call("quote()", adapter.quote, probe.instrument_id)
         _expect_kind("quote()", quote, QuoteTick)
-        _expect(quote.instrument_id == probe.instrument_id, "quote() returned another instrument")
+        _expect(
+            quote.instrument_id == probe.instrument_id,
+            "quote() returned another instrument",
+        )
         _expect(quote.ts >= 0, "quote() must carry a unix-nanosecond timestamp")
         await _refuses(
             "quote() for an unknown instrument",
@@ -371,7 +421,10 @@ async def _verify_market_data(adapter: Any, probe: _Probe) -> None:
     if caps.supports(Capability.DEPTH):
         depth = await _call("depth()", adapter.depth, probe.instrument_id)
         _expect_kind("depth()", depth, MarketDepth)
-        _expect(depth.instrument_id == probe.instrument_id, "depth() returned another instrument")
+        _expect(
+            depth.instrument_id == probe.instrument_id,
+            "depth() returned another instrument",
+        )
     if caps.supports(Capability.HISTORICAL_BARS):
         bars = await _call(
             "historical_bars()",
@@ -418,8 +471,14 @@ async def _verify_stream(adapter: Any, probe: _Probe) -> None:
         subscription.instruments == (probe.instrument_id,),
         "subscribe() must echo exactly the instruments it was given",
     )
-    _expect(subscription.mode is mode, f"subscribe() must report the mode it was given ({mode})")
-    _expect(bool(subscription.id.strip()), "subscribe() must return a usable subscription id")
+    _expect(
+        subscription.mode is mode,
+        f"subscribe() must report the mode it was given ({mode})",
+    )
+    _expect(
+        bool(subscription.id.strip()),
+        "subscribe() must return a usable subscription id",
+    )
     await _call("unsubscribe()", adapter.unsubscribe, subscription.id)
     await _refuses(
         "unsubscribe() for an unknown subscription",
@@ -458,9 +517,14 @@ async def _place_resting_order(adapter: Any, probe: _Probe) -> OrderReport | Non
     if not adapter.capabilities().supports(Capability.QUOTES):
         return None
     quote = await _call("quote()", adapter.quote, probe.instrument_id)
-    intent = OrderIntent.limit_buy(probe.instrument_id, probe.quantity, quote.bid_price / 2.0)
+    intent = OrderIntent.limit_buy(
+        probe.instrument_id, probe.quantity, quote.bid_price / 2.0
+    )
     report = await _call(
-        "place_order() (resting limit)", adapter.place_order, intent, product=probe.product
+        "place_order() (resting limit)",
+        adapter.place_order,
+        intent,
+        product=probe.product,
     )
     return report if report.status in _LIVE_STATUSES else None
 
@@ -487,7 +551,9 @@ async def _verify_execution(adapter: Any, probe: _Probe) -> None:
         client_order_id=probe.client_order_id,
     )
     _expect_kind("place_order()", report, OrderReport)
-    _expect(bool(report.order_id.strip()), "place_order() must return a non-blank order_id")
+    _expect(
+        bool(report.order_id.strip()), "place_order() must return a non-blank order_id"
+    )
     _expect(
         (report.instrument_id, report.side) == (intent.instrument_id, intent.side),
         "place_order() must report the instrument and side it was asked for",
@@ -499,7 +565,9 @@ async def _verify_execution(adapter: Any, probe: _Probe) -> None:
     )
     if report.status is OrderStatus.REJECTED:
         # A refusal is data: nothing escaped as an exception, and the reason is there to journal.
-        _expect(bool(report.reject_reason), "a rejected order must carry a reject_reason")
+        _expect(
+            bool(report.reject_reason), "a rejected order must carry a reject_reason"
+        )
 
     if caps.supports(Capability.ORDER_BOOK):
         book = await _call("orders()", adapter.orders)
@@ -559,7 +627,9 @@ async def _verify_execution(adapter: Any, probe: _Probe) -> None:
         if resting is not None:
             await _call("cancel_order()", adapter.cancel_order, resting.order_id)
             after = await _call(
-                f"order_status({resting.order_id})", adapter.order_status, resting.order_id
+                f"order_status({resting.order_id})",
+                adapter.order_status,
+                resting.order_id,
             )
             _expect(
                 after.status is OrderStatus.CANCELLED,
@@ -607,7 +677,12 @@ async def verify_adapter_contract(
             )
         else:
             instruments = [
-                Instrument(InstrumentId("HONBA-CONTRACT", "TEST"), InstrumentKind.EQUITY, 1.0, 0.05)
+                Instrument(
+                    InstrumentId("HONBA-CONTRACT", "TEST"),
+                    InstrumentKind.EQUITY,
+                    1.0,
+                    0.05,
+                )
             ]
         probe = _probe_from(instruments, caps, probe_quantity)
         await _verify_capability_refusals(adapter, probe)

@@ -54,9 +54,13 @@ class MarketImpact:
         if not (math.isfinite(self.kappa) and self.kappa >= 0.0):
             raise ValueError(f"kappa must be a finite number >= 0, got {self.kappa}")
         if self.window < 2:
-            raise ValueError(f"window must be >= 2 so a daily sigma exists, got {self.window}")
+            raise ValueError(
+                f"window must be >= 2 so a daily sigma exists, got {self.window}"
+            )
 
-    def observe(self, instrument_id: InstrumentId, *, volume: float, close: float) -> None:
+    def observe(
+        self, instrument_id: InstrumentId, *, volume: float, close: float
+    ) -> None:
         """Record one finished session's volume and close for ``instrument_id``.
 
         Called after the session's fills, so the oldest usable history for a
@@ -85,7 +89,9 @@ class MarketImpact:
         closes = self._closes.get(instrument_id)
         if closes is None or len(closes) < 2:
             return 0.0
-        returns = [after / before - 1.0 for before, after in pairwise(closes) if before > 0.0]
+        returns = [
+            after / before - 1.0 for before, after in pairwise(closes) if before > 0.0
+        ]
         if len(returns) < 2:
             return 0.0
         return statistics.stdev(returns)

@@ -10,7 +10,11 @@ import decimal
 import re
 from dataclasses import dataclass
 
-from honba.markets.india.units import INDIA_CURRENCY_SYMBOLS, INDIA_MULTIPLIERS, MultiplierSpec
+from honba.markets.india.units import (
+    INDIA_CURRENCY_SYMBOLS,
+    INDIA_MULTIPLIERS,
+    MultiplierSpec,
+)
 from honba.wire.screener import MetricDefinition, UnitType, ValueType
 
 
@@ -166,7 +170,9 @@ def validate_quantity_for_metric(quantity: Quantity, metric: MetricDefinition) -
     unit = metric.unit
     val_type = metric.value_type
 
-    is_money = unit in (UnitType.CURRENCY, UnitType.PRICE) or val_type == ValueType.MONEY
+    is_money = (
+        unit in (UnitType.CURRENCY, UnitType.PRICE) or val_type == ValueType.MONEY
+    )
     is_shares = unit == UnitType.SHARES
     is_percent = unit in (UnitType.PCT, UnitType.RATIO)
 

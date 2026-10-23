@@ -59,14 +59,18 @@ class StartDateConfig:
         if not self.offsets:
             raise ValueError("offsets needs at least one start-date offset")
         if any(o < 0 for o in self.offsets):
-            raise ValueError(f"offsets must be non-negative day counts, got {self.offsets}")
+            raise ValueError(
+                f"offsets must be non-negative day counts, got {self.offsets}"
+            )
         if self.max_final_equity_cv < 0:
             raise ValueError("max_final_equity_cv must be >= 0")
         if self.max_drawdown_spread_pct < 0:
             raise ValueError("max_drawdown_spread_pct must be >= 0")
 
 
-def offsets_to_ranges(start: date, end: date, offsets: tuple[int, ...]) -> list[tuple[date, date]]:
+def offsets_to_ranges(
+    start: date, end: date, offsets: tuple[int, ...]
+) -> list[tuple[date, date]]:
     """Shift the whole `[start, end)` window forward by each offset (in days).
 
     Every offset covers the same span of history; the end moves with the start
@@ -85,7 +89,9 @@ class StartDateResult:
     gates: StartDateConfig = field(repr=False)
 
     def __post_init__(self) -> None:
-        if not (len(self.offsets) == len(self.final_equities) == len(self.max_drawdown_pcts)):
+        if not (
+            len(self.offsets) == len(self.final_equities) == len(self.max_drawdown_pcts)
+        ):
             raise ValueError("offsets, final_equities and max_drawdown_pcts must align")
 
     @property
@@ -112,7 +118,8 @@ class StartDateResult:
         """Each gate by name. Equality sits on the failing side (fail closed)."""
         return {
             "final_equity_cv": self.cv_final_equity <= self.gates.max_final_equity_cv,
-            "drawdown_spread": self.drawdown_spread <= self.gates.max_drawdown_spread_pct,
+            "drawdown_spread": self.drawdown_spread
+            <= self.gates.max_drawdown_spread_pct,
         }
 
     @property
@@ -140,7 +147,9 @@ class StartDateResult:
             lines.append("RESULT: PASSED")
         else:
             failed = sum(1 for ok in self.checks.values() if not ok)
-            lines.append(f"RESULT: FAILED ({failed} of {len(self.checks)} checks failed)")
+            lines.append(
+                f"RESULT: FAILED ({failed} of {len(self.checks)} checks failed)"
+            )
         return "\n".join(lines)
 
 
@@ -205,7 +214,9 @@ def monte_carlo(
 
     equities: list[float] = []
     drawdowns: list[float] = []
-    for run_start, run_end in offsets_to_ranges(config.start, config.end, config.offsets):
+    for run_start, run_end in offsets_to_ranges(
+        config.start, config.end, config.offsets
+    ):
         result = Honba.backtest(
             _fresh_strategy(strategy),
             symbol=symbol,
@@ -244,5 +255,9 @@ def _as_date(value: date | str, name: str) -> date:
         try:
             return date.fromisoformat(value)
         except ValueError as e:
-            raise ValueError(f"{name} must be an ISO date (YYYY-MM-DD), got {value!r}") from e
-    raise TypeError(f"{name} must be a date or ISO date string, got {type(value).__name__}")
+            raise ValueError(
+                f"{name} must be an ISO date (YYYY-MM-DD), got {value!r}"
+            ) from e
+    raise TypeError(
+        f"{name} must be a date or ISO date string, got {type(value).__name__}"
+    )

@@ -11,7 +11,11 @@ from typing import Any, ClassVar
 from honba.entities.bar import Bar
 from honba.entities.instrument import InstrumentId
 from honba.strategies.declarative import TargetWeightStrategy
-from honba.strategies.portfolio.schedule import EveryNDays, RebalanceSchedule, ScheduleState
+from honba.strategies.portfolio.schedule import (
+    EveryNDays,
+    RebalanceSchedule,
+    ScheduleState,
+)
 from honba.strategies.portfolio.selection import SelectAll, Selector
 from honba.strategies.portfolio.universe import Universe
 from honba.strategies.portfolio.view import MarketView, PriceHistory
@@ -71,7 +75,9 @@ class PortfolioStrategy(TargetWeightStrategy):
         self._previous_day: date | None = None
 
     @classmethod
-    def from_params(cls, params: Mapping[str, Any], name: str | None = None) -> PortfolioStrategy:
+    def from_params(
+        cls, params: Mapping[str, Any], name: str | None = None
+    ) -> PortfolioStrategy:
         """Build from plain TOML-friendly params; see ``portfolio.factory`` for the grammar."""
         from honba.strategies.portfolio.factory import build_portfolio_strategy
 
@@ -98,17 +104,25 @@ class PortfolioStrategy(TargetWeightStrategy):
         if not done and self._warming_up():
             return False
         priced = False if done else self._all_priced()
-        drift = self._drift() if done and getattr(self.schedule, "needs_drift", False) else None
+        drift = (
+            self._drift()
+            if done and getattr(self.schedule, "needs_drift", False)
+            else None
+        )
         day = self._as_of()
         assert day is not None  # on_bar sets last_day before asking
-        state = ScheduleState(day, done, st.days_since, priced, drift, self._previous_day)
+        state = ScheduleState(
+            day, done, st.days_since, priced, drift, self._previous_day
+        )
         return self.schedule.due(state)
 
     def on_bar(self, bar: Bar) -> None:
         self._history.record(bar.instrument_id, bar.close)
         today = bar.ts // _NS_PER_DAY
         if today != self._current_day:
-            self._previous_day = None if self._current_day is None else self._day(self._current_day)
+            self._previous_day = (
+                None if self._current_day is None else self._day(self._current_day)
+            )
             self._current_day = today
         super().on_bar(bar)
 

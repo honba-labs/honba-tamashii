@@ -6,7 +6,9 @@ from honba.strategies.indicators._base import Indicator, indicator
 from honba.strategies.indicators._util import check as _check
 
 
-@indicator("cci", "momentum", inputs=("high", "low", "close"), warmup=lambda s: s.length)
+@indicator(
+    "cci", "momentum", inputs=("high", "low", "close"), warmup=lambda s: s.length
+)
 class Cci(Indicator):
     """Commodity Channel Index (TradingView): (tp - SMA(tp)) / (0.015 * mean absolute deviation), tp = (high+low+close)/3.
 

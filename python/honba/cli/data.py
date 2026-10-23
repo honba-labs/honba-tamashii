@@ -19,7 +19,8 @@ from honba.screener.service import DataService
 from honba.screener.store import ParquetBarStore
 
 app = typer.Typer(
-    help="Data inspection and fetch commands: coverage, gaps, fetch", no_args_is_help=True
+    help="Data inspection and fetch commands: coverage, gaps, fetch",
+    no_args_is_help=True,
 )
 console = Console()
 err_console = Console(stderr=True)
@@ -39,11 +40,16 @@ _DATA_SERVICE = DataService(
 
 @app.command("coverage")
 def coverage_cmd(
-    symbol: Annotated[str | None, typer.Argument(help="Optional symbol, e.g. RELIANCE")] = None,
+    symbol: Annotated[
+        str | None, typer.Argument(help="Optional symbol, e.g. RELIANCE")
+    ] = None,
     exchange: Annotated[
         str,
         typer.Option(
-            "--exchange", "-e", "--exchange", help="Market exchange / exchange [default: NSE]"
+            "--exchange",
+            "-e",
+            "--exchange",
+            help="Market exchange / exchange [default: NSE]",
         ),
     ] = "NSE",
     timeframe: Annotated[
@@ -78,7 +84,9 @@ def coverage_cmd(
             )
 
     if not rows and fmt is OutputFormat.TABLE:
-        console.print(f"[yellow]No covered intervals found for {symbol or 'all symbols'}[/yellow]")
+        console.print(
+            f"[yellow]No covered intervals found for {symbol or 'all symbols'}[/yellow]"
+        )
         return
     render(
         rows,
@@ -101,17 +109,24 @@ def gaps_cmd(
     exchange: Annotated[
         str,
         typer.Option(
-            "--exchange", "-e", "--exchange", help="Market exchange / exchange [default: NSE]"
+            "--exchange",
+            "-e",
+            "--exchange",
+            help="Market exchange / exchange [default: NSE]",
         ),
     ] = "NSE",
     timeframe: Annotated[
         str, typer.Option("--timeframe", "-t", help="Timeframe [default: 1D]")
     ] = "1D",
     start: Annotated[
-        str, typer.Option("--start", "-s", help="Start date YYYY-MM-DD", show_default="2024-01-01")
+        str,
+        typer.Option(
+            "--start", "-s", help="Start date YYYY-MM-DD", show_default="2024-01-01"
+        ),
     ] = "2024-01-01",
     end: Annotated[
-        str | None, typer.Option("--end", "-d", help="End date YYYY-MM-DD", show_default="today")
+        str | None,
+        typer.Option("--end", "-d", help="End date YYYY-MM-DD", show_default="today"),
     ] = None,
     format: Annotated[str, typer.Option("--format", "-f", help=FORMAT_HELP)] = "table",
 ) -> None:
@@ -119,14 +134,18 @@ def gaps_cmd(
     fmt = parse_format(format)
     inst = InstrumentId(symbol, exchange)
     start_date = dt.date.fromisoformat(start)
-    end_date = dt.date.fromisoformat(end) if end else dt.date.today() + dt.timedelta(days=1)  # noqa: DTZ011 - CLI default 'today' is the user's local calendar date
+    end_date = (
+        dt.date.fromisoformat(end) if end else dt.date.today() + dt.timedelta(days=1)
+    )  # noqa: DTZ011 - CLI default 'today' is the user's local calendar date
     req_interval = DateInterval(start_date, end_date)
 
     plan = _DATA_SERVICE.plan([inst], timeframe, req_interval)
     gaps = plan.gaps_by_instrument.get(inst, [])
 
     if not gaps and fmt is OutputFormat.TABLE:
-        console.print(f"[green]No gaps found for {symbol} ({start_date}..{end_date})[/green]")
+        console.print(
+            f"[green]No gaps found for {symbol} ({start_date}..{end_date})[/green]"
+        )
         return
 
     render(
@@ -146,26 +165,38 @@ def fetch_cmd(
     exchange: Annotated[
         str,
         typer.Option(
-            "--exchange", "-e", "--exchange", help="Market exchange / exchange [default: NSE]"
+            "--exchange",
+            "-e",
+            "--exchange",
+            help="Market exchange / exchange [default: NSE]",
         ),
     ] = "NSE",
     timeframe: Annotated[
         str, typer.Option("--timeframe", "-t", help="Timeframe [default: 1D]")
     ] = "1D",
     start: Annotated[
-        str, typer.Option("--start", "-s", help="Start date YYYY-MM-DD", show_default="2024-01-01")
+        str,
+        typer.Option(
+            "--start", "-s", help="Start date YYYY-MM-DD", show_default="2024-01-01"
+        ),
     ] = "2024-01-01",
     end: Annotated[
-        str | None, typer.Option("--end", "-d", help="End date YYYY-MM-DD", show_default="today")
+        str | None,
+        typer.Option("--end", "-d", help="End date YYYY-MM-DD", show_default="today"),
     ] = None,
     provider: Annotated[
-        str, typer.Option("--provider", "-p", help="Provider: auto, yfinance, nse [default: auto]")
+        str,
+        typer.Option(
+            "--provider", "-p", help="Provider: auto, yfinance, nse [default: auto]"
+        ),
     ] = "auto",
 ) -> None:
     """Fetch missing data and fill gaps without running a scan."""
     inst = InstrumentId(symbol, exchange)
     start_date = dt.date.fromisoformat(start)
-    end_date = dt.date.fromisoformat(end) if end else dt.date.today() + dt.timedelta(days=1)  # noqa: DTZ011 - CLI default 'today' is the user's local calendar date
+    end_date = (
+        dt.date.fromisoformat(end) if end else dt.date.today() + dt.timedelta(days=1)
+    )  # noqa: DTZ011 - CLI default 'today' is the user's local calendar date
     req_interval = DateInterval(start_date, end_date)
 
     p_clean = provider.lower().strip()
@@ -182,7 +213,13 @@ def fetch_cmd(
     plan = svc.plan([inst], timeframe, req_interval)
     gaps = plan.gaps_by_instrument.get(inst, [])
 
-    from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
 
     if not gaps:
         console.print(f"[green]Data already complete for {symbol}[/green]")
@@ -234,7 +271,9 @@ def housekeeping_cmd() -> None:
             f"({ratio:.1f}%, saved {saved / (1024 * 1024):.1f}MB)[/green]"
         )
     else:
-        console.print("[green]Cache files are already compressed in .xz format.[/green]")
+        console.print(
+            "[green]Cache files are already compressed in .xz format.[/green]"
+        )
 
     # Ledger interval consolidation
     ledger = _STORE._load_ledger()

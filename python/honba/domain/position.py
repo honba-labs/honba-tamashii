@@ -44,7 +44,9 @@ class Position:
         if self.avg_price < 0:
             raise ValueError(f"avg_price must be >= 0, got {self.avg_price}")
         if not isinstance(self.realized_pnl, Money):
-            raise TypeError(f"realized_pnl must be Money, got {type(self.realized_pnl)}")
+            raise TypeError(
+                f"realized_pnl must be Money, got {type(self.realized_pnl)}"
+            )
 
     @property
     def is_flat(self) -> bool:
@@ -54,7 +56,9 @@ class Position:
     def signed_quantity(self) -> float:
         return self.quantity * self.side.sign
 
-    def apply_fill(self, fill_side: PositionSide, fill_qty: float, fill_px: float) -> None:
+    def apply_fill(
+        self, fill_side: PositionSide, fill_qty: float, fill_px: float
+    ) -> None:
         if fill_qty <= 0:
             raise ValueError(f"fill quantity must be > 0, got {fill_qty}")
         if fill_px <= 0:

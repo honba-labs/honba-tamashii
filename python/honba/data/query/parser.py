@@ -20,7 +20,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from honba.data.query.quantity import QuantityError, parse_quantity, validate_quantity_for_metric
+from honba.data.query.quantity import (
+    QuantityError,
+    parse_quantity,
+    validate_quantity_for_metric,
+)
 from honba.screener.catalog import MetricCatalog, MetricResolutionError
 from honba.wire.screener import (
     FilterOp,
@@ -149,7 +153,12 @@ def tokenize(text: str) -> list[Token]:
             and text[i] not in (">", "<", "=", "(", ")", '"', "'")
             and not (
                 text[i] == ","
-                and not (i > 0 and text[i - 1].isdigit() and i + 1 < n and text[i + 1].isdigit())
+                and not (
+                    i > 0
+                    and text[i - 1].isdigit()
+                    and i + 1 < n
+                    and text[i + 1].isdigit()
+                )
             )
         ):
             # Special check: stop if >=, <=, != is ahead
@@ -165,7 +174,9 @@ def tokenize(text: str) -> list[Token]:
 
 
 class Parser:
-    def __init__(self, text: str, catalog: MetricCatalog, market: str | None = None) -> None:
+    def __init__(
+        self, text: str, catalog: MetricCatalog, market: str | None = None
+    ) -> None:
         self.text = text
         self.catalog = catalog
         self.market = market
@@ -272,7 +283,9 @@ class Parser:
                 p_tok = self.current
                 p_val = self._consume_period()
                 if not metric_def.has_period:
-                    raise self.error(f"metric {metric_def.key!r} does not support period", p_tok)
+                    raise self.error(
+                        f"metric {metric_def.key!r} does not support period", p_tok
+                    )
                 period = p_val
             else:
                 break
@@ -354,7 +367,9 @@ class Parser:
     def _consume_period(self) -> MetricPeriod:
         start_tok = self.current
         # Check up to 3 words
-        three_words = f"{self.current.value} {self.peek(1).value} {self.peek(2).value}".lower()
+        three_words = (
+            f"{self.current.value} {self.peek(1).value} {self.peek(2).value}".lower()
+        )
         if three_words in _PERIOD_MAP:
             self.advance()
             self.advance()
@@ -436,7 +451,11 @@ class Parser:
             if direction not in ("above", "below"):
                 raise self.error("expected 'above' or 'below' after 'crosses'")
             self.advance()
-            op = FilterOp.CROSSES_ABOVE if direction == "above" else FilterOp.CROSSES_BELOW
+            op = (
+                FilterOp.CROSSES_ABOVE
+                if direction == "above"
+                else FilterOp.CROSSES_BELOW
+            )
             operand = self.parse_operand(metric)
             return op, operand
 

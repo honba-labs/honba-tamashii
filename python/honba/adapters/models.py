@@ -169,12 +169,22 @@ class MarketDepth:
         for side in ("bids", "asks"):
             levels: tuple[DepthLevel, ...] = getattr(self, side)
             prices = [level.price for level in levels]
-            if side == "bids" and any(lower <= higher for lower, higher in pairwise(prices)):
-                raise ValueError(f"bids must be in descending price order, got {prices}")
-            if side == "asks" and any(higher <= lower for lower, higher in pairwise(prices)):
+            if side == "bids" and any(
+                lower <= higher for lower, higher in pairwise(prices)
+            ):
+                raise ValueError(
+                    f"bids must be in descending price order, got {prices}"
+                )
+            if side == "asks" and any(
+                higher <= lower for lower, higher in pairwise(prices)
+            ):
                 raise ValueError(f"asks must be in ascending price order, got {prices}")
         best_bid, best_ask = self.best_bid, self.best_ask
-        if best_bid is not None and best_ask is not None and best_bid.price > best_ask.price:
+        if (
+            best_bid is not None
+            and best_ask is not None
+            and best_bid.price > best_ask.price
+        ):
             raise ValueError(
                 f"crossed book: best bid {best_bid.price} above best ask {best_ask.price}"
             )

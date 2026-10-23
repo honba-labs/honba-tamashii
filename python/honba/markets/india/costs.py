@@ -158,7 +158,9 @@ def _delivery_legs(side: OrderSide, quantity: float, price: float) -> CostBreakd
 
 
 def _rounded(legs: CostBreakdown) -> CostBreakdown:
-    return CostBreakdown(*(round(getattr(legs, f.name), 4) for f in dataclasses.fields(legs)))
+    return CostBreakdown(
+        *(round(getattr(legs, f.name), 4) for f in dataclasses.fields(legs))
+    )
 
 
 def nse_equity_intraday_cost(
@@ -231,7 +233,9 @@ def _fill_cost_money(legs: CostBreakdown) -> Money:
     return total
 
 
-def nse_equity_delivery_fill_cost(side: OrderSide, quantity: float, price: float) -> Money:
+def nse_equity_delivery_fill_cost(
+    side: OrderSide, quantity: float, price: float
+) -> Money:
     """NSE equity delivery (CNC) cost of one fill as INR ``Money``, each leg rounded once.
 
     The ``(side, quantity, price) -> Money`` shape is the simulator's fill-cost function
@@ -240,7 +244,9 @@ def nse_equity_delivery_fill_cost(side: OrderSide, quantity: float, price: float
     return _fill_cost_money(_delivery_legs(side, quantity, price))
 
 
-def nse_equity_intraday_fill_cost(side: OrderSide, quantity: float, price: float) -> Money:
+def nse_equity_intraday_fill_cost(
+    side: OrderSide, quantity: float, price: float
+) -> Money:
     """NSE equity intraday (MIS) cost of one fill as INR ``Money``, each leg rounded once."""
     return _fill_cost_money(_intraday_legs(side, quantity, price))
 

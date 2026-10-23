@@ -34,14 +34,20 @@ class LinearRegression(Indicator):
     """
 
     def __init__(
-        self, length: int = 100, upper_deviation: float = 2.0, lower_deviation: float = 2.0
+        self,
+        length: int = 100,
+        upper_deviation: float = 2.0,
+        lower_deviation: float = 2.0,
     ) -> None:
         if length < 2:
             raise ValueError(f"length must be >= 2, got {length}")
         if upper_deviation < 0 or lower_deviation < 0:
             raise ValueError("deviations must be >= 0")
         self.length = length
-        self.upper_deviation, self.lower_deviation = float(upper_deviation), float(lower_deviation)
+        self.upper_deviation, self.lower_deviation = (
+            float(upper_deviation),
+            float(lower_deviation),
+        )
         self._reg = RollingLinReg(length)
         self._update = self._reg.update_raw
         self._last = length - 1
@@ -54,5 +60,8 @@ class LinearRegression(Indicator):
         std = math.sqrt(sse / self.length)
         end = intercept + slope * self._last
         return LinearRegressionValue(
-            end, slope, end + self.upper_deviation * std, end - self.lower_deviation * std
+            end,
+            slope,
+            end + self.upper_deviation * std,
+            end - self.lower_deviation * std,
         )

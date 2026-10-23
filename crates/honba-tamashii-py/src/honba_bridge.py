@@ -4,13 +4,15 @@ Hierarchical like helm/gem5: every object is a SimObject attached to a parent.
 The top-level `Sim` collects its children by type on `instantiate()` and runs
 the event loop.
 """
+
 from __future__ import annotations
 
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import honba as _honba_native  # populated by pyclasses::register
+
     _RustBar = getattr(_honba_native, "Bar", None)
     _RustFill = getattr(_honba_native, "Fill", None)
     _RustSmaCrossover = getattr(_honba_native, "RustSmaCrossover", None)
@@ -21,11 +23,12 @@ except Exception:
 # Base
 # --------------------------------------------------------------------------
 
+
 class SimObject:
-    def __init__(self, name: str = "", parent: Optional["SimObject"] = None):
+    def __init__(self, name: str = "", parent: SimObject | None = None):
         self.name = name
         self.parent = parent
-        self.children: List[SimObject] = []
+        self.children: list[SimObject] = []
         if parent is not None:
             parent.children.append(self)
 
@@ -47,6 +50,7 @@ class SimObject:
 # --------------------------------------------------------------------------
 # Domain leaves
 # --------------------------------------------------------------------------
+
 
 class Venue(SimObject):
     def __init__(self, code: str, name: str = "", parent=None):
@@ -92,6 +96,7 @@ class Fill(SimObject):
 
 class Calendar(SimObject):
     """Trading calendar. Populate with holidays, or leave for 24/7 markets."""
+
     def __init__(self, name: str = "calendar", holidays=None, parent=None):
         super().__init__(name, parent)
         self.holidays = set(holidays or [])
@@ -102,8 +107,15 @@ class Calendar(SimObject):
 
 class CostModel(SimObject):
     """Brokerage + STT + exchange fees. Flat-rate default."""
-    def __init__(self, name: str = "cost_model", brokerage_bps=3.0,
-                 stt_bps=1.0, exchange_bps=0.3, parent=None):
+
+    def __init__(
+        self,
+        name: str = "cost_model",
+        brokerage_bps=3.0,
+        stt_bps=1.0,
+        exchange_bps=0.3,
+        parent=None,
+    ):
         super().__init__(name, parent)
         self.brokerage_bps = brokerage_bps
         self.stt_bps = stt_bps
@@ -116,6 +128,7 @@ class CostModel(SimObject):
 # --------------------------------------------------------------------------
 # Intent
 # --------------------------------------------------------------------------
+
 
 class OrderIntent:
     def __init__(self, instrument, side: str, qty: float, kind: str = "market"):
@@ -132,10 +145,11 @@ class OrderIntent:
 # Components
 # --------------------------------------------------------------------------
 
+
 class Feed(SimObject):
     def __init__(self, name: str = "feed", parent=None):
         super().__init__(name, parent)
-        self._msgs: List[SimObject] = []
+        self._msgs: list[SimObject] = []
         self._idx = 0
 
     def push(self, msg: SimObject) -> None:
@@ -159,14 +173,26 @@ class Feed(SimObject):
 
 class VectorFeed(Feed):
     """Feed a list of closes as bars. Convenient for reference strategies."""
-    def __init__(self, instrument, closes, start_ts=0, step_ns=1_000_000_000,
-                 name="vector", parent=None):
+
+    def __init__(
+        self,
+        instrument,
+        closes,
+        start_ts=0,
+        step_ns=1_000_000_000,
+        name="vector",
+        parent=None,
+    ):
         super().__init__(name, parent)
         self.instrument = instrument
         for i, c in enumerate(closes):
             ts = start_ts + i * step_ns
             if _RustBar is not None:
-                self.push(_RustBar(instrument.symbol, ts, c, c, c, c, 0.0, instrument.venue.code))
+                self.push(
+                    _RustBar(
+                        instrument.symbol, ts, c, c, c, c, 0.0, instrument.venue.code
+                    )
+                )
             else:
                 self.push(Bar(instrument, ts, c, c, c, c))
 
@@ -174,8 +200,8 @@ class VectorFeed(Feed):
 class Execution(SimObject):
     def __init__(self, name: str = "execution", parent=None):
         super().__init__(name, parent)
-        self.fills: List[Fill] = []
-        self._pending: List[OrderIntent] = []
+        self.fills: list[Fill] = []
+        self._pending: list[OrderIntent] = []
 
     def submit(self, intent: OrderIntent) -> None:
         self._pending.append(intent)
@@ -189,8 +215,14 @@ class Execution(SimObject):
 
 class BarFill(Execution):
     """Fills pending intents at the next bar's close, with bps slippage."""
-    def __init__(self, name: str = "barfill", slippage_bps: float = 0.0,
-                 cost_model: Optional[CostModel] = None, parent=None):
+
+    def __init__(
+        self,
+        name: str = "barfill",
+        slippage_bps: float = 0.0,
+        cost_model: CostModel | None = None,
+        parent=None,
+    ):
         super().__init__(name, parent)
         self.slippage_bps = slippage_bps
         self.cost_model = cost_model
@@ -209,11 +241,11 @@ class BarFill(Execution):
 
 
 class Strategy(SimObject):
-    def __init__(self, sim: "Sim", name: str, parent=None):
+    def __init__(self, sim: Sim, name: str, parent=None):
         super().__init__(name, parent if parent is not None else sim)
         self.sim = sim
         self.position = 0.0
-        self.intents: List[OrderIntent] = []
+        self.intents: list[OrderIntent] = []
 
     def on_start(self) -> None:
         pass
@@ -246,15 +278,26 @@ class BuyAndHold(Strategy):
 
 
 class SmaCrossover(Strategy):
-    def __init__(self, sim, instrument, fast=3, slow=8, qty=1.0,
-                 name="sma_crossover", parent=None):
+    def __init__(
+        self,
+        sim,
+        instrument,
+        fast=3,
+        slow=8,
+        qty=1.0,
+        name="sma_crossover",
+        parent=None,
+    ):
         super().__init__(sim, name, parent)
         self.instrument = instrument
         self.fast, self.slow, self.qty = fast, slow, qty
-        self._prices: List[float] = []
-        self._prev_diff: Optional[float] = None
-        self._rust = _RustSmaCrossover(fast=fast, slow=slow, qty=qty) \
-        if _RustSmaCrossover is not None else None
+        self._prices: list[float] = []
+        self._prev_diff: float | None = None
+        self._rust = (
+            _RustSmaCrossover(fast=fast, slow=slow, qty=qty)
+            if _RustSmaCrossover is not None
+            else None
+        )
 
     def _sma(self, n: int):
         if len(self._prices) < n:
@@ -286,12 +329,26 @@ class SmaCrossover(Strategy):
 
 
 class RsiReversal(Strategy):
-    def __init__(self, sim, instrument, period=14, oversold=30, overbought=70,
-                 qty=1.0, name="rsi_reversal", parent=None):
+    def __init__(
+        self,
+        sim,
+        instrument,
+        period=14,
+        oversold=30,
+        overbought=70,
+        qty=1.0,
+        name="rsi_reversal",
+        parent=None,
+    ):
         super().__init__(sim, name, parent)
         self.instrument = instrument
-        self.period, self.oversold, self.overbought, self.qty = period, oversold, overbought, qty
-        self._prices: List[float] = []
+        self.period, self.oversold, self.overbought, self.qty = (
+            period,
+            oversold,
+            overbought,
+            qty,
+        )
+        self._prices: list[float] = []
 
     def _rsi(self):
         if len(self._prices) < self.period + 1:
@@ -324,8 +381,8 @@ class RsiReversal(Strategy):
 class Recorder(SimObject):
     def __init__(self, name: str = "recorder", parent=None):
         super().__init__(name, parent)
-        self.events: List[SimObject] = []
-        self.fills: List[Fill] = []
+        self.events: list[SimObject] = []
+        self.fills: list[Fill] = []
 
     def on_event(self, msg):
         self.events.append(msg)
@@ -334,7 +391,7 @@ class Recorder(SimObject):
         if execution is not None:
             self.fills = list(execution.fills)
 
-    def report(self, starting_equity: float = 1_000_000.0) -> "Report":
+    def report(self, starting_equity: float = 1_000_000.0) -> Report:
         equity = starting_equity
         curve = [equity]
         trips = []
@@ -391,25 +448,28 @@ class Report:
         )
 
     def __repr__(self):
-        return (f"<Report fills={self.fills} trips={self.round_trips} "
-                f"pnl={self.net_pnl:.2f} eq={self.final_equity:.2f}>")
+        return (
+            f"<Report fills={self.fills} trips={self.round_trips} "
+            f"pnl={self.net_pnl:.2f} eq={self.final_equity:.2f}>"
+        )
 
 
 # --------------------------------------------------------------------------
 # Top-level Sim
 # --------------------------------------------------------------------------
 
+
 class Sim(SimObject):
     """Top-level backtest container. Collects children by type on instantiate()."""
 
     def __init__(self, name: str = "sim"):
         super().__init__(name)
-        self.feed: Optional[Feed] = None
-        self.execution: Optional[Execution] = None
-        self.strategies: List[Strategy] = []
-        self.recorders: List[Recorder] = []
-        self.calendar: Optional[Calendar] = None
-        self.cost_model: Optional[CostModel] = None
+        self.feed: Feed | None = None
+        self.execution: Execution | None = None
+        self.strategies: list[Strategy] = []
+        self.recorders: list[Recorder] = []
+        self.calendar: Calendar | None = None
+        self.cost_model: CostModel | None = None
 
         self._instantiated = False
         self._event_count = 0
@@ -446,7 +506,7 @@ class Sim(SimObject):
             raise RuntimeError("sim has no Strategy child")
         self._instantiated = True
 
-    def run(self, max_events: Optional[int] = None) -> int:
+    def run(self, max_events: int | None = None) -> int:
         if not self._instantiated:
             raise RuntimeError("call sim.instantiate() before sim.run()")
 
@@ -483,7 +543,7 @@ class Sim(SimObject):
 
         return self._event_count
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         return {
             "events": self._event_count,
             "first_ts": self._first_ts,
@@ -497,9 +557,11 @@ class Sim(SimObject):
 # Entry point used by the Rust CLI
 # --------------------------------------------------------------------------
 
-def run_script(source: str, filename: str = "<script>",
-               max_events: Optional[int] = None) -> Dict[str, Any]:
-    ns: Dict[str, Any] = {
+
+def run_script(
+    source: str, filename: str = "<script>", max_events: int | None = None
+) -> dict[str, Any]:
+    ns: dict[str, Any] = {
         "SimObject": SimObject,
         "Sim": Sim,
         "Venue": Venue,
@@ -531,9 +593,25 @@ def run_script(source: str, filename: str = "<script>",
 
 
 __all__ = [
-    "SimObject", "Sim", "Venue", "Instrument", "Bar", "Tick", "Fill",
-    "Calendar", "CostModel", "OrderIntent",
-    "Feed", "VectorFeed", "Execution", "BarFill",
-    "Strategy", "BuyAndHold", "SmaCrossover", "RsiReversal",
-    "Recorder", "Report", "run_script",
+    "Bar",
+    "BarFill",
+    "BuyAndHold",
+    "Calendar",
+    "CostModel",
+    "Execution",
+    "Feed",
+    "Fill",
+    "Instrument",
+    "OrderIntent",
+    "Recorder",
+    "Report",
+    "RsiReversal",
+    "Sim",
+    "SimObject",
+    "SmaCrossover",
+    "Strategy",
+    "Tick",
+    "VectorFeed",
+    "Venue",
+    "run_script",
 ]

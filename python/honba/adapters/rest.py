@@ -96,11 +96,18 @@ from honba.domain.order import OrderIntent, OrderSide, OrderType, TimeInForce
 from honba.domain.position import Position, PositionSide
 from honba.domain.trade import Trade
 
-__all__ = ["LedgerLimitationError", "RestApiError", "RestAuthError", "RestExecutionAdapter"]
+__all__ = [
+    "LedgerLimitationError",
+    "RestApiError",
+    "RestAuthError",
+    "RestExecutionAdapter",
+]
 
 _T = TypeVar("_T")
 
-_NO_REASON = "rejected by the venue; the order ledger (GET /orders) does not carry the reason"
+_NO_REASON = (
+    "rejected by the venue; the order ledger (GET /orders) does not carry the reason"
+)
 
 _OLDER_SERVER = "older server: no ledger fill fields (ADR 0030); upgrade it"
 
@@ -120,7 +127,12 @@ class RestApiError(AdapterError):
     code: ClassVar[str] = "adapter.rest_api"
 
     def __init__(
-        self, api_code: str, message: str, *, retryable: bool = False, status: int | None = None
+        self,
+        api_code: str,
+        message: str,
+        *,
+        retryable: bool = False,
+        status: int | None = None,
     ) -> None:
         super().__init__(f"{api_code}: {message}")
         self.api_code = api_code
@@ -158,7 +170,10 @@ class _Refused(Exception):
 def _is_refusal(error: ApiError) -> bool:
     """``risk_*``, ``order_rejected`` and ``validation_invalid_request`` are the server saying
     no to this order; ``order_execution_unavailable`` is the venue being down (retriable)."""
-    return isinstance(error, (RiskApiError, ValidationApiError)) or error.code == "order_rejected"
+    return (
+        isinstance(error, (RiskApiError, ValidationApiError))
+        or error.code == "order_rejected"
+    )
 
 
 class RestExecutionAdapter(Adapter):
@@ -189,7 +204,9 @@ class RestExecutionAdapter(Adapter):
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         headers = {"authorization": f"Bearer {token}"} if token else None
-        self._client = client or Client(HttpTransport(base_url, timeout=timeout, headers=headers))
+        self._client = client or Client(
+            HttpTransport(base_url, timeout=timeout, headers=headers)
+        )
         self._owns_client = client is None
         self._retry = retry
         self._sleep = sleep
@@ -245,7 +262,9 @@ class RestExecutionAdapter(Adapter):
 
     # -- calls -----------------------------------------------------------------
 
-    async def _call(self, fn: Callable[[], _T], *, idempotent: bool, refusals: bool = False) -> _T:
+    async def _call(
+        self, fn: Callable[[], _T], *, idempotent: bool, refusals: bool = False
+    ) -> _T:
         """Run the blocking client call off the loop, retrying per the module rules."""
         attempt = 0
         while True:
@@ -266,13 +285,17 @@ class RestExecutionAdapter(Adapter):
         if isinstance(error, AuthApiError):
             return RestAuthError(error.code, error.message)
         if isinstance(error, InvalidResponseError):
-            return AdapterFatalError(f"malformed response from the server: {error.message}")
+            return AdapterFatalError(
+                f"malformed response from the server: {error.message}"
+            )
         if isinstance(error, UnsupportedApiError):
             return CapabilityError(f"the server does not support this: {error.code}")
         message = error.message
         if not idempotent and error.category == "transport":
             message += " (the outcome is unknown: the order may exist; not retried without a client_order_id)"
-        return RestApiError(error.code, message, retryable=error.retryable, status=error.status)
+        return RestApiError(
+            error.code, message, retryable=error.retryable, status=error.status
+        )
 
     # -- orders ----------------------------------------------------------------
 
@@ -282,7 +305,11 @@ class RestExecutionAdapter(Adapter):
         A row from a server without the fill fields that is nevertheless ``filled`` or
         ``partially_filled`` is the older-server case (module docstring)."""
         status = OrderStatus(row.status)
-        if row.filled_qty > 0 and row.avg_fill_price is not None and row.avg_fill_price > 0:
+        if (
+            row.filled_qty > 0
+            and row.avg_fill_price is not None
+            and row.avg_fill_price > 0
+        ):
             filled = min(row.filled_qty, row.quantity)
             if status is OrderStatus.FILLED:
                 filled = row.quantity  # the sum of the fills can differ by float noise
@@ -312,7 +339,9 @@ class RestExecutionAdapter(Adapter):
             reason = _NO_REASON
         return OrderReport(
             order_id=row.order_id,
-            instrument_id=InstrumentId(row.instrument_id.symbol, row.instrument_id.exchange),
+            instrument_id=InstrumentId(
+                row.instrument_id.symbol, row.instrument_id.exchange
+            ),
             side=OrderSide(row.side),
             quantity=row.quantity,
             status=status,
@@ -357,7 +386,11 @@ class RestExecutionAdapter(Adapter):
         return self._report(row)
 
     def _refusal(
-        self, intent: OrderIntent, product: Product, client_order_id: str | None, error: ApiError
+        self,
+        intent: OrderIntent,
+        product: Product,
+        client_order_id: str | None,
+        error: ApiError,
     ) -> OrderReport:
         """A server refusal as data: ``REJECTED`` with the stable code and message. Without a
         client id there is no server id to report, so a local ``rejected-`` id stands in."""
@@ -411,7 +444,9 @@ class RestExecutionAdapter(Adapter):
         for row in await self.ledger():
             if row.order_id == order_id:
                 if row.status in _WORKING:
-                    await self._call(lambda: self._client.cancel_order(order_id), idempotent=True)
+                    await self._call(
+                        lambda: self._client.cancel_order(order_id), idempotent=True
+                    )
                 return
         raise AdapterError(f"unknown order {order_id!r}")
 
@@ -434,7 +469,8 @@ class RestExecutionAdapter(Adapter):
             ):
                 continue
             await self._call(
-                lambda order_id=row.order_id: self._client.cancel_order(order_id), idempotent=True
+                lambda order_id=row.order_id: self._client.cancel_order(order_id),
+                idempotent=True,
             )
 
     async def trades(self) -> list[Trade]:
@@ -465,7 +501,9 @@ class RestExecutionAdapter(Adapter):
         ]
         if all(row.filled_at is not None for row, _ in filled):
             # Apply in fill time (the sort is stable: equal times keep ledger order).
-            filled.sort(key=lambda item: item[0].filled_at.to_ns() if item[0].filled_at else 0)
+            filled.sort(
+                key=lambda item: item[0].filled_at.to_ns() if item[0].filled_at else 0
+            )
         for row, price in filled:
             key = (row.instrument_id.symbol, row.instrument_id.exchange)
             position = book.setdefault(key, Position(InstrumentId(*key)))
@@ -481,7 +519,9 @@ class RestExecutionAdapter(Adapter):
             if row.status != "filled":
                 continue
             key = (row.instrument_id.symbol, row.instrument_id.exchange)
-            net[key] = net.get(key, 0.0) + (row.quantity if row.side == "buy" else -row.quantity)
+            net[key] = net.get(key, 0.0) + (
+                row.quantity if row.side == "buy" else -row.quantity
+            )
         return [
             Position(
                 InstrumentId(symbol, exchange),

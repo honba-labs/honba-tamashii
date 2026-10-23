@@ -69,7 +69,9 @@ def recognize(source: str) -> RecognitionResult:
     graph = _parse_builder(tree) if has_marker else None
     if graph is None:
         last = len(lines) or 1
-        return RecognitionResult(None, True, (Span(1, last, "no strategy graph builder block"),))
+        return RecognitionResult(
+            None, True, (Span(1, last, "no strategy graph builder block"),)
+        )
 
     supported: list[ast.stmt] = []
     for stmt in tree.body:
@@ -102,7 +104,10 @@ _GENERATED_ASSIGNMENTS = ("GRAPH", "GRAPH_HASH")
 
 def _is_generated_statement(stmt: ast.stmt, lines: list[str]) -> bool:
     if isinstance(stmt, ast.Assign):
-        return any(isinstance(t, ast.Name) and t.id in _GENERATED_ASSIGNMENTS for t in stmt.targets)
+        return any(
+            isinstance(t, ast.Name) and t.id in _GENERATED_ASSIGNMENTS
+            for t in stmt.targets
+        )
     if isinstance(stmt, ast.ClassDef):
         # The generated class is preceded by the class marker comment.
         above = stmt.lineno - 2

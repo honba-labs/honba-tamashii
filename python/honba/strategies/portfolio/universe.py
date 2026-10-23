@@ -50,7 +50,9 @@ class NamedUniverse:
     no seed fallback here.
     """
 
-    def __init__(self, name: str, exchange: str = "NSE", *, point_in_time: bool = False) -> None:
+    def __init__(
+        self, name: str, exchange: str = "NSE", *, point_in_time: bool = False
+    ) -> None:
         self.name = name
         self.exchange = exchange
         self.point_in_time = point_in_time

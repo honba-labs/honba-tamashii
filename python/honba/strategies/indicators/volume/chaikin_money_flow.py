@@ -23,7 +23,9 @@ class ChaikinMoneyFlow(Indicator):
         self._mf = RollingSum(period)
         self._vol = RollingSum(period)
 
-    def update(self, high: float, low: float, close: float, volume: float) -> float | None:
+    def update(
+        self, high: float, low: float, close: float, volume: float
+    ) -> float | None:
         mf = self._mf.update(clv_volume(high, low, close, volume))
         vol = self._vol.update(volume)
         if mf is None or vol is None:

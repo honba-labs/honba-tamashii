@@ -38,7 +38,15 @@ EXIT_FAILED = 1
 EXIT_USAGE = 2
 EXIT_TRANSPORT = 3
 
-_MANIFEST_KEYS = ("strategy", "universe", "start", "end", "seed", "bar_spec", "initial_capital")
+_MANIFEST_KEYS = (
+    "strategy",
+    "universe",
+    "start",
+    "end",
+    "seed",
+    "bar_spec",
+    "initial_capital",
+)
 _FORMATS = ("json", "plain")
 
 
@@ -52,18 +60,25 @@ def _load_manifest(path: Path) -> dict[str, Any]:
     try:
         text = path.read_text()
         data = tomllib.loads(text) if path.suffix == ".toml" else json.loads(text)
-    except (OSError, ValueError) as exc:  # JSONDecodeError and TOMLDecodeError are ValueErrors
+    except (
+        OSError,
+        ValueError,
+    ) as exc:  # JSONDecodeError and TOMLDecodeError are ValueErrors
         raise _usage(f"cannot read manifest {path}: {exc}") from None
     if not isinstance(data, dict):
         raise _usage(f"manifest {path} must be an object")
     unknown = sorted(set(data) - set(_MANIFEST_KEYS))
     if unknown:
-        raise _usage(f"manifest {path} has unknown keys {unknown}; allowed: {list(_MANIFEST_KEYS)}")
+        raise _usage(
+            f"manifest {path} has unknown keys {unknown}; allowed: {list(_MANIFEST_KEYS)}"
+        )
     out: dict[str, Any] = {}
     for key, value in data.items():
         if key in ("start", "end") and isinstance(value, (date, datetime)):
             value = value.isoformat()
-        want: Any = int if key == "seed" else (int, float) if key == "initial_capital" else str
+        want: Any = (
+            int if key == "seed" else (int, float) if key == "initial_capital" else str
+        )
         if isinstance(value, bool) or not isinstance(value, want):
             raise _usage(f"manifest key {key!r} has the wrong type: {value!r}")
         out[key] = value
@@ -117,35 +132,56 @@ def _plain(result: BacktestResult) -> str:
 def backtest(
     manifest: Annotated[
         Path | None,
-        typer.Argument(help="Run manifest (.json or .toml) with the same keys as the flags."),
+        typer.Argument(
+            help="Run manifest (.json or .toml) with the same keys as the flags."
+        ),
     ] = None,
     strategy: Annotated[
-        str | None, typer.Option(help="Rust-registered strategy name (others are rejected).")
+        str | None,
+        typer.Option(help="Rust-registered strategy name (others are rejected)."),
     ] = None,
-    universe: Annotated[str | None, typer.Option(help="One instrument, SYMBOL.EXCHANGE.")] = None,
-    start: Annotated[str | None, typer.Option(help="Inclusive start date or RFC 3339.")] = None,
-    end: Annotated[str | None, typer.Option(help="Exclusive end date or RFC 3339.")] = None,
+    universe: Annotated[
+        str | None, typer.Option(help="One instrument, SYMBOL.EXCHANGE.")
+    ] = None,
+    start: Annotated[
+        str | None, typer.Option(help="Inclusive start date or RFC 3339.")
+    ] = None,
+    end: Annotated[
+        str | None, typer.Option(help="Exclusive end date or RFC 3339.")
+    ] = None,
     seed: Annotated[int | None, typer.Option(help="Run seed, >= 1 (required).")] = None,
-    bar_spec: Annotated[str | None, typer.Option(help="Bar size, e.g. 1d or 1m.")] = None,
-    initial_capital: Annotated[float | None, typer.Option(help="Starting cash.")] = None,
+    bar_spec: Annotated[
+        str | None, typer.Option(help="Bar size, e.g. 1d or 1m.")
+    ] = None,
+    initial_capital: Annotated[
+        float | None, typer.Option(help="Starting cash.")
+    ] = None,
     data_dir: Annotated[
         Path | None,
-        typer.Option(help="Run in this process over SYMBOL.EXCHANGE.parquet files here."),
+        typer.Option(
+            help="Run in this process over SYMBOL.EXCHANGE.parquet files here."
+        ),
     ] = None,
     url: Annotated[
-        str | None, typer.Option(help="Run on a `honba serve` at this base URL instead.")
+        str | None,
+        typer.Option(help="Run on a `honba serve` at this base URL instead."),
     ] = None,
     journals_dir: Annotated[
         Path, typer.Option(help="Run journals root for --data-dir runs.")
     ] = Path("data/journals"),
     max_concurrent_runs: Annotated[
-        int | None, typer.Option(help="In-process worker threads (default: server default).")
+        int | None,
+        typer.Option(help="In-process worker threads (default: server default)."),
     ] = None,
     max_queued_runs: Annotated[
         int | None, typer.Option(help="In-process pending-queue bound (default: 64).")
     ] = None,
-    timeout: Annotated[float, typer.Option(help="Seconds to wait for the run to finish.")] = 300.0,
-    poll_interval: Annotated[float, typer.Option(help="Seconds between status polls.")] = 0.1,
+    timeout: Annotated[
+        float, typer.Option(help="Seconds to wait for the run to finish.")
+    ] = 300.0,
+    poll_interval: Annotated[
+        float, typer.Option(help="Seconds between status polls.")
+    ] = 0.1,
     wait: Annotated[
         bool,
         typer.Option(
@@ -155,7 +191,9 @@ def backtest(
     ] = False,
     stream: Annotated[
         bool,
-        typer.Option("--stream", help="Follow the run's SSE event stream to completion."),
+        typer.Option(
+            "--stream", help="Follow the run's SSE event stream to completion."
+        ),
     ] = False,
     format: Annotated[
         str, typer.Option("--format", "-f", help="json (default) or plain.")
@@ -178,7 +216,9 @@ def backtest(
     if wait and stream:
         raise _usage("give at most one of --wait or --stream")
     if (data_dir is None) == (url is None):
-        raise _usage("give exactly one of --data-dir (in process) or --url (running server)")
+        raise _usage(
+            "give exactly one of --data-dir (in process) or --url (running server)"
+        )
     for name, value in (("--timeout", timeout), ("--poll-interval", poll_interval)):
         if not value > 0:
             raise _usage(f"{name} must be > 0")
@@ -193,9 +233,13 @@ def backtest(
         "initial_capital": initial_capital,
     }
     fields.update({k: v for k, v in flags.items() if v is not None})
-    missing = [k for k in ("strategy", "universe", "start", "end", "seed") if k not in fields]
+    missing = [
+        k for k in ("strategy", "universe", "start", "end", "seed") if k not in fields
+    ]
     if missing:
-        raise _usage("missing " + ", ".join(f"--{m.replace('_', '-')}" for m in missing))
+        raise _usage(
+            "missing " + ", ".join(f"--{m.replace('_', '-')}" for m in missing)
+        )
     if fields["seed"] < 1:
         raise _usage("--seed must be >= 1")
 
@@ -214,7 +258,9 @@ def backtest(
             typer.echo(f"run_id: {submitted.run_id}", err=True)
             result = client.stream_backtest(submitted.run_id, on_frame=_emit_frame)
         else:
-            result = client.run_backtest(**fields, timeout=timeout, poll_interval=poll_interval)
+            result = client.run_backtest(
+                **fields, timeout=timeout, poll_interval=poll_interval
+            )
     except (RequestValidationError, NotADirectoryError, ValueError) as exc:
         raise _usage(str(exc)) from None
     except ValidationApiError as exc:
@@ -224,7 +270,9 @@ def backtest(
         typer.echo(f"error: {_describe(exc)}", err=True)
         raise typer.Exit(code=EXIT_TRANSPORT) from None
     except RunTimeoutError as exc:
-        typer.echo(f"error: {exc} (the run continues; poll run_id {exc.run_id})", err=True)
+        typer.echo(
+            f"error: {exc} (the run continues; poll run_id {exc.run_id})", err=True
+        )
         raise typer.Exit(code=EXIT_TRANSPORT) from None
     except (ImportError, RuntimeError) as exc:
         typer.echo(f"error: native extension unavailable: {exc}", err=True)
@@ -234,10 +282,16 @@ def backtest(
             client.close()
 
     if format == "json":
-        typer.echo(json.dumps(result.model_dump(mode="json", exclude_none=True), indent=2))
+        typer.echo(
+            json.dumps(result.model_dump(mode="json", exclude_none=True), indent=2)
+        )
     else:
         typer.echo(_plain(result))
     if result.status != "completed":
-        why = f"{result.error.code}: {result.error.message}" if result.error else "no detail"
+        why = (
+            f"{result.error.code}: {result.error.message}"
+            if result.error
+            else "no detail"
+        )
         typer.echo(f"error: run {result.run_id} {result.status}: {why}", err=True)
         raise typer.Exit(code=EXIT_FAILED)

@@ -12,7 +12,9 @@ from rich.console import Console
 from honba.ai.knowledge import build_knowledge_pack
 
 app = typer.Typer(help="AI and knowledge pack commands", no_args_is_help=True)
-knowledge_app = typer.Typer(help="Manage knowledge pack artifacts", no_args_is_help=True)
+knowledge_app = typer.Typer(
+    help="Manage knowledge pack artifacts", no_args_is_help=True
+)
 app.add_typer(knowledge_app, name="knowledge")
 
 console = Console()
@@ -21,7 +23,9 @@ err_console = Console(stderr=True)
 
 @knowledge_app.command("export")
 def export_knowledge(
-    out: Annotated[Path | None, typer.Option("--out", "-o", help="Target JSON file path")] = None,
+    out: Annotated[
+        Path | None, typer.Option("--out", "-o", help="Target JSON file path")
+    ] = None,
 ) -> None:
     """Export the current generated knowledge pack as JSON."""
     pack = build_knowledge_pack()
@@ -38,7 +42,8 @@ def export_knowledge(
 @knowledge_app.command("check")
 def check_knowledge(
     reference: Annotated[
-        Path, typer.Option("--reference", "-r", help="Reference JSON file to verify against")
+        Path,
+        typer.Option("--reference", "-r", help="Reference JSON file to verify against"),
     ],
 ) -> None:
     """Verify that current knowledge pack matches a reference file (fails CI on drift)."""
@@ -59,4 +64,6 @@ def check_knowledge(
         )
         raise typer.Exit(code=1)
 
-    console.print(f"[green]Knowledge pack is up-to-date (hash: {pack.content_hash})[/green]")
+    console.print(
+        f"[green]Knowledge pack is up-to-date (hash: {pack.content_hash})[/green]"
+    )

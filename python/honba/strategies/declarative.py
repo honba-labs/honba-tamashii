@@ -256,7 +256,9 @@ class DeclarativeStrategy(Strategy):
                     groups.remove(group)
                 return
 
-    def _protect(self, iid: InstrumentId, side: OrderSide, qty: float, entry: Entry) -> None:
+    def _protect(
+        self, iid: InstrumentId, side: OrderSide, qty: float, entry: Entry
+    ) -> None:
         long = side is OrderSide.BUY
         legs: list[_Leg] = []
         if entry.stop_loss is not None:
@@ -276,7 +278,9 @@ class DeclarativeStrategy(Strategy):
         sign = 1 if long else -1
         if entry.stop_loss is not None and not sign * (entry.stop_loss - close) < 0:
             where = "below" if long else "above"
-            raise ValueError(f"{side} stop_loss {entry.stop_loss} must be {where} close {close}")
+            raise ValueError(
+                f"{side} stop_loss {entry.stop_loss} must be {where} close {close}"
+            )
         if entry.take_profit is not None and not sign * (entry.take_profit - close) > 0:
             where = "above" if long else "below"
             raise ValueError(
@@ -370,7 +374,9 @@ class TargetWeightStrategy(Strategy):
             price = st.prices.get(iid)
             if price is None or price <= 0:
                 continue
-            diff = whole_shares(value * self.allocation * weight, 1.0, price) - held.get(iid, 0.0)
+            diff = whole_shares(
+                value * self.allocation * weight, 1.0, price
+            ) - held.get(iid, 0.0)
             if diff >= 1:
                 buys.append((iid, int(diff)))
             elif diff <= -1:
@@ -407,7 +413,9 @@ class TargetWeightStrategy(Strategy):
             ("EVENT_MEMBERSHIP_DEL", previous - members),
         ):
             if names:
-                self.log_event(event, symbols=[i.symbol for i in sorted(names, key=_symbol_key)])
+                self.log_event(
+                    event, symbols=[i.symbol for i in sorted(names, key=_symbol_key)]
+                )
 
     def _portfolio_value(self) -> float:
         """Cash plus open positions marked at the last close (unpriced ones are skipped)."""
@@ -420,7 +428,14 @@ class TargetWeightStrategy(Strategy):
 
 
 class _TargetWeightState:
-    __slots__ = ("day_changed", "days_since", "initial_done", "last_day", "members", "prices")
+    __slots__ = (
+        "day_changed",
+        "days_since",
+        "initial_done",
+        "last_day",
+        "members",
+        "prices",
+    )
 
     def __init__(self) -> None:
         self.prices: dict[InstrumentId, float] = {}

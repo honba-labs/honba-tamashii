@@ -13,8 +13,9 @@ Provides technical indicators for algorithmic trading strategies in two modes:
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 from honba._honba import (
     batch_adx as _batch_adx,
@@ -83,7 +84,7 @@ class Sma:
         self.period = period
         self._values: list[Decimal] = []
 
-    def update(self, value: Decimal | int | str) -> Optional[Decimal]:
+    def update(self, value: Decimal | int | str) -> Decimal | None:
         v = _D(value)
         self._values.append(v)
         if len(self._values) > self.period:
@@ -91,7 +92,7 @@ class Sma:
         return self.value
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         if len(self._values) >= self.period:
             return sum(self._values, Decimal(0)) / Decimal(self.period)
         return None
@@ -105,7 +106,7 @@ class Ema:
             raise ValueError("period must be > 0")
         self.period = period
         self._alpha: Decimal = Decimal(2) / Decimal(period + 1)
-        self._current: Optional[Decimal] = None
+        self._current: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         v = _D(value)
@@ -116,7 +117,7 @@ class Ema:
         return self._current
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._current
 
 
@@ -128,7 +129,7 @@ class Rma:
             raise ValueError("period must be > 0")
         self.period = period
         self._alpha: Decimal = Decimal(1) / Decimal(period)
-        self._current: Optional[Decimal] = None
+        self._current: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         v = _D(value)
@@ -139,7 +140,7 @@ class Rma:
         return self._current
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._current
 
 
@@ -151,21 +152,23 @@ class Wma:
             raise ValueError("period must be > 0")
         self.period = period
         self._values: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
-    def update(self, value: Decimal | int | str) -> Optional[Decimal]:
+    def update(self, value: Decimal | int | str) -> Decimal | None:
         v = _D(value)
         self._values.append(v)
         if len(self._values) > self.period:
             self._values = self._values[-self.period :]
         n = len(self._values)
         weight_sum = Decimal(n * (n + 1) // 2)
-        value_sum = sum((Decimal(i + 1) * x for i, x in enumerate(self._values)), Decimal(0))
+        value_sum = sum(
+            (Decimal(i + 1) * x for i, x in enumerate(self._values)), Decimal(0)
+        )
         self._last = value_sum / weight_sum if weight_sum > 0 else None
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -177,13 +180,13 @@ class Hma:
             raise ValueError("period must be > 0")
         self.period = period
         half = max(1, period // 2)
-        sqrt_n = max(1, int(math.isqrt(period)))
+        sqrt_n = max(1, math.isqrt(period))
         self._wma_half = Wma(half)
         self._wma_full = Wma(period)
         self._wma_hull = Wma(sqrt_n)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
-    def update(self, value: Decimal | int | str) -> Optional[Decimal]:
+    def update(self, value: Decimal | int | str) -> Decimal | None:
         v = _D(value)
         h = self._wma_half.update(v)
         f = self._wma_full.update(v)
@@ -192,7 +195,7 @@ class Hma:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -203,16 +206,16 @@ class Dema:
         self.period = period
         self._e1 = Ema(period)
         self._e2 = Ema(period)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
-    def update(self, value: Decimal | int | str) -> Optional[Decimal]:
+    def update(self, value: Decimal | int | str) -> Decimal | None:
         e1 = self._e1.update(value)
         e2 = self._e2.update(e1)
         self._last = Decimal(2) * e1 - e2
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -224,9 +227,9 @@ class Tema:
         self._e1 = Ema(period)
         self._e2 = Ema(period)
         self._e3 = Ema(period)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
-    def update(self, value: Decimal | int | str) -> Optional[Decimal]:
+    def update(self, value: Decimal | int | str) -> Decimal | None:
         e1 = self._e1.update(value)
         e2 = self._e2.update(e1)
         e3 = self._e3.update(e2)
@@ -234,7 +237,7 @@ class Tema:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -246,7 +249,7 @@ class Kama:
         self.fast = fast
         self.slow = slow
         self._values: list[Decimal] = []
-        self._kama: Optional[Decimal] = None
+        self._kama: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         v = _D(value)
@@ -259,7 +262,10 @@ class Kama:
         if len(self._values) >= 2:
             change = abs(self._values[-1] - self._values[0])
             volatility = sum(
-                (abs(self._values[i] - self._values[i - 1]) for i in range(1, len(self._values))),
+                (
+                    abs(self._values[i] - self._values[i - 1])
+                    for i in range(1, len(self._values))
+                ),
                 Decimal(0),
             )
             er = change / volatility if volatility != 0 else Decimal(0)
@@ -272,7 +278,7 @@ class Kama:
         return self._kama
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._kama
 
 
@@ -295,7 +301,7 @@ class Zlema:
         return self._ema.update(de_lagged)
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._ema.value
 
 
@@ -306,9 +312,11 @@ class Vwma:
         self.period = period
         self._pv: list[Decimal] = []
         self._vol: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
-    def update(self, price: Decimal | int | str, volume: Decimal | int | str = Decimal(1)) -> Optional[Decimal]:
+    def update(
+        self, price: Decimal | int | str, volume: Decimal | int | str = Decimal(1)
+    ) -> Decimal | None:
         p = _D(price)
         v = _D(volume)
         self._pv.append(p * v)
@@ -321,21 +329,23 @@ class Vwma:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
 class Alma:
     """Arnaud Legoux Moving Average."""
 
-    def __init__(self, period: int = 20, offset: float = 0.85, sigma: float = 6.0) -> None:
+    def __init__(
+        self, period: int = 20, offset: float = 0.85, sigma: float = 6.0
+    ) -> None:
         self.period = period
         self.offset = offset
         self.sigma = sigma
         self._values: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
-    def update(self, value: Decimal | int | str) -> Optional[Decimal]:
+    def update(self, value: Decimal | int | str) -> Decimal | None:
         v = _D(value)
         self._values.append(v)
         if len(self._values) > self.period:
@@ -343,7 +353,9 @@ class Alma:
         n = len(self._values)
         m = self.offset * (n - 1)
         s = n / self.sigma if self.sigma != 0 else 1.0
-        weights = [Decimal(str(math.exp(-((i - m) ** 2) / (2.0 * s * s)))) for i in range(n)]
+        weights = [
+            Decimal(str(math.exp(-((i - m) ** 2) / (2.0 * s * s)))) for i in range(n)
+        ]
         w_sum = sum(weights, Decimal(0))
         self._last = (
             sum((w * x for w, x in zip(weights, self._values)), Decimal(0)) / w_sum
@@ -353,7 +365,7 @@ class Alma:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -370,7 +382,7 @@ class Frama:
         return self._ema.update(value)
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._ema.value
 
 
@@ -383,7 +395,7 @@ class T3:
         self._e1 = Ema(period)
         self._e2 = Ema(period)
         self._e3 = Ema(period)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         e1 = self._e1.update(value)
@@ -392,7 +404,7 @@ class T3:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -401,7 +413,7 @@ class McGinleyDynamic:
 
     def __init__(self, period: int = 10) -> None:
         self.period = period
-        self._md: Optional[Decimal] = None
+        self._md: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         v = _D(value)
@@ -414,7 +426,7 @@ class McGinleyDynamic:
         return self._md
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._md
 
 
@@ -428,10 +440,10 @@ class Rsi:
 
     def __init__(self, period: int = 14) -> None:
         self.period = period
-        self._prev_price: Optional[Decimal] = None
+        self._prev_price: Decimal | None = None
         self._gains: list[Decimal] = []
         self._losses: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
@@ -453,7 +465,7 @@ class Rsi:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -466,7 +478,7 @@ class Stochastic:
         self._high: list[Decimal] = []
         self._low: list[Decimal] = []
         self._k_history: list[Decimal] = []
-        self._last: Optional[tuple[Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal] | None = None
 
     def update(
         self,
@@ -491,7 +503,7 @@ class Stochastic:
         return self._last
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal] | None:
         return self._last
 
 
@@ -502,7 +514,7 @@ class StochRsi:
         self.period = period
         self._rsi = Rsi(period)
         self._stoch = Stochastic(k_period, d_period)
-        self._last: Optional[tuple[Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal] | None = None
 
     def update(self, price: Decimal | int | str) -> tuple[Decimal, Decimal]:
         r = self._rsi.update(price)
@@ -510,21 +522,23 @@ class StochRsi:
         return self._last
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal] | None:
         return self._last
 
 
 class Macd:
     """Moving Average Convergence Divergence."""
 
-    def __init__(self, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9) -> None:
+    def __init__(
+        self, fast_period: int = 12, slow_period: int = 26, signal_period: int = 9
+    ) -> None:
         self.fast_period = fast_period
         self.slow_period = slow_period
         self.signal_period = signal_period
         self._fast = Ema(fast_period)
         self._slow = Ema(slow_period)
         self._sig = Ema(signal_period)
-        self._last: Optional[tuple[Decimal, Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal, Decimal] | None = None
 
     def update(self, price: Decimal | int | str) -> tuple[Decimal, Decimal, Decimal]:
         f = self._fast.update(price)
@@ -536,7 +550,7 @@ class Macd:
         return self._last
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal, Decimal] | None:
         return self._last
 
 
@@ -546,7 +560,7 @@ class Roc:
     def __init__(self, period: int = 12) -> None:
         self.period = period
         self._values: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
@@ -558,7 +572,7 @@ class Roc:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -568,18 +582,20 @@ class Momentum:
     def __init__(self, period: int = 10) -> None:
         self.period = period
         self._values: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
         self._values.append(p)
         if len(self._values) > self.period:
             self._values = self._values[-self.period :]
-        self._last = self._values[-1] - self._values[0] if len(self._values) >= 2 else Decimal(0)
+        self._last = (
+            self._values[-1] - self._values[0] if len(self._values) >= 2 else Decimal(0)
+        )
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -589,7 +605,7 @@ class Cci:
     def __init__(self, period: int = 14) -> None:
         self.period = period
         self._prices: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
@@ -610,7 +626,7 @@ class Cci:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -621,7 +637,7 @@ class WilliamsR:
         self.period = period
         self._high: list[Decimal] = []
         self._low: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(
         self,
@@ -637,11 +653,13 @@ class WilliamsR:
             self._low = self._low[-self.period :]
         hh = max(self._high)
         ll = min(self._low)
-        self._last = Decimal(-50) if hh == ll else -((hh - c) / (hh - ll)) * Decimal(100)
+        self._last = (
+            Decimal(-50) if hh == ll else -((hh - c) / (hh - ll)) * Decimal(100)
+        )
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -654,8 +672,8 @@ class UltimateOscillator:
         self.p3 = p3
         self._bp: list[Decimal] = []
         self._tr: list[Decimal] = []
-        self._prev_close: Optional[Decimal] = None
-        self._last: Optional[Decimal] = None
+        self._prev_close: Decimal | None = None
+        self._last: Decimal | None = None
 
     def update(
         self,
@@ -674,11 +692,15 @@ class UltimateOscillator:
             self._bp = self._bp[-self.p3 :]
             self._tr = self._tr[-self.p3 :]
         tr_sum = sum(self._tr, Decimal(0))
-        self._last = (sum(self._bp, Decimal(0)) / tr_sum * Decimal(100)) if tr_sum != 0 else Decimal(50)
+        self._last = (
+            (sum(self._bp, Decimal(0)) / tr_sum * Decimal(100))
+            if tr_sum != 0
+            else Decimal(50)
+        )
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -689,7 +711,7 @@ class AwesomeOscillator:
         self.period = period
         self._mid: list[Decimal] = []
         self._fast: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, high: Decimal | int | str, low: Decimal | int | str) -> Decimal:
         hl = (_D(high) + _D(low)) / Decimal(2)
@@ -698,7 +720,7 @@ class AwesomeOscillator:
         if len(self._mid) > self.period:
             self._mid = self._mid[-self.period :]
         if len(self._fast) > 35:
-            self._fast = self._fast[-35 :]
+            self._fast = self._fast[-35:]
         if len(self._mid) >= self.period and len(self._fast) >= 35:
             s1 = sum(self._mid[-self.period :], Decimal(0)) / Decimal(self.period)
             s2 = sum(self._fast[-35:], Decimal(0)) / Decimal(35)
@@ -708,7 +730,7 @@ class AwesomeOscillator:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -718,7 +740,7 @@ class AcceleratorOscillator:
     def __init__(self, period: int = 5) -> None:
         self._ao = AwesomeOscillator(period)
         self._sma = Sma(period)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, high: Decimal | int | str, low: Decimal | int | str) -> Decimal:
         ao = self._ao.update(high, low)
@@ -727,7 +749,7 @@ class AcceleratorOscillator:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -736,9 +758,9 @@ class Cmo:
 
     def __init__(self, period: int = 14) -> None:
         self.period = period
-        self._prev: Optional[Decimal] = None
+        self._prev: Decimal | None = None
         self._changes: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
@@ -750,11 +772,13 @@ class Cmo:
         gains = sum((c for c in self._changes if c > 0), Decimal(0))
         losses = sum((-c for c in self._changes if c < 0), Decimal(0))
         denom = gains + losses
-        self._last = ((gains - losses) / denom * Decimal(100)) if denom != 0 else Decimal(0)
+        self._last = (
+            ((gains - losses) / denom * Decimal(100)) if denom != 0 else Decimal(0)
+        )
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -764,7 +788,7 @@ class Dpo:
     def __init__(self, period: int = 20) -> None:
         self.period = period
         self._sma = Sma(period)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
@@ -773,7 +797,7 @@ class Dpo:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -783,7 +807,7 @@ class FisherTransform:
     def __init__(self, period: int = 10) -> None:
         self.period = period
         self._values: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         v = max(Decimal(-1), min(Decimal(1), _D(value)))
@@ -792,7 +816,7 @@ class FisherTransform:
         return v
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -809,7 +833,7 @@ class Qqe:
         return self._ema.update(self._rsi.update(price))
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._ema.value
 
 
@@ -819,12 +843,12 @@ class Tsi:
     def __init__(self, period1: int = 13, period2: int = 25) -> None:
         self.period1 = period1
         self.period2 = period2
-        self._prev: Optional[Decimal] = None
+        self._prev: Decimal | None = None
         self._ema1 = Ema(period2)
         self._ema2 = Ema(period1)
         self._abs_ema1 = Ema(period2)
         self._abs_ema2 = Ema(period1)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         p = _D(price)
@@ -836,7 +860,7 @@ class Tsi:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -846,14 +870,14 @@ class Adx:
     def __init__(self, period: int = 14) -> None:
         self.period = period
         self._atr = Atr(period)
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(
         self,
         high: Decimal | int | str,
         low: Decimal | int | str,
         close: Decimal | int | str,
-        prev_close: Optional[Decimal | int | str] = None,
+        prev_close: Decimal | int | str | None = None,
     ) -> Decimal:
         h, l, c = _D(high), _D(low), _D(close)
         pc = _D(prev_close) if prev_close is not None else c
@@ -861,7 +885,7 @@ class Adx:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -876,15 +900,15 @@ class Atr:
     def __init__(self, period: int = 14) -> None:
         self.period = period
         self._trues: list[Decimal] = []
-        self._prev_close: Optional[Decimal] = None
-        self._last: Optional[Decimal] = None
+        self._prev_close: Decimal | None = None
+        self._last: Decimal | None = None
 
     def update(
         self,
         high: Decimal | int | str,
         low: Decimal | int | str,
         close: Decimal | int | str,
-        prev_close: Optional[Decimal | int | str] = None,
+        prev_close: Decimal | int | str | None = None,
     ) -> Decimal:
         h, l, c = _D(high), _D(low), _D(close)
         pc = _D(prev_close) if prev_close is not None else (self._prev_close or c)
@@ -897,7 +921,7 @@ class Atr:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -908,7 +932,7 @@ class BollingerBands:
         self.period = period
         self.num_std = num_std
         self._close: list[Decimal] = []
-        self._last: Optional[tuple[Decimal, Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal, Decimal] | None = None
 
     def update(self, close: Decimal | int | str) -> tuple[Decimal, Decimal, Decimal]:
         c = _D(close)
@@ -917,9 +941,9 @@ class BollingerBands:
             self._close = self._close[-self.period :]
         if len(self._close) >= self.period:
             middle = sum(self._close, Decimal(0)) / Decimal(self.period)
-            variance = sum(((x - middle) ** 2 for x in self._close), Decimal(0)) / Decimal(
-                self.period
-            )
+            variance = sum(
+                ((x - middle) ** 2 for x in self._close), Decimal(0)
+            ) / Decimal(self.period)
             std = variance.sqrt()
             k = _D(self.num_std)
             self._last = (middle, middle + k * std, middle - k * std)
@@ -927,7 +951,7 @@ class BollingerBands:
         return Decimal(0), Decimal(0), Decimal(0)
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal, Decimal] | None:
         return self._last
 
 
@@ -938,7 +962,7 @@ class KeltnerChannel:
         self.period = period
         self.num_std = num_std
         self._close: list[Decimal] = []
-        self._last: Optional[tuple[Decimal, Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal, Decimal] | None = None
 
     def update(self, close: Decimal | int | str) -> tuple[Decimal, Decimal, Decimal]:
         c = _D(close)
@@ -950,7 +974,7 @@ class KeltnerChannel:
         return Decimal(0), Decimal(0), Decimal(0)
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal, Decimal] | None:
         return self._last
 
 
@@ -961,9 +985,11 @@ class DonchianChannel:
         self.period = period
         self._high: list[Decimal] = []
         self._low: list[Decimal] = []
-        self._last: Optional[tuple[Decimal, Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal, Decimal] | None = None
 
-    def update(self, high: Decimal | int | str, low: Decimal | int | str) -> tuple[Decimal, Decimal, Decimal]:
+    def update(
+        self, high: Decimal | int | str, low: Decimal | int | str
+    ) -> tuple[Decimal, Decimal, Decimal]:
         self._high.append(_D(high))
         self._low.append(_D(low))
         if len(self._high) >= self.period:
@@ -975,7 +1001,7 @@ class DonchianChannel:
         return Decimal(0), Decimal(0), Decimal(0)
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal, Decimal] | None:
         return self._last
 
 
@@ -985,7 +1011,7 @@ class StandardDeviation:
     def __init__(self, period: int = 20) -> None:
         self.period = period
         self._values: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, value: Decimal | int | str) -> Decimal:
         self._values.append(_D(value))
@@ -1002,7 +1028,7 @@ class StandardDeviation:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -1013,7 +1039,7 @@ class HistoricalVolatility:
         self.period = period
         self.annualization_factor = annualization_factor
         self._prices: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, price: Decimal | int | str) -> Decimal:
         self._prices.append(_D(price))
@@ -1031,12 +1057,14 @@ class HistoricalVolatility:
             self._last = Decimal(0)
             return self._last
         mean = sum(returns, Decimal(0)) / Decimal(len(returns))
-        variance = sum(((r - mean) ** 2 for r in returns), Decimal(0)) / Decimal(len(returns))
+        variance = sum(((r - mean) ** 2 for r in returns), Decimal(0)) / Decimal(
+            len(returns)
+        )
         self._last = variance.sqrt() * _D(self.annualization_factor).sqrt()
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -1046,7 +1074,7 @@ class ChaikinVolatility:
     def __init__(self, period: int = 10) -> None:
         self.period = period
         self._high_lows: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(self, high: Decimal | int | str, low: Decimal | int | str) -> Decimal:
         hl = _D(high) - _D(low)
@@ -1062,7 +1090,7 @@ class ChaikinVolatility:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -1074,7 +1102,7 @@ class Supertrend:
         self.multiplier = multiplier
         self._atr_ind = Atr(period)
         self._direction: int = 1
-        self._final: Optional[Decimal] = None
+        self._final: Decimal | None = None
 
     def update(
         self,
@@ -1100,7 +1128,7 @@ class Supertrend:
         return self._final, self._direction
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._final
 
 
@@ -1110,7 +1138,7 @@ class Psar:
     def __init__(self, step: float = 0.02, max_step: float = 0.20) -> None:
         self.step = _D(step)
         self.max_step = _D(max_step)
-        self._sar: Optional[Decimal] = None
+        self._sar: Decimal | None = None
 
     def update(self, high: Decimal | int | str, low: Decimal | int | str) -> Decimal:
         h, l = _D(high), _D(low)
@@ -1121,7 +1149,7 @@ class Psar:
         return self._sar
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._sar
 
 
@@ -1129,7 +1157,7 @@ class Cpr:
     """Central Pivot Range (Pivot, BC, TC)."""
 
     def __init__(self) -> None:
-        self._last: Optional[tuple[Decimal, Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal, Decimal] | None = None
 
     def update(
         self,
@@ -1145,7 +1173,7 @@ class Cpr:
         return self._last
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal, Decimal] | None:
         return self._last
 
 
@@ -1156,7 +1184,7 @@ class Ichimoku:
         self._tenkan = DonchianChannel(tenkan)
         self._kijun = DonchianChannel(kijun)
         self._senkou_b = DonchianChannel(senkou_b)
-        self._last: Optional[tuple[Decimal, Decimal, Decimal, Decimal]] = None
+        self._last: tuple[Decimal, Decimal, Decimal, Decimal] | None = None
 
     def update(
         self, high: Decimal | int | str, low: Decimal | int | str
@@ -1169,7 +1197,7 @@ class Ichimoku:
         return self._last
 
     @property
-    def value(self) -> Optional[tuple[Decimal, Decimal, Decimal, Decimal]]:
+    def value(self) -> tuple[Decimal, Decimal, Decimal, Decimal] | None:
         return self._last
 
 
@@ -1185,7 +1213,9 @@ class Obv:
         self._volume: Decimal = Decimal(0)
         self._price: Decimal = Decimal(0)
 
-    def update(self, price: Decimal | int | str, volume: Decimal | int | str) -> Decimal:
+    def update(
+        self, price: Decimal | int | str, volume: Decimal | int | str
+    ) -> Decimal:
         p, v = _D(price), _D(volume)
         if p > self._price:
             self._volume += v
@@ -1217,7 +1247,7 @@ class Vwap:
         return Decimal(0), Decimal(0)
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         if self._total_volume != 0:
             return self._total_price_volume / self._total_volume
         return None
@@ -1255,7 +1285,7 @@ class Cmf:
         self.period = period
         self._mf_multipliers: list[Decimal] = []
         self._mf_volumes: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(
         self,
@@ -1278,13 +1308,14 @@ class Cmf:
             self._last = Decimal(0)
         else:
             mf_sum = sum(
-                (m * vol for m, vol in zip(self._mf_multipliers, self._mf_volumes)), Decimal(0)
+                (m * vol for m, vol in zip(self._mf_multipliers, self._mf_volumes)),
+                Decimal(0),
             )
             self._last = mf_sum / vol_sum
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -1293,10 +1324,10 @@ class Mfi:
 
     def __init__(self, period: int = 14) -> None:
         self.period = period
-        self._prev_tp: Optional[Decimal] = None
+        self._prev_tp: Decimal | None = None
         self._pos_mf: list[Decimal] = []
         self._neg_mf: list[Decimal] = []
-        self._last: Optional[Decimal] = None
+        self._last: Decimal | None = None
 
     def update(
         self,
@@ -1329,7 +1360,7 @@ class Mfi:
         return self._last
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         return self._last
 
 
@@ -1339,13 +1370,15 @@ class VolumeProfile:
     def __init__(self) -> None:
         self._price_levels: dict[Decimal, Decimal] = {}
 
-    def update(self, price: Decimal | int | str, volume: Decimal | int | str) -> Decimal:
+    def update(
+        self, price: Decimal | int | str, volume: Decimal | int | str
+    ) -> Decimal:
         p, v = _D(price), _D(volume)
         self._price_levels[p] = self._price_levels.get(p, Decimal(0)) + v
         return self.value or p
 
     @property
-    def value(self) -> Optional[Decimal]:
+    def value(self) -> Decimal | None:
         if not self._price_levels:
             return None
         return max(self._price_levels.items(), key=lambda kv: kv[1])[0]
@@ -1401,7 +1434,9 @@ class Doji:
 class Hammer:
     """Hammer candlestick pattern detector."""
 
-    def __init__(self, body_threshold: float = 0.3, lower_shadow_ratio: float = 2.0) -> None:
+    def __init__(
+        self, body_threshold: float = 0.3, lower_shadow_ratio: float = 2.0
+    ) -> None:
         self.body_threshold = body_threshold
         self.lower_shadow_ratio = lower_shadow_ratio
 
@@ -1418,7 +1453,10 @@ class Hammer:
             return False
         body = abs(c - o)
         lower_shadow = min(o, c) - l
-        return body <= _D(self.body_threshold) * rng and lower_shadow >= _D(self.lower_shadow_ratio) * body
+        return (
+            body <= _D(self.body_threshold) * rng
+            and lower_shadow >= _D(self.lower_shadow_ratio) * body
+        )
 
 
 class Engulfing:
@@ -1482,7 +1520,7 @@ def _to_float_list(series: Any) -> list[float]:
     return [float(x) for x in series]
 
 
-def _wrap_output(result: list[Optional[float]], template: Any) -> Any:
+def _wrap_output(result: list[float | None], template: Any) -> Any:
     cls_name = type(template).__module__.split(".")[0]
     if cls_name == "polars":
         import polars as pl
@@ -1530,7 +1568,9 @@ def macd(
     signal_period: int = 9,
 ) -> tuple[Any, Any, Any]:
     """Vectorized MACD `(macd, signal, histogram)` computed in Rust."""
-    m, s, h = _batch_macd(_to_float_list(values), fast_period, slow_period, signal_period)
+    m, s, h = _batch_macd(
+        _to_float_list(values), fast_period, slow_period, signal_period
+    )
     return _wrap_output(m, values), _wrap_output(s, values), _wrap_output(h, values)
 
 
@@ -1538,7 +1578,9 @@ def atr(
     high: Sequence[Any], low: Sequence[Any], close: Sequence[Any], period: int = 14
 ) -> Any:
     """Vectorized ATR computed in Rust (`honba-me-indicators`) with the GIL released."""
-    out = _batch_atr(_to_float_list(high), _to_float_list(low), _to_float_list(close), period)
+    out = _batch_atr(
+        _to_float_list(high), _to_float_list(low), _to_float_list(close), period
+    )
     return _wrap_output(out, close)
 
 
@@ -1559,7 +1601,11 @@ def stochastic(
 ) -> tuple[Any, Any]:
     """Vectorized Stochastic `(%K, %D)` computed in Rust."""
     k, d = _batch_stochastic(
-        _to_float_list(high), _to_float_list(low), _to_float_list(close), k_period, d_period
+        _to_float_list(high),
+        _to_float_list(low),
+        _to_float_list(close),
+        k_period,
+        d_period,
     )
     return _wrap_output(k, close), _wrap_output(d, close)
 
@@ -1627,7 +1673,9 @@ def adx(
     high: Sequence[Any], low: Sequence[Any], close: Sequence[Any], period: int = 14
 ) -> Any:
     """Vectorized ADX computed in Rust."""
-    out = _batch_adx(_to_float_list(high), _to_float_list(low), _to_float_list(close), period)
+    out = _batch_adx(
+        _to_float_list(high), _to_float_list(low), _to_float_list(close), period
+    )
     return _wrap_output(out, close)
 
 
@@ -1655,7 +1703,9 @@ class HonbaSeriesNamespace:
     def rsi(self, period: int = 14) -> Any:
         return rsi(self._s, period)
 
-    def bollinger_bands(self, period: int = 20, num_std: float = 2.0) -> tuple[Any, Any, Any]:
+    def bollinger_bands(
+        self, period: int = 20, num_std: float = 2.0
+    ) -> tuple[Any, Any, Any]:
         return bollinger_bands(self._s, period, num_std)
 
     def macd(

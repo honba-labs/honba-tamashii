@@ -8,7 +8,9 @@ from honba.strategies.indicators._base import Indicator, indicator
 from honba.strategies.indicators._rolling import RollingPairMoments
 
 
-@indicator("beta", "statistical", inputs=("close", "benchmark"), warmup=lambda s: s.length + 1)
+@indicator(
+    "beta", "statistical", inputs=("close", "benchmark"), warmup=lambda s: s.length + 1
+)
 class Beta(Indicator):
     """Slope of asset simple returns on benchmark simple returns over ``length`` returns.
 

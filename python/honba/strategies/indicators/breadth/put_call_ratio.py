@@ -8,7 +8,10 @@ from honba.strategies.indicators.moving_average import Sma
 
 
 @indicator(
-    "put_call_ratio", "breadth", inputs=("put_volume", "call_volume"), warmup=lambda s: s.smoothing
+    "put_call_ratio",
+    "breadth",
+    inputs=("put_volume", "call_volume"),
+    warmup=lambda s: s.smoothing,
 )
 class PutCallRatio(Indicator):
     """SMA(smoothing) of the per-bar put_volume / call_volume; smoothing=1 is the raw ratio.

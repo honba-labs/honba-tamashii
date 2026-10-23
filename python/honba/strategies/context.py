@@ -23,7 +23,11 @@ _EPSILON = 1e-9
 def _is_valid(intent: OrderIntent) -> bool:
     try:
         validate_intent(
-            intent.side, intent.quantity, intent.order_type, intent.price, intent.trigger_price
+            intent.side,
+            intent.quantity,
+            intent.order_type,
+            intent.price,
+            intent.trigger_price,
         )
     except ValueError:
         return False
@@ -110,13 +114,17 @@ class LedgerContext(StrategyContext):
         currency: Currency = Currency.INR,
     ) -> None:
         self._now = 0
-        self._cash = cash if isinstance(cash, Money) else Money.from_major(cash, currency)
+        self._cash = (
+            cash if isinstance(cash, Money) else Money.from_major(cash, currency)
+        )
         self._positions: dict[InstrumentId, float] = {}
         self._pending: dict[tuple[InstrumentId, OrderSide], float] = {}
         self._instruments: dict[InstrumentId, Instrument] = {}
         self._outbox: list[OrderIntent] = []
         self._order_intents: dict[str, OrderIntent] = {}
-        self._intent_orders: dict[int, str] = {}  # id(intent) -> order id (intents are kept alive)
+        self._intent_orders: dict[
+            int, str
+        ] = {}  # id(intent) -> order id (intents are kept alive)
         self._closed: set[str] = set()
         self._cancel_asked: set[str] = set()
         self._cancels: list[str] = []
@@ -143,7 +151,9 @@ class LedgerContext(StrategyContext):
         return self._cash.currency
 
     def busy(self, instrument_id: InstrumentId) -> bool:
-        return any(q > 0 for (iid, _), q in self._pending.items() if iid == instrument_id)
+        return any(
+            q > 0 for (iid, _), q in self._pending.items() if iid == instrument_id
+        )
 
     def instrument(self, instrument_id: InstrumentId) -> Instrument | None:
         return self._instruments.get(instrument_id)

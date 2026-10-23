@@ -72,19 +72,25 @@ class WebhookStage(str, Enum):
 
 def _require_bool(value: Any, key: str) -> bool:
     if not isinstance(value, bool):
-        raise TypeError(f"webhook config {key} must be a bool, got {type(value).__name__}")
+        raise TypeError(
+            f"webhook config {key} must be a bool, got {type(value).__name__}"
+        )
     return value
 
 
 def _require_int(value: Any, key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise TypeError(f"webhook config {key} must be an int, got {type(value).__name__}")
+        raise TypeError(
+            f"webhook config {key} must be an int, got {type(value).__name__}"
+        )
     return value
 
 
 def _require_number(value: Any, key: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise TypeError(f"webhook config {key} must be a number, got {type(value).__name__}")
+        raise TypeError(
+            f"webhook config {key} must be a number, got {type(value).__name__}"
+        )
     return float(value)
 
 
@@ -134,7 +140,9 @@ class WebhookConfig:
     require_live: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "token_hashes", _validate_token_hashes(self.token_hashes))
+        object.__setattr__(
+            self, "token_hashes", _validate_token_hashes(self.token_hashes)
+        )
         object.__setattr__(
             self, "ip_allowlist", _require_str_tuple(self.ip_allowlist, "ip_allowlist")
         )
@@ -147,7 +155,9 @@ class WebhookConfig:
         :meth:`honba.risk.RiskLimits.from_dict`.
         """
         if not isinstance(table, Mapping):
-            raise TypeError(f"webhook config must be a mapping, got {type(table).__name__}")
+            raise TypeError(
+                f"webhook config must be a mapping, got {type(table).__name__}"
+            )
         unknown = sorted(set(table) - _CONFIG_KEYS)
         if unknown:
             raise ValueError(f"unknown webhook config key(s): {unknown}")
@@ -218,7 +228,9 @@ class TtlCache:
         for key in expired:
             del self._data[key]
 
-    def check_and_set(self, key: str, value: Any, *, now: float, ttl_s: float) -> Any | None:
+    def check_and_set(
+        self, key: str, value: Any, *, now: float, ttl_s: float
+    ) -> Any | None:
         """Return the live cached value (if any); otherwise store ``value`` and return ``None``."""
         self._purge(now)
         entry = self._data.get(key)
@@ -316,16 +328,24 @@ def _parse_intent(body: bytes) -> OrderIntent:
     payload = json.loads(body)
     if not isinstance(payload, dict):
         raise TypeError("payload must be a JSON object")
-    if "instrument_id" not in payload or "side" not in payload or "quantity" not in payload:
+    if (
+        "instrument_id" not in payload
+        or "side" not in payload
+        or "quantity" not in payload
+    ):
         raise ValueError("payload missing instrument_id/side/quantity")
     instrument_id = _parse_instrument_id(payload["instrument_id"])
     side = OrderSide(str(payload["side"]))
     quantity = payload["quantity"]
     if isinstance(quantity, bool) or not isinstance(quantity, (int, float)):
         raise TypeError("quantity must be a number")
-    order_type = OrderType(str(payload["order_type"])) if payload.get("order_type") else None
+    order_type = (
+        OrderType(str(payload["order_type"])) if payload.get("order_type") else None
+    )
     time_in_force = (
-        TimeInForce(str(payload["time_in_force"])) if payload.get("time_in_force") else None
+        TimeInForce(str(payload["time_in_force"]))
+        if payload.get("time_in_force")
+        else None
     )
     price = _optional_price(payload.get("price"))
     trigger_price = _optional_price(payload.get("trigger_price"))
@@ -388,7 +408,10 @@ class WebhookIngestor:
         if not self.config.enabled or str(self.trading_state).lower() == "halted":
             return self._opaque(WebhookStage.KILL_SWITCH, "kill_switch", request)
         # 2. IP allowlist
-        if self.config.ip_allowlist and request.client_ip not in self.config.ip_allowlist:
+        if (
+            self.config.ip_allowlist
+            and request.client_ip not in self.config.ip_allowlist
+        ):
             return self._opaque(WebhookStage.IP_ALLOWLIST, "ip_not_allowed", request)
         # 3. size cap, before any parse
         if len(request.body) > self.config.max_body_bytes:
@@ -410,7 +433,9 @@ class WebhookIngestor:
         except (ValueError, TypeError, KeyError):
             return self._refuse(
                 WebhookStage.PARSE,
-                WebhookResponse(400, {"status": "rejected", "code": "malformed_payload"}),
+                WebhookResponse(
+                    400, {"status": "rejected", "code": "malformed_payload"}
+                ),
                 "malformed_payload",
                 request,
                 token_id=matched,
@@ -496,7 +521,9 @@ class WebhookIngestor:
                 ttl_s=self.config.idempotency_ttl_s,
             )
 
-    def _opaque(self, stage: WebhookStage, code: str, request: WebhookRequest) -> WebhookResponse:
+    def _opaque(
+        self, stage: WebhookStage, code: str, request: WebhookRequest
+    ) -> WebhookResponse:
         self._audit(
             stage=stage,
             decision="denied",

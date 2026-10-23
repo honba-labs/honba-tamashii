@@ -35,7 +35,11 @@ from honba.strategies.portfolio.scoring import low_volatility, mean_reversion, m
 from honba.strategies.portfolio.selection import SelectAll, Selector, TopN
 from honba.strategies.portfolio.strategy import PortfolioStrategy
 from honba.strategies.portfolio.universe import NamedUniverse, StaticUniverse, Universe
-from honba.strategies.portfolio.weighting import EqualWeight, InverseVolatility, WeightingScheme
+from honba.strategies.portfolio.weighting import (
+    EqualWeight,
+    InverseVolatility,
+    WeightingScheme,
+)
 
 KEYS = frozenset(
     {
@@ -65,7 +69,9 @@ def _int(key: str, value: object, text: str, minimum: int, whole: object = None)
     try:
         number = int(text)
     except ValueError:
-        raise _fail(key, whole if whole is not None else value, f"{text!r} is not an integer")
+        raise _fail(
+            key, whole if whole is not None else value, f"{text!r} is not an integer"
+        )
     if number < minimum:
         raise _fail(key, whole if whole is not None else value, f"must be >= {minimum}")
     return number
@@ -86,7 +92,9 @@ def _universe(params: Mapping[str, Any]) -> Universe:
     if isinstance(value, str):
         return NamedUniverse(_text("universe", value), exchange, point_in_time=pit)
     if not isinstance(value, (list, tuple)) or not value:
-        raise _fail("universe", value, "must be a universe name or a non-empty list of symbols")
+        raise _fail(
+            "universe", value, "must be a universe name or a non-empty list of symbols"
+        )
     if pit:
         raise _fail("point_in_time", pit, "only applies to a named universe")
     ids = []
@@ -95,7 +103,9 @@ def _universe(params: Mapping[str, Any]) -> Universe:
         if not 1 <= len(parts) <= 2 or not all(p.strip() for p in parts):
             raise _fail("universe", item, "expected 'SYMBOL' or 'SYMBOL:EXCHANGE'")
         ids.append(
-            InstrumentId(parts[0].strip(), parts[1].strip() if len(parts) == 2 else exchange)
+            InstrumentId(
+                parts[0].strip(), parts[1].strip() if len(parts) == 2 else exchange
+            )
         )
     return StaticUniverse(ids)
 
@@ -107,7 +117,11 @@ def _weighting(value: object) -> tuple[WeightingScheme, int]:
     if parts[0] == "inverse_vol" and len(parts) <= 2:
         lookback = _int("weighting", value, parts[1], 2) if len(parts) == 2 else 20
         return InverseVolatility(lookback), lookback
-    raise _fail("weighting", value, "expected 'equal', 'inverse_vol' or 'inverse_vol:<lookback>'")
+    raise _fail(
+        "weighting",
+        value,
+        "expected 'equal', 'inverse_vol' or 'inverse_vol:<lookback>'",
+    )
 
 
 def _one_schedule(text: str, whole: object) -> RebalanceSchedule:
@@ -136,7 +150,9 @@ def _one_schedule(text: str, whole: object) -> RebalanceSchedule:
 
 
 def _schedule(value: object) -> RebalanceSchedule:
-    parts = [_one_schedule(p.strip(), value) for p in _text("schedule", value).split("+")]
+    parts = [
+        _one_schedule(p.strip(), value) for p in _text("schedule", value).split("+")
+    ]
     return parts[0] if len(parts) == 1 else AnyOf(*parts)
 
 
@@ -191,8 +207,14 @@ def build_portfolio_strategy(
         if isinstance(hist, bool) or not isinstance(hist, int) or hist < 1:
             raise _fail("history_len", hist, "must be an int >= 1")
         if hist < needed:
-            raise _fail("history_len", hist, f"must be >= the longest lookback in use ({needed})")
+            raise _fail(
+                "history_len",
+                hist,
+                f"must be >= the longest lookback in use ({needed})",
+            )
         kwargs["history_len"] = hist
     else:
         kwargs["history_len"] = max(_MIN_HISTORY, needed)
-    return PortfolioStrategy(universe, weighting, schedule, selector, name=name, **kwargs)
+    return PortfolioStrategy(
+        universe, weighting, schedule, selector, name=name, **kwargs
+    )

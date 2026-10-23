@@ -32,7 +32,9 @@ class KlingerOscillator(Indicator):
         self._f, self._s, self._sig = Ema(fast), Ema(slow), Ema(signal)
         self._prev: float | None = None
 
-    def update(self, high: float, low: float, close: float, volume: float) -> KlingerValue | None:
+    def update(
+        self, high: float, low: float, close: float, volume: float
+    ) -> KlingerValue | None:
         tp = (high + low + close) / 3.0
         prev, self._prev = self._prev, tp
         if prev is None:

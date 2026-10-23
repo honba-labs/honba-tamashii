@@ -28,7 +28,11 @@ class StochRsi(Indicator):
     """
 
     def __init__(
-        self, rsi_length: int = 14, stoch_length: int = 14, k_smooth: int = 3, d_smooth: int = 3
+        self,
+        rsi_length: int = 14,
+        stoch_length: int = 14,
+        k_smooth: int = 3,
+        d_smooth: int = 3,
     ) -> None:
         self.rsi_length = _check(rsi_length)
         self.stoch_length = _check(stoch_length)

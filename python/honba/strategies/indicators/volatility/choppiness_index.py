@@ -9,7 +9,10 @@ from honba.strategies.indicators._base import Indicator, indicator
 
 
 @indicator(
-    "choppiness_index", "volatility", inputs=("high", "low", "close"), warmup=lambda s: s.length
+    "choppiness_index",
+    "volatility",
+    inputs=("high", "low", "close"),
+    warmup=lambda s: s.length,
 )
 class ChoppinessIndex(Indicator):
     """Choppiness index = 100 * log10(sum(TR, n) / (highest high - lowest low)) / log10(n).
@@ -28,7 +31,11 @@ class ChoppinessIndex(Indicator):
 
     def update(self, high: float, low: float, close: float) -> float | None:
         prev, self._prev = self._prev, close
-        tr = high - low if prev is None else max(high - low, abs(high - prev), abs(low - prev))
+        tr = (
+            high - low
+            if prev is None
+            else max(high - low, abs(high - prev), abs(low - prev))
+        )
         self._tr.append(tr)
         self._h.append(high)
         self._l.append(low)

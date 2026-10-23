@@ -33,8 +33,8 @@ if TYPE_CHECKING:
     from honba.strategies.manifest import ParameterSpec
 
 __all__ = [
-    "ArbitrageStrategy",
     "LEGACY_ENTRY_POINTS",
+    "ArbitrageStrategy",
     "Parameter",
     "QuotingStrategy",
     "RebalancingStrategy",
@@ -42,7 +42,11 @@ __all__ = [
     "Strategy",
 ]
 
-LEGACY_ENTRY_POINTS: tuple[str, ...] = ("drain_intents", "handle_fill", "handle_rejected")
+LEGACY_ENTRY_POINTS: tuple[str, ...] = (
+    "drain_intents",
+    "handle_fill",
+    "handle_rejected",
+)
 """Pre-ADR-008 runner entry points. Overriding one is deprecated (removed in 0.3)."""
 
 
@@ -77,7 +81,9 @@ class Parameter:
             if isinstance(range, str):
                 parts = [p.strip() for p in range.split(":")]
                 if len(parts) != 3:
-                    raise ValueError(f"range string must be 'min:max:step', got {range!r}")
+                    raise ValueError(
+                        f"range string must be 'min:max:step', got {range!r}"
+                    )
                 self.min = float(parts[0]) if "." in parts[0] else int(parts[0])
                 self.max = float(parts[1]) if "." in parts[1] else int(parts[1])
                 self.step = float(parts[2]) if "." in parts[2] else int(parts[2])
@@ -86,7 +92,9 @@ class Parameter:
                 self.min, self.max, self.step = range[0], range[1], range[2]
                 self.range_str = f"{self.min}:{self.max}:{self.step}"
             else:
-                raise ValueError(f"range must be 'min:max:step' or (min, max, step), got {range!r}")
+                raise ValueError(
+                    f"range must be 'min:max:step' or (min, max, step), got {range!r}"
+                )
         else:
             self.min = min
             self.max = max
@@ -104,7 +112,9 @@ class Parameter:
             if self.min is not None and self.default < self.min:
                 raise ValueError(f"default {self.default} is less than min {self.min}")
             if self.max is not None and self.default > self.max:
-                raise ValueError(f"default {self.default} is greater than max {self.max}")
+                raise ValueError(
+                    f"default {self.default} is greater than max {self.max}"
+                )
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -266,7 +276,9 @@ class Strategy(ABC):
             parts.append(message)
         if data:
             parts.append(" ".join(f"{k}={v}" for k, v in data.items()))
-        self.logger.info(" ".join(parts), extra={"event_type": event_type, "event_data": data})
+        self.logger.info(
+            " ".join(parts), extra={"event_type": event_type, "event_data": data}
+        )
 
     def buy(self, instrument_id: InstrumentId, quantity: float, **data: Any) -> None:
         self.log_event("EVENT_BUY", symbol=instrument_id.symbol, qty=quantity, **data)
@@ -333,13 +345,13 @@ class QuotingStrategy(Strategy):
         self,
         *,
         quoting_side: str = "BUY",
-        quoting_quantity: Decimal | float | str = Decimal("10"),
+        quoting_quantity: Decimal | float | str = Decimal(10),
         price_tolerance: Decimal | float | str = Decimal("0.05"),
         **kwargs: Any,
     ) -> None:
         self.quoting_side = quoting_side.upper()
         self._target_qty = _dec(quoting_quantity)
-        self._filled_qty = Decimal("0")
+        self._filled_qty = Decimal(0)
         self._price_tolerance = _dec(price_tolerance)
         self._quoted_price: Decimal | None = None
         self._quoted_qty: Decimal | None = None
@@ -348,7 +360,7 @@ class QuotingStrategy(Strategy):
     @property
     def remaining_quantity(self) -> Decimal:
         """Remaining unfilled quote quantity."""
-        return max(Decimal("0"), self._target_qty - self._filled_qty)
+        return max(Decimal(0), self._target_qty - self._filled_qty)
 
     @property
     def quoted_price(self) -> Decimal | None:
@@ -356,7 +368,9 @@ class QuotingStrategy(Strategy):
         return self._quoted_price
 
     def need_requote(
-        self, target_price: Decimal | float | str, target_qty: Decimal | float | str | None = None
+        self,
+        target_price: Decimal | float | str,
+        target_qty: Decimal | float | str | None = None,
     ) -> bool:
         """Return ``True`` if the quote needs to be placed or replaced."""
         tp = _dec(target_price)
@@ -425,7 +439,7 @@ class ArbitrageStrategy(Strategy):
         entry_spread: Decimal | float | str = Decimal("5.0"),
         exit_spread: Decimal | float | str = Decimal("0.5"),
         hedge_ratio: Decimal | float | str = Decimal("1.0"),
-        leg_quantity: Decimal | float | str = Decimal("1"),
+        leg_quantity: Decimal | float | str = Decimal(1),
         **kwargs: Any,
     ) -> None:
         self._entry_spread = _dec(entry_spread)
@@ -498,8 +512,8 @@ class SlicingStrategy(Strategy):
     def __init__(
         self,
         *,
-        total_quantity: Decimal | float | str = Decimal("100"),
-        slice_size: Decimal | float | str = Decimal("10"),
+        total_quantity: Decimal | float | str = Decimal(100),
+        slice_size: Decimal | float | str = Decimal(10),
         side: str = "BUY",
         **kwargs: Any,
     ) -> None:
@@ -508,14 +522,14 @@ class SlicingStrategy(Strategy):
         if self._slice_size <= 0:
             raise ValueError("slice_size must be > 0")
         self.side = side.upper()
-        self.dispatched_quantity: Decimal = Decimal("0")
-        self.filled_quantity: Decimal = Decimal("0")
+        self.dispatched_quantity: Decimal = Decimal(0)
+        self.filled_quantity: Decimal = Decimal(0)
         self.slices_sent: int = 0
 
     @property
     def remaining_to_dispatch(self) -> Decimal:
         """Quantity not yet dispatched in child slices."""
-        return max(Decimal("0"), self._total_quantity - self.dispatched_quantity)
+        return max(Decimal(0), self._total_quantity - self.dispatched_quantity)
 
     @property
     def is_complete(self) -> bool:
@@ -573,13 +587,13 @@ class RebalancingStrategy(Strategy):
         self,
         target_weights: dict[str, Decimal | float | str] | None = None,
         *,
-        drift_threshold_bps: Decimal | float | str = Decimal("50"),
+        drift_threshold_bps: Decimal | float | str = Decimal(50),
         **kwargs: Any,
     ) -> None:
         self.target_weights: dict[str, Decimal] = {
             k: _dec(v) for k, v in (target_weights or {}).items()
         }
-        self._drift_threshold = _dec(drift_threshold_bps) / Decimal("10000")
+        self._drift_threshold = _dec(drift_threshold_bps) / Decimal(10000)
 
     def compute_rebalance_deltas(
         self,
@@ -599,11 +613,11 @@ class RebalancingStrategy(Strategy):
                 continue
             curr_qty = _dec(current_positions.get(key, 0))
             curr_weight = (curr_qty * px) / nav
-            target_weight = self.target_weights.get(key, Decimal("0"))
+            target_weight = self.target_weights.get(key, Decimal(0))
             if abs(target_weight - curr_weight) < self._drift_threshold:
                 continue
             target_notional = nav * target_weight
-            target_qty = (target_notional // px)
+            target_qty = target_notional // px
             delta = target_qty - curr_qty
             if delta != 0:
                 deltas[key] = delta
@@ -617,7 +631,9 @@ class RebalancingStrategy(Strategy):
         prices: dict[str, Decimal | float | str],
     ) -> list[tuple[str, Decimal]]:
         """Execute two-phase rebalance (sells first to free cash, then buys)."""
-        deltas = self.compute_rebalance_deltas(portfolio_value, current_positions, prices)
+        deltas = self.compute_rebalance_deltas(
+            portfolio_value, current_positions, prices
+        )
         executed: list[tuple[str, Decimal]] = []
         # Phase 1: sells
         for key, delta in deltas.items():

@@ -10,7 +10,11 @@ from honba.strategies.base import (
     Strategy,
 )
 from honba.strategies.context import LedgerContext, StrategyContext
-from honba.strategies.declarative import DeclarativeStrategy, Entry, TargetWeightStrategy
+from honba.strategies.declarative import (
+    DeclarativeStrategy,
+    Entry,
+    TargetWeightStrategy,
+)
 from honba.strategies.portfolio import (
     EqualWeight,
     EveryNDays,

@@ -123,7 +123,9 @@ def verify_graph(graph: StrategyGraph, *, compile: bool = True) -> VerifyResult:
     except GraphError as exc:
         return VerifyResult(
             ok=False,
-            issues=(GraphIssue(exc.code, exc.message, exc.node_id, locate(exc.node_id)),),
+            issues=(
+                GraphIssue(exc.code, exc.message, exc.node_id, locate(exc.node_id)),
+            ),
             source=source,
         )
     manifest = graph.to_manifest()
@@ -172,7 +174,11 @@ def verify_and_run(
         return VerifyRunResult(
             verify=VerifyResult(
                 ok=False,
-                issues=(GraphIssue("codegen_error", "generated source did not define a Strategy"),),
+                issues=(
+                    GraphIssue(
+                        "codegen_error", "generated source did not define a Strategy"
+                    ),
+                ),
                 source=verify.source,
             )
         )
@@ -204,7 +210,11 @@ def compile_strategy_source(source: str, name: str) -> type | None:
     module: dict[str, Any] = {"__name__": f"honba_designer_{name}"}
     exec(compile(source, f"<designer:{name}>", "exec"), module)  # noqa: S102 - generated code
     for value in module.values():
-        if isinstance(value, type) and issubclass(value, Strategy) and value is not Strategy:
+        if (
+            isinstance(value, type)
+            and issubclass(value, Strategy)
+            and value is not Strategy
+        ):
             return value
     return None
 
@@ -301,7 +311,9 @@ def checklist_for_publish(
         graph_ok, graph_detail = False, f"{exc.code}: {exc.message}"
     items.append(ChecklistItem("graph_valid", graph_ok, graph_detail))
     has_entry = any(n.type == "order" for n in graph.nodes)
-    items.append(ChecklistItem("has_order", has_entry, "" if has_entry else "no order node"))
+    items.append(
+        ChecklistItem("has_order", has_entry, "" if has_entry else "no order node")
+    )
     if verify is not None:
         items.append(
             ChecklistItem(
@@ -313,7 +325,9 @@ def checklist_for_publish(
     if verification_ok is not None:
         items.append(
             ChecklistItem(
-                "ai_verified", verification_ok, "" if verification_ok else "verifier findings"
+                "ai_verified",
+                verification_ok,
+                "" if verification_ok else "verifier findings",
             )
         )
     if run is not None:
@@ -389,7 +403,9 @@ def diff_graphs(base: StrategyGraph, other: StrategyGraph) -> GraphDiff:
     )
     added_edges = tuple(sorted(other_edges.keys() - base_edges.keys()))
     removed_edges = tuple(sorted(base_edges.keys() - other_edges.keys()))
-    return GraphDiff(added_nodes, removed_nodes, changed_nodes, added_edges, removed_edges)
+    return GraphDiff(
+        added_nodes, removed_nodes, changed_nodes, added_edges, removed_edges
+    )
 
 
 def restore_graph(version: GraphVersion | str) -> StrategyGraph:
@@ -437,7 +453,9 @@ def run_mode_badge(
         raise ValueError(f"unknown run mode {mode!r}; choose from {list(RUN_MODES)}")
     blocked = mode == "live" and (kill_switch or not approved)
     label = {"paper": "Paper", "signal_only": "Signal only", "live": "Live"}[mode]
-    level = "live" if mode == "live" else ("warning" if mode == "signal_only" else "paper")
+    level = (
+        "live" if mode == "live" else ("warning" if mode == "signal_only" else "paper")
+    )
     return {
         "mode": mode,
         "label": label,
@@ -464,7 +482,9 @@ def trust_badges(validation: Mapping[str, Any] | None) -> list[dict[str, Any]]:
         block = validation.get(key)
         if not isinstance(block, Mapping):
             continue
-        badges.append({"key": key, "label": label, "passed": bool(block.get("passed", False))})
+        badges.append(
+            {"key": key, "label": label, "passed": bool(block.get("passed", False))}
+        )
     return badges
 
 

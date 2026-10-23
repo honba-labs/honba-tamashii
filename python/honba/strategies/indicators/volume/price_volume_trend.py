@@ -5,7 +5,9 @@ from __future__ import annotations
 from honba.strategies.indicators._base import Indicator, indicator
 
 
-@indicator("price_volume_trend", "volume", inputs=("close", "volume"), warmup=lambda s: 1)
+@indicator(
+    "price_volume_trend", "volume", inputs=("close", "volume"), warmup=lambda s: 1
+)
 class PriceVolumeTrend(Indicator):
     """Price volume trend: cumulative (close - prev_close) / prev_close * volume (first bar = 0; term 0 if prev_close is 0)."""
 

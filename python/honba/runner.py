@@ -40,24 +40,17 @@ Typical usage::
 
 from __future__ import annotations
 
-import os
-import sys
 import subprocess
+import sys
 import traceback
 from decimal import Decimal
-from typing import Any, Optional, TypeVar, Generic, List, Dict
+from typing import Any, Generic, TypeVar
 
 from honba._honba import (
     Bar,
     InstrumentId,
-    Metrics,
-    PyContext,
-    RiskRefusalError,
-    Sma,
-    Tick,
 )
 from honba.strategy import Strategy
-
 
 T = TypeVar("T")
 
@@ -85,7 +78,7 @@ class PyMetrics(Generic[T]):
         orders: int,
         trades: int,
         degraded: bool,
-        errors: List[str],
+        errors: list[str],
     ):
         self.total_return = total_return
         self.cagr = cagr
@@ -132,7 +125,11 @@ class Runner:
     ):
         self.num_bars = num_bars
         self.instrument = instrument
-        self.starting_cash = Decimal(starting_cash) if isinstance(starting_cash, Decimal) else Decimal(str(starting_cash))
+        self.starting_cash = (
+            Decimal(starting_cash)
+            if isinstance(starting_cash, Decimal)
+            else Decimal(str(starting_cash))
+        )
 
     # ------------------------------------------------------------------
     # Mode selection
@@ -142,6 +139,7 @@ class Runner:
         """Heuristic: if honba-ya-backtest is importable, prefer backtest mode."""
         try:
             import honba_ya_backtest  # noqa: F401
+
             return "backtest"
         except ImportError:
             return "synthetic"
@@ -150,7 +148,7 @@ class Runner:
     # Core run loop — synthetic mode
     # ------------------------------------------------------------------
 
-    def run_synthetic(self, strategy: Strategy, /, **synthetic_bars: Any) -> "PyMetrics":
+    def run_synthetic(self, strategy: Strategy, /, **synthetic_bars: Any) -> PyMetrics:
         """Execute *strategy* for *self.num_bars* bars using a synthetic
         sawtooth sequence. This is the original ``Runner.run()`` behaviour.
 
@@ -165,7 +163,7 @@ class Runner:
         5. Calls ``strategy.on_stop()``.
         6. Returns a ``PyMetrics`` populated from the run state.
         """
-        errors: List[str] = []
+        errors: list[str] = []
         degraded = False
 
         try:
@@ -176,14 +174,14 @@ class Runner:
             errors.append(f"on_start exception: {tb}")
             strategy.on_stop()
             return PyMetrics(
-                total_return=Decimal("0"),
-                cagr=Decimal("0"),
-                annual_volatility=Decimal("0"),
-                sharpe_ratio=Decimal("0"),
-                sortino_ratio=Decimal("0"),
-                max_drawdown=Decimal("0"),
-                dsr=Decimal("0"),
-                pbo=Decimal("0"),
+                total_return=Decimal(0),
+                cagr=Decimal(0),
+                annual_volatility=Decimal(0),
+                sharpe_ratio=Decimal(0),
+                sortino_ratio=Decimal(0),
+                max_drawdown=Decimal(0),
+                dsr=Decimal(0),
+                pbo=Decimal(0),
                 tax_breakdown={},
                 final_cash=self.starting_cash,
                 orders=0,
@@ -199,27 +197,27 @@ class Runner:
             # Simple price oscillator around 100
             phase = bar_idx % 4
             if phase == 1:
-                close = Decimal("101")
-                open_p = Decimal("99")
-                high = Decimal("102")
-                low = Decimal("98")
+                close = Decimal(101)
+                open_p = Decimal(99)
+                high = Decimal(102)
+                low = Decimal(98)
             elif phase == 2:
-                close = Decimal("99")
-                open_p = Decimal("101")
-                high = Decimal("100")
-                low = Decimal("97")
+                close = Decimal(99)
+                open_p = Decimal(101)
+                high = Decimal(100)
+                low = Decimal(97)
             elif phase == 3:
-                close = Decimal("102")
-                open_p = Decimal("100")
-                high = Decimal("103")
-                low = Decimal("99")
+                close = Decimal(102)
+                open_p = Decimal(100)
+                high = Decimal(103)
+                low = Decimal(99)
             else:  # phase == 0
-                close = Decimal("98")
-                open_p = Decimal("102")
-                high = Decimal("101")
-                low = Decimal("97")
+                close = Decimal(98)
+                open_p = Decimal(102)
+                high = Decimal(101)
+                low = Decimal(97)
 
-            volume = Decimal("1000")
+            volume = Decimal(1000)
 
             bar = Bar(
                 instrument=InstrumentId(self.instrument, "NSE", "EQUITY"),
@@ -255,22 +253,22 @@ class Runner:
 
         # Build minimal PyMetrics; a production-run would compute real PnL
         # from the order ledger and the honba-kokoro portfolio / ledger models.
-        taxes: Dict[str, Decimal] = {
-            "stt": Decimal("0"),
-            "gst": Decimal("0"),
-            "sebi": Decimal("0"),
-            "stamp_duty": Decimal("0"),
+        taxes: dict[str, Decimal] = {
+            "stt": Decimal(0),
+            "gst": Decimal(0),
+            "sebi": Decimal(0),
+            "stamp_duty": Decimal(0),
         }
 
         return PyMetrics(
             total_return=starting_cash,
-            cagr=Decimal("0"),
-            annual_volatility=Decimal("0"),
-            sharpe_ratio=Decimal("0"),
-            sortino_ratio=Decimal("0"),
-            max_drawdown=Decimal("0"),
-            dsr=Decimal("0"),
-            pbo=Decimal("0"),
+            cagr=Decimal(0),
+            annual_volatility=Decimal(0),
+            sharpe_ratio=Decimal(0),
+            sortino_ratio=Decimal(0),
+            max_drawdown=Decimal(0),
+            dsr=Decimal(0),
+            pbo=Decimal(0),
             tax_breakdown=taxes,
             final_cash=starting_cash,
             orders=0,
@@ -283,7 +281,7 @@ class Runner:
     # Core run loop — backtest mode (honba-ya + honba-kokoro)
     # ------------------------------------------------------------------
 
-    def run_strategy(self, strategy: Strategy, /, **kwargs: Any) -> "PyMetrics":
+    def run_strategy(self, strategy: Strategy, /, **kwargs: Any) -> PyMetrics:
         """Execute *strategy* using the institutional backtester.
 
         This delegates to ``honba-ya-backtest`` with the OMS, portfolio and
@@ -313,8 +311,13 @@ class Runner:
                 "api_version": "1.0.0",
                 "name": strategy.__class__.__name__,
                 "source_hash": "honba-runner-" + str(id(strategy)),
-                "universe": {"named": None, "explicit": [{"symbol": self.instrument, "exchange": "NSE"}]},
-                "subscriptions": {"instruments": [{"symbol": self.instrument, "exchange": "NSE"}]},
+                "universe": {
+                    "named": None,
+                    "explicit": [{"symbol": self.instrument, "exchange": "NSE"}],
+                },
+                "subscriptions": {
+                    "instruments": [{"symbol": self.instrument, "exchange": "NSE"}]
+                },
                 "driving_timeframe": {"interval": 1, "aggregation": "minute"},
                 "warmup_bars": 0,
                 "starting_cash": str(self.starting_cash),
@@ -340,7 +343,7 @@ class Runner:
             output = json.loads(result.stdout)
 
             # Map the backtester output into PyMetrics
-            tax_breakdown: Dict[str, Decimal] = {
+            tax_breakdown: dict[str, Decimal] = {
                 "stt": Decimal(str(output.get("stt", 0))),
                 "gst": Decimal(str(output.get("gst", 0))),
                 "sebi": Decimal(str(output.get("sebi", 0))),
@@ -366,7 +369,7 @@ class Runner:
 
         except RuntimeError:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise RuntimeError(f"backtester integration failed: {exc}") from exc
 
     # ------------------------------------------------------------------
@@ -403,22 +406,33 @@ class Runner:
         dict[str, Any]
             ``{"best_config": ..., "pareto_frontier": ..., "history": ...}``
         """
-        import json
 
         try:
             # Prepare the parameter grid from the config
             # If any value is a `Parameter` we extract its (min, max, step)
             # and generate a discrete grid; otherwise we treat the value as a
             # single point to sweep.
-            param_grid: dict[str, List[Any]] = {}
+            param_grid: dict[str, list[Any]] = {}
             for key, value in config.items():
                 # Check if the value is our custom Parameter descriptor
                 if hasattr(value, "min") and hasattr(value, "max"):
                     # Generate a linear grid from min to max with step
-                    mn = Decimal(str(value.min)) if not isinstance(value.min, Decimal) else value.min
-                    mx = Decimal(str(value.max)) if not isinstance(value.max, Decimal) else value.max
-                    step = Decimal(str(value.step)) if value.step is not None else Decimal("0.1")
-                    values: List[Any] = []
+                    mn = (
+                        Decimal(str(value.min))
+                        if not isinstance(value.min, Decimal)
+                        else value.min
+                    )
+                    mx = (
+                        Decimal(str(value.max))
+                        if not isinstance(value.max, Decimal)
+                        else value.max
+                    )
+                    step = (
+                        Decimal(str(value.step))
+                        if value.step is not None
+                        else Decimal("0.1")
+                    )
+                    values: list[Any] = []
                     if step > 0:
                         n_points = int((mx - mn) / step) + 1
                         values = [mn + i * step for i in range(n_points)]
@@ -432,8 +446,8 @@ class Runner:
             # Run a grid search: for each combo, invoke ``run_strategy`` and
             # collect the Sharpe ratio.
             best_sharpe = Decimal("-Infinity")
-            best_config: Optional[dict[str, Any]] = None
-            history: List[dict[str, Any]] = []
+            best_config: dict[str, Any] | None = None
+            history: list[dict[str, Any]] = []
 
             from itertools import product
 
@@ -467,7 +481,11 @@ class Runner:
                     sharpe = Decimal("-Infinity")
 
                 history.append(
-                    {"parameters": dict(applied), "sharpe_ratio": float(sharpe), "degraded": metrics.degraded}
+                    {
+                        "parameters": dict(applied),
+                        "sharpe_ratio": float(sharpe),
+                        "degraded": metrics.degraded,
+                    }
                 )
 
                 if sharpe > best_sharpe:
@@ -476,7 +494,11 @@ class Runner:
 
             # Build a minimal Pareto frontier representation (sharpe vs return)
             pareto_frontier = [
-                {"parameters": h["parameters"], "sharpe": h["sharpe_ratio"], "return": h.get("total_return", 0)}
+                {
+                    "parameters": h["parameters"],
+                    "sharpe": h["sharpe_ratio"],
+                    "return": h.get("total_return", 0),
+                }
                 for h in history
             ]
 
@@ -486,7 +508,7 @@ class Runner:
                 "history": history,
             }
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise RuntimeError(f"optimisation failed: {exc}") from exc
 
     # ------------------------------------------------------------------
@@ -498,7 +520,7 @@ class Runner:
         metrics: PyMetrics,
         /,
         *,  # keyword-only after this
-        equity_curve: Optional[List[Decimal]] = None,
+        equity_curve: list[Decimal] | None = None,
         title: str = "Strategy Backtest",
     ) -> str:
         """Render a Jupyter-friendly HTML snippet visualising the backtest.

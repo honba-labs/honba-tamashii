@@ -85,20 +85,50 @@ from honba.indicators import (
     WilliamsR,
     Wma,
     Zlema,
+)
+from honba.indicators import (
     adx as Adx_vec,
+)
+from honba.indicators import (
     atr as Atr_vec,
+)
+from honba.indicators import (
     bollinger_bands as BollingerBands_vec,
+)
+from honba.indicators import (
     cpr as Cpr_vec,
+)
+from honba.indicators import (
     donchian as Donchian_vec,
+)
+from honba.indicators import (
     ema as Ema_vec,
+)
+from honba.indicators import (
     macd as Macd_vec,
+)
+from honba.indicators import (
     obv as Obv_vec,
+)
+from honba.indicators import (
     rma as Rma_vec,
+)
+from honba.indicators import (
     rsi as Rsi_vec,
+)
+from honba.indicators import (
     sma as Sma_vec,
+)
+from honba.indicators import (
     stochastic as Stochastic_vec,
+)
+from honba.indicators import (
     supertrend as Supertrend_vec,
+)
+from honba.indicators import (
     vwap as Vwap_vec,
+)
+from honba.indicators import (
     williams_r as WilliamsR_vec,
 )
 from honba.strategies import (
@@ -401,7 +431,9 @@ class TestPhase5IndicatorsAndStrategyPrimitives:
 
         # 5. Candlestick pattern detectors
         assert Doji().detect(Decimal(100), Decimal(105), Decimal(95), Decimal("100.2"))
-        assert Hammer().detect(Decimal(100), Decimal(101), Decimal(90), Decimal("100.5"))
+        assert Hammer().detect(
+            Decimal(100), Decimal(101), Decimal(90), Decimal("100.5")
+        )
         assert (
             Engulfing().detect(Decimal(102), Decimal(100), Decimal(99), Decimal(103))
             == "bullish"

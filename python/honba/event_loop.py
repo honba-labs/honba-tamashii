@@ -29,7 +29,15 @@ from dataclasses import dataclass
 
 from honba._native import native_attr
 
-__all__ = ["EventLoopError", "RuntimeInfo", "info", "is_running", "running", "start", "stop"]
+__all__ = [
+    "EventLoopError",
+    "RuntimeInfo",
+    "info",
+    "is_running",
+    "running",
+    "start",
+    "stop",
+]
 
 
 class EventLoopError(RuntimeError):
@@ -77,7 +85,10 @@ def start(worker_threads: int | None = None) -> RuntimeInfo:
         if _owned:
             current = _info()
             if current is not None:
-                if worker_threads is not None and worker_threads != current.worker_threads:
+                if (
+                    worker_threads is not None
+                    and worker_threads != current.worker_threads
+                ):
                     raise EventLoopError(
                         f"the event loop is running with worker_threads={current.worker_threads}; "
                         f"stop() it before starting with worker_threads={worker_threads}"

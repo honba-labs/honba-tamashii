@@ -20,7 +20,14 @@ import itertools
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    model_validator,
+)
 
 from honba._native import native_attr
 from honba.entities.instrument import InstrumentId
@@ -142,7 +149,8 @@ class ParameterSpec(_Strict):
             parts = [p.strip() for p in range_expr.split(":")]
             if len(parts) != 3:
                 raise ManifestError(
-                    "invalid_parameter_range", f"range must be min:max:step, got {range_expr!r}"
+                    "invalid_parameter_range",
+                    f"range must be min:max:step, got {range_expr!r}",
                 )
             try:
                 min_val = float(parts[0])
@@ -159,14 +167,19 @@ class ParameterSpec(_Strict):
             )
             range_str = f"{min_val}:{max_val}:{step_val}"
         else:
-            raise ManifestError("invalid_parameter_range", f"invalid range format: {range_expr!r}")
+            raise ManifestError(
+                "invalid_parameter_range", f"invalid range format: {range_expr!r}"
+            )
 
         if min_val > max_val:
             raise ManifestError(
-                "invalid_parameter_range", f"min ({min_val}) cannot be greater than max ({max_val})"
+                "invalid_parameter_range",
+                f"min ({min_val}) cannot be greater than max ({max_val})",
             )
         if step_val <= 0:
-            raise ManifestError("invalid_parameter_range", f"step ({step_val}) must be positive")
+            raise ManifestError(
+                "invalid_parameter_range", f"step ({step_val}) must be positive"
+            )
 
         if isinstance(default, (int, float)):
             if default < min_val:
@@ -192,7 +205,9 @@ class ParameterSpec(_Strict):
     def discrete_values(self) -> list[Any]:
         if self.min is not None and self.max is not None and self.step is not None:
             is_int = (
-                isinstance(self.default, int) and self.min.is_integer() and self.step.is_integer()
+                isinstance(self.default, int)
+                and self.min.is_integer()
+                and self.step.is_integer()
             )
             vals = []
             curr = self.min
@@ -215,7 +230,8 @@ def param_range_to_schema(
         return range_expr.to_spec()
     if default is None:
         raise ManifestError(
-            "parameter_default_out_of_range", "default value is required for param_range_to_schema"
+            "parameter_default_out_of_range",
+            "default value is required for param_range_to_schema",
         )
     return ParameterSpec.from_range(range_expr, default, description=description)
 
@@ -328,18 +344,28 @@ class StrategyManifest(_Strict):
             )
         # Validate parameters and ensure defaults stay within range
         for name, param in self.parameters.items():
-            if param.min is not None and param.max is not None and param.min > param.max:
-                raise ManifestError("invalid_parameter_range", f"parameter {name!r} min > max")
+            if (
+                param.min is not None
+                and param.max is not None
+                and param.min > param.max
+            ):
+                raise ManifestError(
+                    "invalid_parameter_range", f"parameter {name!r} min > max"
+                )
             if param.step is not None and param.step <= 0:
-                raise ManifestError("invalid_parameter_range", f"parameter {name!r} step <= 0")
+                raise ManifestError(
+                    "invalid_parameter_range", f"parameter {name!r} step <= 0"
+                )
             if isinstance(param.default, (int, float)):
                 if param.min is not None and param.default < param.min:
                     raise ManifestError(
-                        "parameter_default_out_of_range", f"parameter {name!r} default < min"
+                        "parameter_default_out_of_range",
+                        f"parameter {name!r} default < min",
                     )
                 if param.max is not None and param.default > param.max:
                     raise ManifestError(
-                        "parameter_default_out_of_range", f"parameter {name!r} default > max"
+                        "parameter_default_out_of_range",
+                        f"parameter {name!r} default > max",
                     )
 
     def to_json_dict(self) -> dict[str, Any]:
@@ -350,14 +376,16 @@ class StrategyManifest(_Strict):
         ``honba verify`` or the REST ``/strategies`` body.
         """
         out = self.model_dump(
-            mode="json", exclude={"universe", "schedules", "parameters", "graph_hash", "sidecar"}
+            mode="json",
+            exclude={"universe", "schedules", "parameters", "graph_hash", "sidecar"},
         )
         out["universe"] = self.universe.to_json()
         if self.schedules:
             out["schedules"] = dict(self.schedules)
         if self.parameters:
             out["parameters"] = {
-                k: v.model_dump(mode="json", exclude_none=True) for k, v in self.parameters.items()
+                k: v.model_dump(mode="json", exclude_none=True)
+                for k, v in self.parameters.items()
             }
         return out
 

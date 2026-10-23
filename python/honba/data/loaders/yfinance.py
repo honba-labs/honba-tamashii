@@ -203,7 +203,9 @@ def dataframe_to_bars(
         # Check lowercase variants
         col_map = {c.lower(): c for c in df.columns}
         if not {"open", "high", "low", "close", "volume"}.issubset(col_map.keys()):
-            logger.warning("Missing required OHLCV columns in DataFrame: %s", df.columns.tolist())
+            logger.warning(
+                "Missing required OHLCV columns in DataFrame: %s", df.columns.tolist()
+            )
             return []
         df = df.rename(
             columns={

@@ -37,7 +37,9 @@ class Kdj(Indicator):
         self._k = make_ma(slowk_ma, _check(slowk))
         self._d = make_ma(slowd_ma, _check(slowd))
 
-    def update(self, high: float, low: float, close: float) -> tuple[float, float, float] | None:
+    def update(
+        self, high: float, low: float, close: float
+    ) -> tuple[float, float, float] | None:
         self._h.append(high)
         self._l.append(low)
         if self._h.maxlen is None or len(self._h) < self._h.maxlen:

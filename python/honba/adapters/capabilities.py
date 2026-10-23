@@ -160,14 +160,18 @@ class AdapterCapabilities:
             (c.value for c in capabilities if c not in self.features),
         )
         if missing:
-            raise CapabilityError(f"adapter {self.name} does not support: {', '.join(missing)}")
+            raise CapabilityError(
+                f"adapter {self.name} does not support: {', '.join(missing)}"
+            )
 
     def supports_product(self, product: Product) -> bool:
         return product in self.products
 
     def require_product(self, product: Product) -> None:
         if product not in self.products:
-            raise CapabilityError(f"adapter {self.name} does not support product {product.value}")
+            raise CapabilityError(
+                f"adapter {self.name} does not support product {product.value}"
+            )
 
     def supports_order_type(self, order_type: OrderType) -> bool:
         return order_type in self.order_types
@@ -201,7 +205,9 @@ class AdapterCapabilities:
 
     def require_stream_mode(self, mode: StreamMode) -> None:
         if mode not in self.stream_modes:
-            raise CapabilityError(f"adapter {self.name} does not support stream mode {mode.value}")
+            raise CapabilityError(
+                f"adapter {self.name} does not support stream mode {mode.value}"
+            )
 
 
 def default_capabilities(**overrides: object) -> AdapterCapabilities:

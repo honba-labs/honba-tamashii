@@ -21,7 +21,9 @@ class KstValue:
     warmup=lambda s: (
         max(
             a + b
-            for a, b in zip((s.roc1, s.roc2, s.roc3, s.roc4), (s.sma1, s.sma2, s.sma3, s.sma4))
+            for a, b in zip(
+                (s.roc1, s.roc2, s.roc3, s.roc4), (s.sma1, s.sma2, s.sma3, s.sma4)
+            )
         )
         + s.signal
         - 1

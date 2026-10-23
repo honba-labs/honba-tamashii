@@ -45,7 +45,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from honba.entities.instrument import InstrumentId
 from honba.strategies.indicators import indicator_spec, list_indicators
-from honba.strategies.manifest import StrategyManifest, Subscriptions, TimeframeSpec, Universe
+from honba.strategies.manifest import (
+    StrategyManifest,
+    Subscriptions,
+    TimeframeSpec,
+    Universe,
+)
 from honba.wire.wire import BarAggregation
 
 __all__ = [
@@ -86,11 +91,17 @@ _NODE_PORT_SPECS: dict[str, dict[str, dict[str, str]]] = {
     "universe": {"inputs": {}, "outputs": {"bars": "series"}},
     "indicator": {"inputs": {"input": "series"}, "outputs": {"value": "series"}},
     "transform": {"inputs": {"input": "series"}, "outputs": {"value": "series"}},
-    "condition": {"inputs": {"left": "series", "right": "series"}, "outputs": {"signal": "bool"}},
+    "condition": {
+        "inputs": {"left": "series", "right": "series"},
+        "outputs": {"signal": "bool"},
+    },
     "logic": {"inputs": {"a": "bool", "b": "bool"}, "outputs": {"signal": "bool"}},
     "sizing": {"inputs": {"signal": "bool"}, "outputs": {"size": "size"}},
     "risk": {"inputs": {"signal": "bool"}, "outputs": {"signal": "bool"}},
-    "order": {"inputs": {"signal": "bool", "size": "size"}, "outputs": {"orders": "order"}},
+    "order": {
+        "inputs": {"signal": "bool", "size": "size"},
+        "outputs": {"orders": "order"},
+    },
     "schedule": {"inputs": {}, "outputs": {"signal": "bool"}},
     "benchmark": {"inputs": {"input": "series"}, "outputs": {"value": "series"}},
 }
@@ -221,7 +232,13 @@ class StrategyGraph(BaseModel):
     ) -> StrategyGraph:
         """Append a node and return ``self`` (builder chaining)."""
         self.nodes.append(
-            GraphNode(id=id, type=type, label=label, params=dict(params or {}), indicator=indicator)
+            GraphNode(
+                id=id,
+                type=type,
+                label=label,
+                params=dict(params or {}),
+                indicator=indicator,
+            )
         )
         return self
 
@@ -237,12 +254,18 @@ class StrategyGraph(BaseModel):
         """Append an edge and return ``self`` (builder chaining)."""
         self.edges.append(
             GraphEdge(
-                id=id, from_node=from_node, from_port=from_port, to_node=to_node, to_port=to_port
+                id=id,
+                from_node=from_node,
+                from_port=from_port,
+                to_node=to_node,
+                to_port=to_port,
             )
         )
         return self
 
-    def with_subscriptions(self, *, quotes: bool = False, trades: bool = False) -> StrategyGraph:
+    def with_subscriptions(
+        self, *, quotes: bool = False, trades: bool = False
+    ) -> StrategyGraph:
         """Set the subscription channels and return ``self`` (builder chaining)."""
         self.subscriptions = _SubscriptionsJSON(quotes=quotes, trades=trades)
         return self
@@ -255,7 +278,10 @@ class StrategyGraph(BaseModel):
     def canonical_json(self) -> str:
         """Canonical compact JSON text; two equal graphs hash identically."""
         return json.dumps(
-            self.canonical_dict(), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            self.canonical_dict(),
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
         )
 
     def graph_hash(self) -> str:
@@ -265,7 +291,10 @@ class StrategyGraph(BaseModel):
     # -- manifest bridge -------------------------------------------------------
     def instruments(self) -> list[InstrumentId]:
         """The explicit universe instruments (empty for a named universe)."""
-        return [InstrumentId(i["symbol"], i["exchange"]) for i in (self.universe.explicit or [])]
+        return [
+            InstrumentId(i["symbol"], i["exchange"])
+            for i in (self.universe.explicit or [])
+        ]
 
     def manifest_name(self) -> str:
         return self.name
@@ -285,7 +314,8 @@ class StrategyGraph(BaseModel):
             ids = self.instruments()
             universe = Universe.of_explicit(ids)
         parameters = {
-            key: ParameterSpec.model_validate(value) for key, value in self.parameters.items()
+            key: ParameterSpec.model_validate(value)
+            for key, value in self.parameters.items()
         }
         return StrategyManifest(
             api_version=self.strategy_api_version or _default_api_version(),
@@ -316,17 +346,23 @@ class StrategyGraph(BaseModel):
                 f"graph schema_version {self.schema_version} is not {GRAPH_SCHEMA_VERSION}",
             )
         if not self.nodes:
-            raise GraphError("empty_graph", "a strategy graph must have at least one node")
+            raise GraphError(
+                "empty_graph", "a strategy graph must have at least one node"
+            )
         seen_ids: set[str] = set()
         for node in self.nodes:
             if node.id in seen_ids:
                 raise GraphError(
-                    "duplicate_node_id", f"duplicate node id {node.id!r}", node_id=node.id
+                    "duplicate_node_id",
+                    f"duplicate node id {node.id!r}",
+                    node_id=node.id,
                 )
             seen_ids.add(node.id)
             if node.type not in NODE_TYPES:
                 raise GraphError(
-                    "unknown_node_type", f"unknown node type {node.type!r}", node_id=node.id
+                    "unknown_node_type",
+                    f"unknown node type {node.type!r}",
+                    node_id=node.id,
                 )
             if node.type == "indicator":
                 if not node.indicator:
@@ -354,7 +390,8 @@ class StrategyGraph(BaseModel):
             if source is None or target is None:
                 bad = edge.from_node if source is None else edge.to_node
                 raise GraphError(
-                    "unknown_edge_endpoint", f"edge {edge.id!r} references unknown node {bad!r}"
+                    "unknown_edge_endpoint",
+                    f"edge {edge.id!r} references unknown node {bad!r}",
                 )
             out_ports = _NODE_PORT_SPECS[source.type]["outputs"]
             in_ports = _NODE_PORT_SPECS[target.type]["inputs"]
@@ -429,7 +466,9 @@ class _Catalogue:
                         "default": p.get("default"),
                         "type": p.get("type", "float"),
                     }
-                    entry.update(_param_range(p["name"], p.get("default"), entry["type"]))
+                    entry.update(
+                        _param_range(p["name"], p.get("default"), entry["type"])
+                    )
                     params.append(entry)
                 built[kind] = {
                     "kind": kind,
@@ -497,7 +536,8 @@ def _check_manifest_errors(manifest: StrategyManifest) -> None:
     expected = _default_api_version()
     if manifest.api_version != expected:
         raise GraphError(
-            "unsupported_api_version", f"unsupported strategy api_version: {manifest.api_version}"
+            "unsupported_api_version",
+            f"unsupported strategy api_version: {manifest.api_version}",
         )
     if manifest.driving_timeframe.interval == 0:
         raise GraphError("zero_interval", "timeframe interval must be > 0")
@@ -522,14 +562,18 @@ def _check_manifest_errors(manifest: StrategyManifest) -> None:
             raise GraphError("invalid_parameter_range", f"parameter {name!r} min > max")
         if param.step is not None and param.step <= 0:
             raise GraphError("invalid_parameter_range", f"parameter {name!r} step <= 0")
-        if isinstance(param.default, (int, float)) and not isinstance(param.default, bool):
+        if isinstance(param.default, (int, float)) and not isinstance(
+            param.default, bool
+        ):
             if param.min is not None and param.default < param.min:
                 raise GraphError(
-                    "parameter_default_out_of_range", f"parameter {name!r} default < min"
+                    "parameter_default_out_of_range",
+                    f"parameter {name!r} default < min",
                 )
             if param.max is not None and param.default > param.max:
                 raise GraphError(
-                    "parameter_default_out_of_range", f"parameter {name!r} default > max"
+                    "parameter_default_out_of_range",
+                    f"parameter {name!r} default > max",
                 )
 
 
@@ -541,7 +585,9 @@ def _aggregation(value: str) -> BarAggregation:
         try:
             return BarAggregation(value.lower())
         except ValueError as exc:
-            raise GraphError("invalid_aggregation", f"unknown bar aggregation {value!r}") from exc
+            raise GraphError(
+                "invalid_aggregation", f"unknown bar aggregation {value!r}"
+            ) from exc
 
 
 def _default_api_version() -> str:
@@ -560,7 +606,9 @@ def _universe_json(
         return _UniverseJSON(named=universe)
     if isinstance(universe, Mapping):
         return _UniverseJSON.model_validate(universe)
-    return _UniverseJSON(explicit=[{"symbol": i.symbol, "exchange": i.exchange} for i in universe])
+    return _UniverseJSON(
+        explicit=[{"symbol": i.symbol, "exchange": i.exchange} for i in universe]
+    )
 
 
 def _timeframe_json(

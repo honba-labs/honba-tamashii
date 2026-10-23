@@ -38,7 +38,9 @@ class VolatilityStop(Indicator):
         self._up = True
         self._max = self._min = self._stop = 0.0
 
-    def update(self, high: float, low: float, close: float) -> VolatilityStopValue | None:
+    def update(
+        self, high: float, low: float, close: float
+    ) -> VolatilityStopValue | None:
         atr = self._atr.update(high, low, close)
         if atr is None:
             return None

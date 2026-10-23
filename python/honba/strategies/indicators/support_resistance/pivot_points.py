@@ -64,14 +64,22 @@ class PivotPoints(Indicator):
             )
         if self.mode == "fibonacci":
             return PivotPointsValue(
-                p, p + 0.382 * r, p + 0.618 * r, p + r, p - 0.382 * r, p - 0.618 * r, p - r
+                p,
+                p + 0.382 * r,
+                p + 0.618 * r,
+                p + r,
+                p - 0.382 * r,
+                p - 0.618 * r,
+                p - r,
             )
         k = 1.1 * r
         return PivotPointsValue(
             p, c + k / 12, c + k / 6, c + k / 4, c - k / 12, c - k / 6, c - k / 4
         )
 
-    def update(self, high: float, low: float, close: float, ts: float) -> PivotPointsValue | None:
+    def update(
+        self, high: float, low: float, close: float, ts: float
+    ) -> PivotPointsValue | None:
         day = ist_session_day(int(ts))
         if self._day is None:
             self._day, self._h, self._l = day, high, low

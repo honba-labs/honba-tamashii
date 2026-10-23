@@ -7,7 +7,9 @@ from honba.strategies.indicators._rolling import RollingSum
 from honba.strategies.indicators._util import check as _check
 
 
-@indicator("vwma", "moving_average", inputs=("close", "volume"), warmup=lambda s: s.period)
+@indicator(
+    "vwma", "moving_average", inputs=("close", "volume"), warmup=lambda s: s.period
+)
 class Vwma(Indicator):
     """VWMA: sum(close*volume) / sum(volume) over ``period`` bars.
 
