@@ -39,3 +39,16 @@ honba-me-market     = { path = "../honba-me/crates/honba-me-market" }
 honba-me-feed       = { path = "../honba-me/crates/honba-me-feed" }
 honba-me-loaders    = { path = "../honba-me/crates/honba-me-loaders" }
 honba-me-indicators = { path = "../honba-me/crates/honba-me-indicators" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+[profile.prod]
+inherits = "release"
+lto = true
+codegen-units = 1
