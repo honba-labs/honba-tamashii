@@ -1,7 +1,7 @@
 # Master Plan: 本場・魂 honba-tamashii
 
 > **The soul of the real market.**  
-> High-performance PyO3 native bindings, idiomatic Python SDK, and research-live parity bridge for Indian equities and derivatives (NSE/BSE/NFO/MCX). Connects Python quantitative research, AI decision models (`honba-nou`), and Python strategy scripts to the zero-I/O deterministic core (`honba-core`), institutional Order Management System (`honba-kokoro`), market data pipeline (`honba-me`), pre-trade risk engine (`honba-mon`), and the high-throughput actor runtime (`honba-ya`). Zero-copy Apache Arrow data transfer, exact decimal financial math (`rust_decimal`), GIL-disciplined execution, and SEBI regulatory compliance.
+> High-performance PyO3 native bindings, idiomatic Python SDK, and research-live parity bridge for Indian equities and derivatives (NSE/BSE/NFO/MCX). Connects Python quantitative research, AI decision models (`honba-nou`), dynamic position sizing engines, and Python strategy scripts to the zero-I/O deterministic core (`honba-core`), institutional Order Management System (`honba-kokoro`), market data pipeline (`honba-me`), pre-trade risk engine (`honba-mon`), and the high-throughput actor runtime (`honba-ya`). Zero-copy Apache Arrow data transfer, exact decimal financial math (`rust_decimal`), GIL-disciplined execution, and SEBI regulatory compliance.
 
 ---
 
@@ -21,6 +21,7 @@
 | **GIL Discipline & Sandboxing** | `strategy.call_method1("on_bar", ...)` runs under Python GIL synchronously without `catch_unwind`. A Python exception crashes the entire process. | **Fault-Isolated Execution**: Wrap all Python callback dispatches in `std::panic::catch_unwind` and PyO3 exception traps. On error, transition strategy to `StrategyState::Degraded`, trigger order-cancellation flow in `honba-mon`, log structured tracebacks, and release GIL (`py.allow_threads`) during Rust compute/I/O. | **P0 (Critical)** |
 | **Data Transfer Efficiency** | Historical bars and ticks are converted one-by-one into Python class instances, incurring massive heap allocations and serialization overhead. | **Zero-Copy Arrow Lakehouse Bridge**: Zero-copy data sharing between Rust Parquet lakehouse (`honba-me-feed`) and Python (Polars / PyArrow) using the Arrow PyCapsule protocol (`nanoarrow`). Instant million-bar vector ingestion. | **P1 (High)** |
 | **Technical Indicators** | `SMA` is a toy 40-line `f64` vector struct. Legacy Python has pure-Python indicator implementations. | **Vectorized Bindings to `honba-me-indicators`**: Expose the institutional Rust indicator suite (Supertrend, VWAP, CPR, ADX, RMA, PSAR, Ichimoku, RSI) directly to Python with SIMD vector acceleration and NumPy/Polars array interoperability. | **P1 (High)** |
+| **Position Sizing Architecture** | Sizing is hardcoded into individual Python strategies with static lot numbers. No reusable, volatility-adjusted or risk-per-trade components. | **High-Performance Rust Sizing Bridge (`honba.sizing`)**: Bind canonical `honba-core` sizing contracts (`PositionSizingRequest`, `RiskBudget`, `SizingMethod`) to fast PyO3 kernels, exposing pluggable ATR, Fixed-Fractional, Kelly, and Equal Risk sizers to Python. | **P1 (High)** |
 
 ---
 
@@ -33,14 +34,20 @@
                                   └───────────────────────────┬─────────────────────────────┘
                                                               │ Python Strategy / SDK
                                                               ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────────────────────────────────────┐
 │  本場・魂 honba-tamashii Subsystem (PyO3 Native Bridge & Python SDK)                                          │
-│                                                                                                              │
+│                                                                                           │
 │  ┌──────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────────┐  │
 │  │   Canonical Type Wrappers    │   │   GIL-Disciplined Dispatch   │   │   Zero-Copy Arrow PyCapsule      │  │
 │  │   (honba.types)              │   │   (Runner / Strategy Loop)   │   │   (honba.data / Parquet Lake)    │  │
 │  │   Price, Qty, InstrumentId   │   │   py.allow_threads + traps   │   │   Rust Arrow 53 ⇄ Polars/PyArrow │  │
 │  └──────────────┬───────────────┘   └──────────────┬───────────────┘   └──────────────────┬───────────────┘  │
+│                 │                                  │                                      │                  │
+│  ┌──────────────┴───────────────┐                  │                                      │                  │
+│  │   Position Sizing Bridge     │                  │                                      │                  │
+│  │   (honba.sizing)             │                  │                                      │                  │
+│  │   ATR, Kelly, FixedFractional│                  │                                      │                  │
+│  └──────────────┬───────────────┘                  │                                      │                  │
 │                 │                                  │                                      │                  │
 └─────────────────┼──────────────────────────────────┼──────────────────────────────────────┼──────────────────┘
                   │                                  │                                      │
@@ -48,7 +55,8 @@
 ┌─────────────────────────────────┐   ┌──────────────────────────────┐   ┌──────────────────────────────────┐
 │   honba-core (Canonical Types)  │   │  honba-ya (Runtime / Engine) │   │  honba-me (Market Data & Feeds)  │
 │   Decimal Math, UTC Timestamps  │   │  Actor Event Loop & Backtest │   │  Indicators, Bhavcopy, Parquet   │
-└─────────────────┬───────────────┘   └──────────────┬───────────────┘   └──────────────────────────────────┘
+│   Position Sizing Contracts     │   └──────────────┬───────────────┘   └──────────────────────────────────┘
+└─────────────────┬───────────────┘                  │
                   │                                  │
                   ▼                                  ▼
 ┌─────────────────────────────────┐   ┌──────────────────────────────┐
@@ -61,7 +69,7 @@
 ### Key Tenets
 1. **Zero Compromise on Monetary Precision**: All monetary values crossing the Python boundary use exact decimal representations. Prices and quantities bridge between `rust_decimal::Decimal` and Python's `decimal.Decimal` (or optimized integer-scaled FixedPoint handles) with zero floating-point drift.
 2. **Deterministic Research-Live Parity**: A strategy written against `honba.Strategy` runs identically in backtesting and live execution. The Python runner does not maintain its own simulated matching engine; it delegates directly to `honba-ya` and `honba-kokoro`, ensuring exact execution prices, statutory charges (STT, GST, stamp duty), and T+1 Demat settlement.
-3. **GIL Discipline & Zero-Cost Concurrency**: The Python Global Interpreter Lock (GIL) is acquired exclusively during strategy callback dispatches (`on_bar`, `on_tick`, `on_order_ack`, `on_fill`). Rust-side I/O, event dispatching, risk validation, and indicator computations execute with the GIL released (`py.allow_threads`).
+3. **GIL Discipline & Zero-Cost Concurrency**: The Python Global Interpreter Lock (GIL) is acquired exclusively during strategy callback dispatches (`on_bar`, `on_tick`, `on_order_ack`, `on_fill`). Rust-side I/O, event dispatching, risk validation, sizing kernels, and indicator computations execute with the GIL released (`py.allow_threads`).
 4. **Resilient Exception Sandboxing**: A buggy strategy raising a Python exception or causing an unhandled panic must never crash the trading daemon. Callbacks are isolated within `std::panic::catch_unwind` and PyO3 error handlers, transitioning the strategy into a `Degraded` state and dispatching automated safety cancellations through `honba-mon`.
 5. **Zero-Copy Arrow Lakehouse Transfers**: High-volume historical market data (OHLCV bars, tick streams, book snapshots) transfers across the FFI boundary using the standard Arrow PyCapsule protocol, enabling zero-copy ingest into Polars and NumPy.
 6. **Mandatory SEBI Compliance**: Every strategy configuration requires an explicit `algo_id`. Python `ctx.submit()` calls pass synchronously through `honba-mon` before an order can enter the OMS.
@@ -86,6 +94,7 @@ honba-tamashii/
 │   │       ├── types.rs           # PyPrice, PyQuantity, PyInstrumentId, PyMoney wrappers
 │   │       ├── market.rs          # PyBar, PyTick, PyDepthLevel wrappers
 │   │       ├── order.rs           # PyOrderRequest, PyOrderAck, PyFillReport, PyOrderStatus
+│   │       ├── sizing.rs          # PyPositionSizer, PyRiskBudget, PySizingMethod wrappers
 │   │       ├── context.rs         # PyContext runtime interface with honba-mon risk check
 │   │       ├── runner.rs          # PyRunner delegating to honba-ya event loop
 │   │       ├── indicators.rs      # Vectorized bindings to honba-me-indicators
@@ -98,6 +107,7 @@ honba-tamashii/
         ├── py.typed               # PEP 561 typing marker
         ├── _honba.pyi             # Autogenerated native type stubs
         ├── types/                 # Pythonic type wrappers & Decimal aliases
+        ├── sizing/                # Dynamic position sizing base classes & engines
         ├── strategy/              # Strategy base class & lifecycle handlers
         ├── runner/                # High-level backtest & live runner wrappers
         ├── indicators/            # Vectorized indicator bindings (Rust-accelerated)
@@ -111,7 +121,7 @@ honba-tamashii/
 Python SDK: [honba (python/honba/)] ──▶ loads [honba._honba (ABI3 cdylib)]
                                               │
 Layer 3: [honba-tamashii-py] ─────────────────┴──▶ depends on:
-             ├── [honba-core]         (Canonical types: Price, Qty, Bar, Tick, OrderRequest)
+             ├── [honba-core]         (Canonical types: Price, Qty, Bar, Tick, OrderRequest, Sizing)
              ├── [honba-mon]          (Synchronous pre-trade risk engine & OTR gate)
              ├── [honba-kokoro]       (OMS FSM, FIFO portfolio, double-entry ledger)
              ├── [honba-me-core]      (Feed traits & tick enrichers)
@@ -152,34 +162,35 @@ Layer 3: [honba-tamashii-py] ─────────────────
 ### 3.2 Strategy Runtime & GIL-Disciplined Event Loop
 - **Python Strategy Lifecycle Interface**:
   ```python
-  from honba import Strategy, Bar, Tick, PyContext, OrderAck, FillReport
+  from honba import Bar, FillReport, OrderAck, PyContext, Strategy, Tick
 
 
   class MomentumAlpha(Strategy):
-      def setup(self, ctx: PyContext) -> None:
-          """Called once before market data starts."""
-          pass
 
-      def on_bar(self, bar: Bar, ctx: PyContext) -> None:
-          """Called per bar close for subscribed instruments."""
-          pass
+    def setup(self, ctx: PyContext) -> None:
+      """Called once before market data starts."""
+      pass
 
-      def on_tick(self, tick: Tick, ctx: PyContext) -> None:
-          """Called per real-time tick (for tick-level strategies)."""
-          pass
+    def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+      """Called per bar close for subscribed instruments."""
+      pass
 
-      def on_order_ack(self, ack: OrderAck, ctx: PyContext) -> None:
-          """Called on exchange/broker order acknowledgement."""
-          pass
+    def on_tick(self, tick: Tick, ctx: PyContext) -> None:
+      """Called per real-time tick (for tick-level strategies)."""
+      pass
 
-      def on_fill(self, fill: FillReport, ctx: PyContext) -> None:
-          """Called on trade execution with lot & commission details."""
-          pass
+    def on_order_ack(self, ack: OrderAck, ctx: PyContext) -> None:
+      """Called on exchange/broker order acknowledgement."""
+      pass
 
-      def on_stop(self, ctx: PyContext) -> None:
-          """Called gracefully on market close or user halt."""
-          pass
-  ```
+    def on_fill(self, fill: FillReport, ctx: PyContext) -> None:
+      """Called on trade execution with lot & commission details."""
+      pass
+
+    def on_stop(self, ctx: PyContext) -> None:
+      """Called gracefully on market close or user halt."""
+      pass
+```
 - **Fault-Isolated Execution & Degraded State**:
   - Every callback invocation into Python is wrapped in `std::panic::catch_unwind`.
   - If a Python strategy throws an unhandled exception:
@@ -191,6 +202,7 @@ Layer 3: [honba-tamashii-py] ─────────────────
   - The Rust loop releases the GIL (`py.allow_threads`) during:
     - Arrow Parquet reading and decompression from disk.
     - Pre-trade risk calculations in `honba-mon`.
+    - Pure mathematical position sizing evaluations.
     - OMS state updates in `honba-kokoro`.
     - Network I/O and WebSocket event processing in `honba-me` and `honba-te`.
 
@@ -242,6 +254,23 @@ Layer 3: [honba-tamashii-py] ─────────────────
   - **Phase C**: Consolidate `honba.strategies` to inherit from canonical `honba.Strategy`.
   - **Phase D**: Replace legacy `honba.backtest` with native `honba._honba.Runner` powered by `honba-ya`.
   - **Phase E**: Audit and prune `honba.ai` — retain only the active components that integrate with `honba-nou` and `honba-examples`.
+
+### 3.7 Dynamic Position Sizing Bridge (`crates/honba-tamashii-py/src/sizing.rs` & `python/honba/sizing/`)
+- **Native Rust Sizing Acceleration**:
+  - High-performance, zero-float PyO3 bindings around `honba_core::sizing`:
+    - `FixedFractional`: $Q = \lfloor \frac{\text{Equity} \times \text{RiskPct}}{|P_{entry} - P_{stop}| \times \text{LotSize}} \rfloor \times \text{LotSize}$
+    - `VolatilityTarget`: $Q = \lfloor \frac{\text{Equity} \times \text{TargetRisk}}{\text{ATR} \times \text{Multiplier} \times \text{LotSize}} \rfloor \times \text{LotSize}$
+    - `KellyCriterion`: $f^* = p - \frac{1-p}{b}$; damped fractional allocation ($0.5 \times f^*$)
+    - `EqualRiskContribution`: inverse-volatility risk parity across active signal sets
+- **Python Sizing Base & Context Integration**:
+  - `honba.sizing.base.BasePositionSizer` ABC with standard method:
+    ```python
+    def calculate_size(
+        self, signal: Signal, equity: Money, **kwargs
+    ) -> PositionSizingResult: ...
+    ```
+
+  - `PyContext.size_signal(signal, sizer=None)` helper querying live portfolio equity, available margin, and stop distances synchronously before order creation.
 
 ---
 
@@ -314,12 +343,57 @@ Layer 3: [honba-tamashii-py] ─────────────────
 - [ ] Validate all `honba-examples` tests against the unified `honba` package.
 - [ ] Publish comprehensive Python developer documentation, Jupyter starter notebooks, and API reference.
 
+### Phase 7: High-Performance Dynamic Position Sizing Bridge & Python SDK (M6) — Week 13–14
+> **Native PyO3 FFI bindings and idiomatic Python SDK for dynamic, volatility-adjusted position sizing.**  
+> Bridges `honba-core::sizing` mathematical models to Python quantitative pipelines with zero floating-point drift, GIL release during heavy vector sizing, and direct integration with `honba-kokoro` portfolio state.
+
+- [ ] **7.1 Native PyO3 Position Sizing Extension (`crates/honba-tamashii-py/src/sizing.rs`)**
+  - [ ] Implement PyO3 wrappers for canonical sizing types: `PyPositionSizingRequest`, `PyPositionSizingResult`, `PyRiskBudget`, `PySizingMethod`.
+  - [ ] Compile optimized native Rust calculation kernels callable from Python:
+    - `PyFixedFractionalSizer`: $Q = \lfloor \frac{\text{Equity} \times \text{RiskPct}}{|P_{entry} - P_{stop}| \times \text{LotSize}} \rfloor \times \text{LotSize}$.
+    - `PyAtrVolatilitySizer`: $Q = \lfloor \frac{\text{Equity} \times \text{TargetRisk}}{\text{ATR} \times \text{Multiplier} \times \text{LotSize}} \rfloor \times \text{LotSize}$.
+    - `PyKellySizer`: $f^* = p - \frac{1-p}{b}$; applies safety fraction (e.g. half-Kelly).
+    - `PyEqualRiskSizer`: Multi-asset inverse-volatility risk parity allocation.
+  - [ ] Guarantee exact 128-bit decimal precision: convert seamlessly between `rust_decimal::Decimal` and Python `decimal.Decimal`.
+  - [ ] Generate strict `.pyi` type stubs via `honba-tamashii-codegen`.
+- [ ] **7.2 Idiomatic Python Sizing Module (`python/honba/sizing/`)**
+  - [ ] Define abstract `BasePositionSizer` with standard signature:
+    `def calculate_size(self, signal: Signal, equity: Money, **kwargs) -> PositionSizingResult`.
+  - [ ] Export standard sizers: `FixedFractionalSizer`, `AtrVolatilitySizer`, `KellySizer`, `EqualRiskSizer`, `FixedNotionalSizer`.
+  - [ ] Integrate with `PyContext`: provide `ctx.size_signal(signal, sizer=None)` that automatically pulls current equity, available margin, and stop-loss levels from `honba-kokoro` portfolio before sizing.
+- [ ] **7.3 Vectorized Batch Universe Sizing (Arrow / Polars Integration)**
+  - [ ] Support zero-copy batch sizing across a Polars DataFrame of candidate signals:
+    `pl.col("signal").honba.size(equity=1000000, risk_pct=0.01, atr_col="atr")`.
+  - [ ] Release GIL during batch allocation calculations across large multi-symbol universes.
+- [ ] **7.4 Research-Live Parity Verification**
+  - [ ] Verify that sizing decisions evaluated in backtests match live trading fills down to 0 discrepancy on lot-rounded quantities.
+
+---
+
+### Phase 8: Python SDK Release Stability, Tokio-AsyncIO Bridge & Property-Based Test Rigor (M7)
+> **Enforcing stable SemVer releases, automated .pyi stub stability checks, PyO3-asyncio cooperative bridge, and Hypothesis property testing.**
+
+- [ ] **8.1 Semantic Versioning & SDK Backward Compatibility Guarantees**
+  - [ ] Adopt strict Semantic Versioning (`major.minor.patch`) for the `honba` PyPI package.
+  - [ ] Implement CI stub diff linter (`stubtest` / `pyright --verifytypes`) asserting that generated `_honba.pyi` stubs never remove public symbols or mutate parameter signatures without a major version bump.
+  - [ ] Add contract regression tests verifying that strategies written against version $N-1$ execute without modification against version $N$.
+- [ ] **8.2 Tokio-AsyncIO Cooperative Execution Bridge (`crates/honba-tamashii-py/src/async_bridge.rs`)**
+  - [ ] Expose a native `pyo3-asyncio` bridge allowing Python `async def` strategy callbacks to integrate cooperatively with the Rust Tokio event loop.
+  - [ ] Implement timeout and cancellation semantics (`PyCancellationToken`) enabling Tokio to cleanly abort stalled Python async tasks without deadlocking worker threads.
+  - [ ] Provide dedicated thread pool isolation for blocking Python calls, guaranteeing the main actor event loop is never starved.
+- [ ] **8.3 Property-Based Testing with Hypothesis & Mutation Testing**
+  - [ ] Python property-based testing suites (`tests/test_invariants.py`):
+    - Verify lossless Decimal conversion roundtrips between Python `decimal.Decimal` and Rust `rust_decimal::Decimal`.
+    - Verify position sizing bounds: guaranteed $\text{allocated\_risk} \le \text{equity} \times \text{risk\_pct}$.
+  - [ ] Mutation testing with `mutmut` across `python/honba/` to identify and close test coverage gaps.
+
+
 ---
 
 ## 5. Verification, Conformance & Benchmarks
 
 1. **Numerical & Decimal Precision Invariant**:
-   - `proptest` suites asserting that converting `Price` and `Quantity` between Rust `Decimal` and Python `decimal.Decimal` over $10^6$ randomized inputs produces zero precision loss.
+   - `proptest` suites asserting that converting `Price`, `Quantity`, and `RiskBudget` between Rust `Decimal` and Python `decimal.Decimal` over $10^6$ randomized inputs produces zero precision loss.
 2. **GIL Safety & Concurrency Stress Test**:
    - Multi-threaded Python backtest benchmark running 100 concurrent strategy instances across 8 OS threads, verifying zero deadlock and linear multi-core scaling.
 3. **Fault-Tolerance & Sandboxing Test**:
@@ -328,6 +402,8 @@ Layer 3: [honba-tamashii-py] ─────────────────
    - 10,000,000 tick / 500,000 1-minute bar dataset memory transfer test into Polars in $< 50\text{ ms}$ with zero memory re-allocation.
 5. **Regulatory & OTR Compliance Suite**:
    - Strategy test generating aggressive order cancellation loops, proving that `honba-mon` trips the OTR circuit breaker, blocks further submissions, and surfaces `RiskRefusalError` to Python.
+6. **Position Sizing Invariant & Bound Test**:
+   - Automated test suite validating that sized order quantities never exceed maximum position caps, never risk more than declared `risk_pct` on stop-loss execution, and strictly adhere to exchange lot sizes.
 
 
 ## Leftovers / Technical Debt

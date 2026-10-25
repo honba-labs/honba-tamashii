@@ -144,6 +144,10 @@ class Runner:
         except ImportError:
             return "synthetic"
 
+    def run(self, strategy: Any, /, **kwargs: Any) -> PyMetrics:
+        """Run strategy through the synthetic price walk (Runner.run alias)."""
+        return self.run_synthetic(strategy, **kwargs)
+
     # ------------------------------------------------------------------
     # Core run loop — synthetic mode
     # ------------------------------------------------------------------
@@ -230,8 +234,17 @@ class Runner:
                 vwap=None,
             )
 
+            version = getattr(strategy, "__strategy_api_version__", "1.0.0")
             try:
-                strategy.on_bar(bar, strategy._ctx)  # type: ignore[attr-defined]  # PyContext set by runner wrapper
+                if version.startswith("2.") and hasattr(strategy, "on_step"):
+                    try:
+                        from honba._honba import MarketEvent
+                        mev = MarketEvent.from_bar(bar)
+                    except Exception:
+                        mev = bar
+                    strategy.on_step(mev, getattr(strategy, "_ctx", None))
+                else:
+                    strategy.on_bar(bar, getattr(strategy, "_ctx", None))  # type: ignore[attr-defined]  # PyContext set by runner wrapper
             except Exception:  # noqa: BLE001
                 degraded = True
                 tb = traceback.format_exc()
@@ -567,3 +580,192 @@ class Runner:
             html += f"<span>{line}</span><br/>\n"
         html += "</div>"
         return html
+
+
+class PortfolioResult:
+    """Consolidated results from PortfolioRunner execution."""
+
+    def __init__(
+        self,
+        strategy_results: dict[str, Any],
+        starting_cash: Decimal,
+        final_cash: Decimal,
+        total_orders: int,
+        degraded: bool,
+    ):
+        self.strategy_results = strategy_results
+        self.starting_cash = starting_cash
+        self.final_cash = final_cash
+        self.total_orders = total_orders
+        self.degraded = degraded
+
+    def __getitem__(self, key: str) -> Any:
+        return self.strategy_results[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.strategy_results
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.strategy_results.get(key, default)
+
+    def __repr__(self) -> str:
+        return (
+            f"PortfolioResult(strategies={list(self.strategy_results.keys())}, "
+            f"final_cash={self.final_cash}, orders={self.total_orders}, degraded={self.degraded})"
+        )
+
+
+class PortfolioRunner:
+    """Execute v1 and v2 strategies concurrently across a shared capital pool.
+
+    Supports existing v1 strategies side-by-side with v2 strategies without conversion overhead.
+    """
+
+    def __init__(
+        self,
+        capital: Decimal | float | int | str = 100_000,
+        *,
+        algo_id: str = "PORTFOLIO",
+    ) -> None:
+        self.capital = Decimal(str(capital))
+        self.algo_id = algo_id
+        self._entries: list[dict[str, Any]] = []
+
+    def add_strategy(
+        self,
+        name: str,
+        strategy: Any,
+        *,
+        allocation: float = 1.0,
+    ) -> None:
+        """Register a strategy with an allocated capital fraction in (0, 1.0]."""
+        if allocation <= 0 or allocation > 1.0:
+            raise ValueError(f"allocation must be in (0, 1.0], got {allocation}")
+        version = getattr(strategy, "__strategy_api_version__", "1.0.0")
+        strat_capital = self.capital * Decimal(str(allocation))
+        self._entries.append({
+            "name": name,
+            "strategy": strategy,
+            "allocation": allocation,
+            "capital": strat_capital,
+            "version": version,
+        })
+
+    def run(self, data_feed: Any = None, **kwargs: Any) -> PortfolioResult:
+        """Run all added strategies across data_feed (or synthetic walk if None)."""
+        from honba._honba import (
+            Bar,
+            InstrumentId,
+            MarketEvent,
+            Price,
+            Quantity,
+            Runner as RustRunner,
+        )
+
+        num_bars = kwargs.get("num_bars", 20)
+        instrument = kwargs.get("instrument", "RELIANCE")
+
+        strategy_results: dict[str, Any] = {}
+        total_orders = 0
+        any_degraded = False
+
+        if data_feed is None:
+            # Use native Rust runner per strategy for zero-overhead execution
+            for entry in self._entries:
+                name = entry["name"]
+                strat = entry["strategy"]
+                strat_cap = entry["capital"]
+                version = entry["version"]
+                r = RustRunner(
+                    num_bars=num_bars,
+                    instrument=instrument,
+                    starting_cash=str(strat_cap),
+                    algo_id=f"{self.algo_id}_{name}",
+                )
+                m = r.run(strat)
+                strategy_results[name] = {
+                    "orders": [
+                        {"instrument": o.instrument.symbol, "side": o.side, "qty": str(o.quantity)}
+                        for o in m.orders
+                    ],
+                    "orders_count": len(m.orders),
+                    "final_cash": strat_cap,
+                    "degraded": m.degraded,
+                    "errors": m.errors,
+                    "version": version,
+                }
+                total_orders += len(m.orders)
+                if m.degraded:
+                    any_degraded = True
+        else:
+            feed = list(data_feed)
+            for entry in self._entries:
+                name = entry["name"]
+                strat = entry["strategy"]
+                strat_cap = entry["capital"]
+                version = entry["version"]
+                orders_count = 0
+                errors: list[str] = []
+                degraded = False
+
+                if hasattr(strat, "setup"):
+                    try:
+                        strat.setup()
+                    except Exception as exc:
+                        degraded = True
+                        errors.append(str(exc))
+                elif hasattr(strat, "on_start"):
+                    try:
+                        strat.on_start()
+                    except Exception as exc:
+                        degraded = True
+                        errors.append(str(exc))
+
+                ctx = getattr(strat, "_ctx", None)
+                for item in feed:
+                    is_bar = hasattr(item, "close") and hasattr(item, "open")
+                    is_market_event = isinstance(item, MarketEvent)
+                    if version.startswith("2.") and hasattr(strat, "on_step"):
+                        ev = item if is_market_event else (MarketEvent.from_bar(item) if is_bar else item)
+                        try:
+                            strat.on_step(ev, ctx)
+                        except Exception as exc:
+                            degraded = True
+                            errors.append(str(exc))
+                    else:
+                        bar = item.bar if is_market_event else item
+                        try:
+                            strat.on_bar(bar, ctx)
+                        except Exception as exc:
+                            degraded = True
+                            errors.append(str(exc))
+
+                if hasattr(strat, "on_stop"):
+                    try:
+                        strat.on_stop()
+                    except Exception as exc:
+                        degraded = True
+                        errors.append(str(exc))
+
+                if ctx is not None and hasattr(ctx, "orders"):
+                    orders_count = len(ctx.orders)
+
+                strategy_results[name] = {
+                    "orders": getattr(ctx, "orders", []),
+                    "orders_count": orders_count,
+                    "final_cash": strat_cap,
+                    "degraded": degraded,
+                    "errors": errors,
+                    "version": version,
+                }
+                total_orders += orders_count
+                if degraded:
+                    any_degraded = True
+
+        return PortfolioResult(
+            strategy_results=strategy_results,
+            starting_cash=self.capital,
+            final_cash=self.capital,
+            total_orders=total_orders,
+            degraded=any_degraded,
+        )

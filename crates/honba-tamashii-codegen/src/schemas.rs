@@ -305,7 +305,7 @@ pub fn unresolved_local_refs(doc: &Value) -> Vec<String> {
         .filter(|reference| {
             reference
                 .strip_prefix('#')
-                .map_or(true, |pointer| doc.pointer(pointer).is_none())
+                .is_none_or(|pointer| doc.pointer(pointer).is_none())
         })
         .collect()
 }

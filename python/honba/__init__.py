@@ -16,7 +16,7 @@ Money never crosses the boundary as a float: a price, quantity or amount is
 an exact decimal on both sides (`decimal.Decimal` in Python).
 """
 
-from honba import data, indicators
+from honba import compat, data, indicators, v1, v2
 from honba._honba import (
     ArrowStream,
     Bar,
@@ -26,6 +26,7 @@ from honba._honba import (
     FnoContract,
     InstrumentId,
     Lakehouse,
+    MarketEvent,
     Metrics,
     MinorUnit,
     Money,
@@ -39,6 +40,7 @@ from honba._honba import (
     Price,
     PriceBand,
     PyContext,
+    PyContextV2,
     Quantity,
     RiskDecision,
     RiskEngine,
@@ -53,6 +55,7 @@ from honba._honba import (
 )
 from honba.data import arrow
 from honba.domain.trade import Trade
+from honba.runner import PortfolioResult, PortfolioRunner
 from honba.strategies.base import (
     ArbitrageStrategy,
     QuotingStrategy,
@@ -60,6 +63,8 @@ from honba.strategies.base import (
     SlicingStrategy,
 )
 from honba.strategy import Strategy
+from honba.v1.strategies import Strategy as StrategyV1
+from honba.v2.strategies import Strategy as StrategyV2
 
 __all__ = [
     "ArbitrageStrategy",
@@ -71,6 +76,7 @@ __all__ = [
     "FnoContract",
     "InstrumentId",
     "Lakehouse",
+    "MarketEvent",
     "Metrics",
     "MinorUnit",
     "Money",
@@ -81,9 +87,12 @@ __all__ = [
     "OrderStatus",
     "OrderType",
     "OtrConfig",
+    "PortfolioResult",
+    "PortfolioRunner",
     "Price",
     "PriceBand",
     "PyContext",
+    "PyContextV2",
     "Quantity",
     "QuotingStrategy",
     "RebalancingStrategy",
@@ -96,13 +105,18 @@ __all__ = [
     "SlicingStrategy",
     "Sma",
     "Strategy",
+    "StrategyV1",
+    "StrategyV2",
     "Tick",
     "TimeInForce",
     "Trade",
     "TradingState",
     "arrow",
+    "compat",
     "data",
     "indicators",
+    "v1",
+    "v2",
 ]
 
 __version__ = "0.1.0"

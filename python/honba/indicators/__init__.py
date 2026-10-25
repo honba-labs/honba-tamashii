@@ -1533,28 +1533,28 @@ def _wrap_output(result: list[float | None], template: Any) -> Any:
     return result
 
 
-def sma(values: Sequence[Any], period: int = 14) -> Any:
+def sma(values: Any, period: int = 14) -> Any:
     """Vectorized SMA computed in Rust (`honba-me-indicators`) with the GIL released."""
     return _wrap_output(_batch_sma(_to_float_list(values), period), values)
 
 
-def ema(values: Sequence[Any], period: int = 14) -> Any:
+def ema(values: Any, period: int = 14) -> Any:
     """Vectorized EMA computed in Rust (`honba-me-indicators`) with the GIL released."""
     return _wrap_output(_batch_ema(_to_float_list(values), period), values)
 
 
-def rma(values: Sequence[Any], period: int = 14) -> Any:
+def rma(values: Any, period: int = 14) -> Any:
     """Vectorized Wilder RMA computed in Rust (`honba-me-indicators`) with the GIL released."""
     return _wrap_output(_batch_rma(_to_float_list(values), period), values)
 
 
-def rsi(values: Sequence[Any], period: int = 14) -> Any:
+def rsi(values: Any, period: int = 14) -> Any:
     """Vectorized RSI computed in Rust (`honba-me-indicators`) with the GIL released."""
     return _wrap_output(_batch_rsi(_to_float_list(values), period), values)
 
 
 def bollinger_bands(
-    values: Sequence[Any], period: int = 20, num_std: float = 2.0
+    values: Any, period: int = 20, num_std: float = 2.0
 ) -> tuple[Any, Any, Any]:
     """Vectorized Bollinger Bands `(middle, upper, lower)` computed in Rust."""
     m, u, l = _batch_bollinger(_to_float_list(values), period, float(num_std))
@@ -1562,7 +1562,7 @@ def bollinger_bands(
 
 
 def macd(
-    values: Sequence[Any],
+    values: Any,
     fast_period: int = 12,
     slow_period: int = 26,
     signal_period: int = 9,
@@ -1575,7 +1575,7 @@ def macd(
 
 
 def atr(
-    high: Sequence[Any], low: Sequence[Any], close: Sequence[Any], period: int = 14
+    high: Any, low: Any, close: Any, period: int = 14
 ) -> Any:
     """Vectorized ATR computed in Rust (`honba-me-indicators`) with the GIL released."""
     out = _batch_atr(
@@ -1585,7 +1585,7 @@ def atr(
 
 
 def donchian(
-    high: Sequence[Any], low: Sequence[Any], period: int = 20
+    high: Any, low: Any, period: int = 20
 ) -> tuple[Any, Any, Any]:
     """Vectorized Donchian Channel `(middle, upper, lower)` computed in Rust."""
     m, u, l = _batch_donchian(_to_float_list(high), _to_float_list(low), period)
@@ -1593,9 +1593,9 @@ def donchian(
 
 
 def stochastic(
-    high: Sequence[Any],
-    low: Sequence[Any],
-    close: Sequence[Any],
+    high: Any,
+    low: Any,
+    close: Any,
     k_period: int = 14,
     d_period: int = 3,
 ) -> tuple[Any, Any]:
@@ -1611,7 +1611,7 @@ def stochastic(
 
 
 def williams_r(
-    high: Sequence[Any], low: Sequence[Any], close: Sequence[Any], period: int = 14
+    high: Any, low: Any, close: Any, period: int = 14
 ) -> Any:
     """Vectorized Williams %R computed in Rust."""
     out = _batch_williams_r(
@@ -1621,9 +1621,9 @@ def williams_r(
 
 
 def supertrend(
-    high: Sequence[Any],
-    low: Sequence[Any],
-    close: Sequence[Any],
+    high: Any,
+    low: Any,
+    close: Any,
     period: int = 10,
     multiplier: float = 3.0,
 ) -> tuple[Any, list[int]]:
@@ -1639,10 +1639,10 @@ def supertrend(
 
 
 def vwap(
-    high: Sequence[Any],
-    low: Sequence[Any],
-    close: Sequence[Any],
-    volume: Sequence[Any],
+    high: Any,
+    low: Any,
+    close: Any,
+    volume: Any,
 ) -> Any:
     """Vectorized VWAP computed in Rust."""
     out = _batch_vwap(
@@ -1655,7 +1655,7 @@ def vwap(
 
 
 def cpr(
-    high: Sequence[Any], low: Sequence[Any], close: Sequence[Any]
+    high: Any, low: Any, close: Any
 ) -> tuple[Any, Any, Any, Any]:
     """Vectorized Central Pivot Range `(pivot, bc, tc, width)` computed in Rust."""
     p, bc, tc, w = _batch_cpr(
@@ -1670,7 +1670,7 @@ def cpr(
 
 
 def adx(
-    high: Sequence[Any], low: Sequence[Any], close: Sequence[Any], period: int = 14
+    high: Any, low: Any, close: Any, period: int = 14
 ) -> Any:
     """Vectorized ADX computed in Rust."""
     out = _batch_adx(
@@ -1679,7 +1679,7 @@ def adx(
     return _wrap_output(out, close)
 
 
-def obv(close: Sequence[Any], volume: Sequence[Any]) -> Any:
+def obv(close: Any, volume: Any) -> Any:
     """Vectorized On-Balance Volume (OBV) computed in Rust."""
     out = _batch_obv(_to_float_list(close), _to_float_list(volume))
     return _wrap_output(out, close)

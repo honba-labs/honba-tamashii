@@ -12,7 +12,6 @@ import io
 import logging
 import lzma
 import zipfile
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -27,16 +26,9 @@ from honba._honba import (
 from honba.domain.bar import Bar
 from honba.domain.instrument import InstrumentId
 from honba.markets.india.calendar import IST, NseCalendar
+from honba_data.store.coverage import DateInterval
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class DateInterval:
-    """Half-open calendar date interval `[start, end)`."""
-
-    start: dt.date
-    end: dt.date
 
 
 def validate_bar(bar: Bar) -> None:

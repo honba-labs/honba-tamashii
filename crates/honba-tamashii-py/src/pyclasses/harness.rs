@@ -1,4 +1,4 @@
-//! The strategy harness: `Runner`, `PyContext`, `Metrics`, `Sma`.
+//! The strategy harness: `Runner`, `PyContext`, `PyContextV2`, `Metrics`, `Sma`.
 //!
 //! This replaces the toy scaffold that used to live in the crate root. The
 //! shape is the same — a strategy gets `setup`, then `on_bar` per bar, then
@@ -83,7 +83,7 @@ impl PyMetrics {
 
     /// The cash left at the end of the run.
     #[getter]
-    fn final_cash<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn final_cash<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         match self.final_cash {
             Some(cash) => Ok(Some(to_py_decimal(py, cash)?)),
             None => Ok(None),
@@ -120,17 +120,17 @@ impl PyMetrics {
 /// The context a strategy submits through.
 #[pyclass(name = "PyContext", module = "honba._honba")]
 pub struct PyContext {
-    state: Arc<Mutex<ContextState>>,
-    algo_id: String,
+    pub(crate) state: Arc<Mutex<ContextState>>,
+    pub(crate) algo_id: String,
 }
 
 /// The shared state behind a [`PyContext`].
-struct ContextState {
-    engine: RiskEngine,
-    orders: Vec<OrderRequest>,
-    refusals: Vec<String>,
-    errors: Vec<String>,
-    degraded: bool,
+pub(crate) struct ContextState {
+    pub(crate) engine: RiskEngine,
+    pub(crate) orders: Vec<OrderRequest>,
+    pub(crate) refusals: Vec<String>,
+    pub(crate) errors: Vec<String>,
+    pub(crate) degraded: bool,
 }
 
 #[pymethods]
@@ -166,7 +166,7 @@ impl PyContext {
 
     /// The orders approved so far.
     #[getter]
-    fn orders<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyList>> {
+    fn orders<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let state = self
             .state
             .lock()
@@ -181,7 +181,7 @@ impl PyContext {
 
     /// The rule codes of the orders the gate refused.
     #[getter]
-    fn refusals<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyList>> {
+    fn refusals<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
         let state = self
             .state
             .lock()
@@ -190,7 +190,11 @@ impl PyContext {
     }
 
     fn __repr__(&self) -> String {
-        let orders = self.state.lock().map(|state| state.orders.len()).unwrap_or(0);
+        let orders = self
+            .state
+            .lock()
+            .map(|state| state.orders.len())
+            .unwrap_or(0);
         format!("PyContext(orders={orders})")
     }
 }
@@ -214,7 +218,118 @@ impl PyContext {
                 state.refusals.push(rule.clone());
                 let message = refusal.to_string();
                 let json = serde_json::to_string(&refusal).unwrap_or_default();
-                Err(crate::pyclasses::risk::refusal_error(&message, &rule, &json))
+                Err(crate::pyclasses::risk::refusal_error(
+                    &message, &rule, &json,
+                ))
+            }
+        }
+    }
+}
+
+/// The context for Strategy API v2 submissions.
+#[pyclass(name = "PyContextV2", module = "honba._honba")]
+pub struct PyContextV2 {
+    pub(crate) state: Arc<Mutex<ContextState>>,
+    pub(crate) algo_id: String,
+}
+
+#[pymethods]
+impl PyContextV2 {
+    #[getter]
+    fn version(&self) -> &'static str {
+        "2.0.0"
+    }
+
+    #[pyo3(signature = (instrument, side, quantity))]
+    fn submit(
+        &self,
+        instrument: &Bound<'_, PyAny>,
+        side: &str,
+        quantity: &Bound<'_, PyAny>,
+    ) -> PyResult<String> {
+        let instrument = instrument_from(instrument)?;
+        let order = build_order(&instrument, side, from_py_decimal(quantity)?, &self.algo_id)?;
+        self.submit_order(order)
+    }
+
+    fn submit_request(&self, order: &PyOrderRequest) -> PyResult<String> {
+        self.submit_order(order.inner.clone())
+    }
+
+    fn close_all(&self, instrument: &Bound<'_, PyAny>) -> PyResult<String> {
+        let instrument = instrument_from(instrument)?;
+        let order = build_order(&instrument, "SELL", Decimal::ZERO, &self.algo_id)?;
+        self.submit_order(order)
+    }
+
+    #[getter]
+    fn orders<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+        let items: Vec<Py<PyOrderIntent>> = state
+            .orders
+            .iter()
+            .map(|order| Py::new(py, intent_of(order)))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyList::new_bound(py, items))
+    }
+
+    #[getter]
+    fn refusals<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+        Ok(PyList::new_bound(py, state.refusals.clone()))
+    }
+
+    fn cancel_all(&self) -> PyResult<Vec<String>> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+        let cancelled: Vec<String> = state
+            .orders
+            .iter()
+            .map(|o| o.client_order_id.to_string())
+            .collect();
+        state.orders.clear();
+        Ok(cancelled)
+    }
+
+    fn __repr__(&self) -> String {
+        let orders = self
+            .state
+            .lock()
+            .map(|state| state.orders.len())
+            .unwrap_or(0);
+        format!("PyContextV2(orders={orders})")
+    }
+}
+
+impl PyContextV2 {
+    fn submit_order(&self, order: OrderRequest) -> PyResult<String> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+        let now = chrono::Utc::now();
+        match state.engine.check_order(&order, now) {
+            Ok(()) => {
+                let id = order.client_order_id.to_string();
+                state.orders.push(order);
+                Ok(id)
+            }
+            Err(refusal) => {
+                let rule = refusal.rule().to_string();
+                state.refusals.push(rule.clone());
+                let message = refusal.to_string();
+                let json = serde_json::to_string(&refusal).unwrap_or_default();
+                Err(crate::pyclasses::risk::refusal_error(
+                    &message, &rule, &json,
+                ))
             }
         }
     }
@@ -265,16 +380,19 @@ impl PyRunner {
 
     /// The cash the run starts with.
     #[getter]
-    fn starting_cash<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+    fn starting_cash<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         to_py_decimal(py, self.starting_cash)
     }
 
     /// Runs `strategy` over the walk and reports what happened.
     ///
-    /// The strategy is called as `setup()`, then `on_bar(bar, ctx)` per bar,
-    /// then `on_stop()`. A callback that raises ends the run in a degraded
-    /// state instead of taking the process down.
-    fn run(&self, py: Python<'_>, strategy: &Bound<'_, PyAny>) ->PyResult<PyMetrics> {
+    /// The strategy is called as `setup()`, then `on_bar(bar, ctx)` (v1) or
+    /// `on_step(event, ctx)` (v2) per bar, then `on_stop()`. A callback that
+    /// raises ends the run in a degraded state instead of taking the process down.
+    fn run(&self, py: Python<'_>, strategy: &Bound<'_, PyAny>) -> PyResult<PyMetrics> {
+        let binding = crate::runner::AnyStrategyBinding::detect(strategy)?;
+        let strat_bound = binding.strategy().bind(py);
+
         let instrument = InstrumentId::new(Exchange::Nse, &self.instrument);
         let mut engine = RiskEngine::default();
         engine.register_algo(&self.algo_id);
@@ -293,9 +411,20 @@ impl PyRunner {
                 algo_id: self.algo_id.clone(),
             },
         )?;
+        let context_v2 = Py::new(
+            py,
+            PyContextV2 {
+                state: Arc::clone(&state),
+                algo_id: self.algo_id.clone(),
+            },
+        )?;
 
-        if strategy.hasattr("setup")? {
-            if let Err(err) = strategy.call_method0("setup") {
+        if strat_bound.hasattr("setup")? {
+            if let Err(err) = strat_bound.call_method0("setup") {
+                record_error(&state, err);
+            }
+        } else if strat_bound.hasattr("on_start")? {
+            if let Err(err) = strat_bound.call_method0("on_start") {
                 record_error(&state, err);
             }
         }
@@ -310,20 +439,45 @@ impl PyRunner {
             };
             price += delta;
 
-            let bar = PyBar {
-                inner: honba_core::Bar {
-                    instrument: instrument.clone(),
-                    open: Price::new(price),
-                    high: Price::new(price + Decimal::ONE),
-                    low: Price::new(price - Decimal::ONE),
-                    close: Price::new(price),
-                    volume: Quantity::from_u64(1000),
-                    timestamp: chrono::DateTime::from_timestamp(0, 0)
-                        .expect("epoch is a timestamp"),
-                },
+            let bar_inner = honba_core::Bar {
+                instrument: instrument.clone(),
+                open: Price::new(price),
+                high: Price::new(price + Decimal::ONE),
+                low: Price::new(price - Decimal::ONE),
+                close: Price::new(price),
+                volume: Quantity::from_u64(1000),
+                timestamp: chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp"),
             };
-            let bar = Py::new(py, bar)?;
-            if let Err(err) = strategy.call_method1("on_bar", (bar, &context)) {
+            let bar = Py::new(
+                py,
+                PyBar {
+                    inner: bar_inner.clone(),
+                },
+            )?;
+
+            let call_res = match &binding {
+                crate::runner::AnyStrategyBinding::V1(strat_py) => {
+                    strat_py.bind(py).call_method1("on_bar", (bar, &context))
+                }
+                crate::runner::AnyStrategyBinding::V2(strat_py) => {
+                    let strat = strat_py.bind(py);
+                    let market_event = Py::new(
+                        py,
+                        crate::runner::PyMarketEvent {
+                            inner: honba_core::MarketEvent::Bar(bar_inner),
+                        },
+                    )?;
+                    if strat.hasattr("on_step")? {
+                        strat.call_method1("on_step", (market_event, &context_v2))
+                    } else if strat.hasattr("on_bar")? {
+                        strat.call_method1("on_bar", (bar, &context_v2))
+                    } else {
+                        Ok(py.None().into_bound(py))
+                    }
+                }
+            };
+
+            if let Err(err) = call_res {
                 if err.is_instance_of::<crate::pyclasses::risk::RiskRefusalError>(py) {
                     // A refused order is a decision, not a crash: the strategy may
                     // want to react to it.
@@ -335,8 +489,8 @@ impl PyRunner {
             }
         }
 
-        if strategy.hasattr("on_stop")? {
-            if let Err(err) = strategy.call_method0("on_stop") {
+        if strat_bound.hasattr("on_stop")? {
+            if let Err(err) = strat_bound.call_method0("on_stop") {
                 record_error(&state, err);
             }
         }
@@ -385,7 +539,11 @@ impl PySma {
     }
 
     /// Feeds a value; returns the average once `period` samples are in.
-    fn update<'py>(&mut self, py: Python<'py>, value: &Bound<'_, PyAny>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn update<'py>(
+        &mut self,
+        py: Python<'py>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
         let value = from_py_decimal(value)?;
         self.values.push(value);
         if self.values.len() > self.period {
@@ -402,12 +560,15 @@ impl PySma {
 
     /// The current average, if there is one.
     #[getter]
-    fn value<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn value<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         if self.values.len() < self.period {
             return Ok(None);
         }
         let total: Decimal = self.values.iter().sum();
-        Ok(Some(to_py_decimal(py, total / Decimal::from(self.period as u64))?))
+        Ok(Some(to_py_decimal(
+            py,
+            total / Decimal::from(self.period as u64),
+        )?))
     }
 
     fn __repr__(&self) -> String {
@@ -441,7 +602,7 @@ fn build_order(
         other => {
             return Err(PyValueError::new_err(format!(
                 "side must be 'BUY' or 'SELL', got {other:?}"
-            )))
+            )));
         }
     };
     Ok(OrderRequest::new(
@@ -494,6 +655,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyOrderIntent>()?;
     m.add_class::<PyMetrics>()?;
     m.add_class::<PyContext>()?;
+    m.add_class::<PyContextV2>()?;
     m.add_class::<PyRunner>()?;
     m.add_class::<PySma>()?;
     Ok(())

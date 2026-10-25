@@ -157,7 +157,7 @@ fn typed_dict_class(name: &str, schema: &Value) -> String {
     let declarable = schema
         .get("properties")
         .and_then(Value::as_object)
-        .map_or(true, |props| props.keys().all(|k| is_identifier(k)));
+        .is_none_or(|props| props.keys().all(|k| is_identifier(k)));
     if !declarable {
         return typed_dict(name, schema);
     }
@@ -186,7 +186,7 @@ pub fn class(name: &str, schema: &Value) -> String {
     let declarable = schema
         .get("properties")
         .and_then(Value::as_object)
-        .map_or(true, |props| props.keys().all(|k| is_identifier(k)));
+        .is_none_or(|props| props.keys().all(|k| is_identifier(k)));
     if !declarable {
         return typed_dict(name, schema);
     }

@@ -26,6 +26,7 @@ use pyo3::prelude::*;
 pub mod arrow;
 pub mod decimal;
 pub mod pyclasses;
+pub mod runner;
 pub mod runtime;
 
 pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
@@ -35,6 +36,7 @@ pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
 pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
     arrow::register(m)?;
+    runner::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -47,6 +49,7 @@ pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
 pub fn register_embedded(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
     arrow::register(m)?;
+    runner::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -94,7 +97,7 @@ pub fn initialize_runtime() -> PyResult<()> {
 }
 
 /// Deprecated: use `honba.event_loop.info()`. The running runtime's flavour, e.g.
-/// `"tokio-multi-thread"`; raises `RuntimeError` when none is running.
+/// `\"tokio-multi-thread\"`; raises `RuntimeError` when none is running.
 #[pyfunction]
 pub fn get_runtime_handle() -> PyResult<String> {
     runtime::info()

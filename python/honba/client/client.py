@@ -56,20 +56,46 @@ class Client:
     an :class:`~honba.client.ApiError` subclass built from the error envelope.
     """
 
-    def __init__(self, transport: Transport) -> None:
+    def __init__(self, transport: Transport, *, api_version: str | None = None) -> None:
         self._transport = transport
+        self._api_version = api_version.lower() if api_version else None
 
     @classmethod
-    def http(cls, base_url: str, **options: Any) -> Client:
+    def http(cls, base_url: str, *, api_version: str | None = None, **options: Any) -> Client:
         """A client for a running ``honba serve``; ``options`` go to ``HttpTransport``."""
-        return cls(HttpTransport(base_url, **options))
+        headers = dict(options.pop("headers", None) or {})
+        if api_version == "v1":
+            headers.setdefault("X-Honba-Version", "1")
+        elif api_version == "v2":
+            headers.setdefault("X-Honba-Version", "2")
+            headers.setdefault("Accept", "application/vnd.honba.v2+json, application/json")
+        transport = HttpTransport(base_url, headers=headers, **options)
+        return cls(transport, api_version=api_version)
 
     @classmethod
-    def inproc(cls, data_dir: str | Path, **options: Any) -> Client:
+    def inproc(cls, data_dir: str | Path, *, api_version: str | None = None, **options: Any) -> Client:
         """A client that runs the Rust router in process over a Parquet directory;
         ``options`` (``journals_dir``, ``max_concurrent_runs``, ``max_queued_runs``) go to
         :class:`InprocTransport` and ``journals_dir`` is what enables the run methods."""
-        return cls(InprocTransport(data_dir, **options))
+        return cls(InprocTransport(data_dir, **options), api_version=api_version)
+
+    @property
+    def v1(self) -> Client:
+        """Sub-client pinned to REST API v1."""
+        if self._api_version == "v1":
+            return self
+        return Client(self._transport, api_version="v1")
+
+    @property
+    def v2(self) -> Client:
+        """Sub-client pinned to REST API v2 (Latest & Recommended)."""
+        if self._api_version == "v2":
+            return self
+        return Client(self._transport, api_version="v2")
+
+    @property
+    def api_version(self) -> str | None:
+        return self._api_version
 
     @property
     def transport(self) -> Transport:
@@ -385,9 +411,13 @@ class Client:
             if on_frame is not None:
                 on_frame(frame)
 
+        path = request.path
+        if self._api_version in ("v1", "v2"):
+            if not path.startswith("/api/v1") and not path.startswith("/api/v2"):
+                path = f"/api/{self._api_version}{path}"
         stream(
             request.method,
-            request.path,
+            path,
             query=request.query,
             body=None,
             on_frame=handle,
@@ -421,8 +451,12 @@ class Client:
 
     def _data(self, request: rq.ApiRequest) -> Any:
         """Send ``request``; return the envelope's ``data`` or raise the mapped error."""
+        path = request.path
+        if self._api_version in ("v1", "v2"):
+            if not path.startswith("/api/v1") and not path.startswith("/api/v2"):
+                path = f"/api/{self._api_version}{path}"
         response = self._transport.request(
-            request.method, request.path, query=request.query, body=request.body
+            request.method, path, query=request.query, body=request.body
         )
         body = response.json
         if not 200 <= response.status < 300:
@@ -480,3 +514,16 @@ class Client:
                 f"{model.__name__} payload does not parse: {exc.error_count()} errors",
                 status=200,
             ) from exc
+
+    # -- aliases -----------------------------------------------------------------------------
+    get_health = health
+    get_capabilities = capabilities
+    get_schema = schema
+    get_instruments = instruments
+    get_instrument = instrument
+    get_bars = bars
+    get_quotes = quotes
+    get_depth = depth
+    get_orders = orders
+    get_strategies = strategies
+    get_backtest = backtest

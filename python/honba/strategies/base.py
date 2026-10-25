@@ -169,6 +169,7 @@ class Strategy(ABC):
     """
 
     name: ClassVar[str]
+    __strategy_api_version__: ClassVar[str] = "2.0.0"
     # Driving bars consumed before the first order (``StrategyManifest.warmup_bars``); the
     # runner suppresses orders until then. A runner or config value overrides it.
     warmup_bars: ClassVar[int] = 0
@@ -235,6 +236,18 @@ class Strategy(ABC):
     def on_start(self) -> None: ...
 
     def on_bar(self, bar: Bar) -> None: ...
+
+    def on_step(self, event: Any, ctx: Any = None) -> None:
+        """Called on every market event (MarketEvent).
+
+        Defaults to unpacking Bar events and calling self.on_bar(bar)
+        for backward compatibility.
+        """
+        bar = getattr(event, "bar", None)
+        if bar is not None:
+            self.on_bar(bar)
+        elif hasattr(event, "close") and hasattr(event, "open"):
+            self.on_bar(event)
 
     def on_quote(self, quote: QuoteTick) -> None:
         """Top-of-book update."""

@@ -458,20 +458,23 @@ class TestPhase5IndicatorsAndStrategyPrimitives:
         s_stream = [s_ind.update(v) for v in values]
         s_vec = Sma_vec(values, 5)
         for a, b in zip(s_stream, s_vec):
-            assert (a is None and b is None) or pytest.approx(float(a), rel=1e-9) == b
+            if a is None or b is None:
+                assert a is None and b is None
+            else:
+                assert pytest.approx(float(a), rel=1e-9) == b
 
         # EMA & RMA vectorized series warm up after `period` bars and converge
         e_ind = Ema(5)
         e_stream = [e_ind.update(v) for v in values]
         e_vec = Ema_vec(values, 5)
         assert e_vec[:4] == [None, None, None, None]
-        assert e_vec[-1] == pytest.approx(float(e_stream[-1]), rel=1e-3)
+        assert e_stream[-1] is not None and e_vec[-1] == pytest.approx(float(e_stream[-1]), rel=1e-3)
 
         r_ind = Rma(5)
         r_stream = [r_ind.update(v) for v in values]
         r_vec = Rma_vec(values, 5)
         assert r_vec[:4] == [None, None, None, None]
-        assert r_vec[-1] == pytest.approx(float(r_stream[-1]), rel=1e-3)
+        assert r_stream[-1] is not None and r_vec[-1] == pytest.approx(float(r_stream[-1]), rel=1e-3)
 
         # Batch functions return expected shapes and non-null tail values
         assert Rsi_vec(values, 5)[-1] is not None

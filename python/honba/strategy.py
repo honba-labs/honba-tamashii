@@ -6,6 +6,7 @@ Subclass and override any of:
     on_start(self)           — once, when the runner starts
     on_tick(self, tick, ctx) — per tick (for tick-level strategies)
     on_bar(self, bar, ctx)   — per bar; call ctx.submit(...) to place orders
+    on_step(self, event, ctx)— per market event (Strategy API v2)
     on_order_event(self, event, ctx) — order lifecycle events
     on_position_event(self, event, ctx) — position lifecycle events
     on_stop(self)            — once, after the last bar / market close
@@ -19,7 +20,7 @@ via ``honba-mon`` rather than crashing the host process.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 from honba._honba import (
     Bar,
@@ -86,6 +87,8 @@ class Strategy:
     / ``self.cancel_all()``.
     """
 
+    __strategy_api_version__: ClassVar[str] = "2.0.0"
+
     def __init__(self) -> None:
         self._parameters: dict[str, Any] = {}
         self._params: dict[str, Any] = {}
@@ -105,6 +108,18 @@ class Strategy:
 
     def on_bar(self, bar: Bar, ctx: PyContext) -> None:
         """Called for every bar close. Override to make trading decisions."""
+
+    def on_step(self, event: Any, ctx: Any = None) -> None:
+        """Called on every market event (MarketEvent, Bar, Tick).
+
+        Defaults to unpacking Bar events and calling self.on_bar(bar, ctx)
+        for backward compatibility.
+        """
+        bar = getattr(event, "bar", None)
+        if bar is not None:
+            self.on_bar(bar, ctx)
+        elif hasattr(event, "close") and hasattr(event, "open"):
+            self.on_bar(event, ctx)
 
     def on_order_event(self, event: dict[str, Any], ctx: PyContext) -> None:
         """Called on order lifecycle events (accepted, filled, cancelled, rejected).

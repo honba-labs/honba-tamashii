@@ -61,7 +61,9 @@ def _adjust_for_non_normality(skew: float, kurtosis: float) -> tuple[float, floa
     # For the standard deviation:
     # σ_max_adj = σ_max * sqrt(1 + skew² + 0.5 * excess_kurt)
     # Note: 1 - 2/π ≈ 0.363 is the variance fraction for normal max
-    sigma_adj = math.sqrt(1.0 + skew**2 + 0.5 * excess_kurt)
+    # Clamp to avoid negative under sqrt when excess_kurt is very negative
+    sigma_adj_sq = 1.0 + skew**2 + 0.5 * excess_kurt
+    sigma_adj = math.sqrt(max(sigma_adj_sq, 1e-10))
 
     return mu_adj, sigma_adj
 

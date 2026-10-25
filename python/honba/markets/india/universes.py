@@ -281,13 +281,12 @@ def load_universe_history(
     starts = table.column("included_from").to_pylist()
     ends = table.column("excluded_on").to_pylist()
     key = _normalize(name)
-    return UniverseHistory(
-        key,
-        tuple(
-            Constituent(symbol, start, end)
-            for symbol, start, end in zip(symbols, starts, ends, strict=True)
-        ),
-    )
+    constituents = [
+        Constituent(symbol, start, end)
+        for symbol, start, end in zip(symbols, starts, ends, strict=True)
+        if isinstance(symbol, str) and isinstance(start, dt.date)
+    ]
+    return UniverseHistory(key, tuple(constituents))
 
 
 def resolve_universe(

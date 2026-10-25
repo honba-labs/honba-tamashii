@@ -114,7 +114,9 @@ def instruments(
 def _id_text(value: object, field: str = "id") -> str:
     """A validated ``SYMBOL.EXCHANGE`` (split on the last dot)."""
     if isinstance(value, str):
-        text = value
+        text = value.strip()
+        if "." not in text and text:
+            text = f"{text}.NSE"
     elif hasattr(value, "symbol") and hasattr(value, "exchange"):
         v: Any = value
         text = f"{v.symbol}.{v.exchange}"
