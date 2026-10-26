@@ -235,19 +235,19 @@ class Strategy(ABC):
     # -- hooks (all default to no-ops) -------------------------------------------
     def on_start(self) -> None: ...
 
-    def on_bar(self, bar: Bar) -> None: ...
+    def on_bar(self, bar: Bar, ctx: Any = None) -> None: ...
 
     def on_step(self, event: Any, ctx: Any = None) -> None:
         """Called on every market event (MarketEvent).
 
-        Defaults to unpacking Bar events and calling self.on_bar(bar)
+        Defaults to unpacking Bar events and calling self.on_bar(bar, ctx)
         for backward compatibility.
         """
         bar = getattr(event, "bar", None)
         if bar is not None:
-            self.on_bar(bar)
+            self.on_bar(bar, ctx)
         elif hasattr(event, "close") and hasattr(event, "open"):
-            self.on_bar(event)
+            self.on_bar(event, ctx)
 
     def on_quote(self, quote: QuoteTick) -> None:
         """Top-of-book update."""

@@ -14,6 +14,7 @@ pub mod harness;
 pub mod manifest;
 pub mod order;
 pub mod risk;
+pub mod sizing;
 pub mod strategy;
 pub mod wire;
 
@@ -25,6 +26,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     manifest::register(m)?;
     order::register(m)?;
     risk::register(m)?;
+    sizing::register(m)?;
     strategy::register(m)?;
     wire::register(m)?;
     Ok(())

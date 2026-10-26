@@ -16,7 +16,7 @@ Money never crosses the boundary as a float: a price, quantity or amount is
 an exact decimal on both sides (`decimal.Decimal` in Python).
 """
 
-from honba import compat, data, indicators, v1, v2
+from honba import compat, data, indicators, sizing, v1, v2
 from honba._honba import (
     ArrowStream,
     Bar,
@@ -115,6 +115,7 @@ __all__ = [
     "compat",
     "data",
     "indicators",
+    "sizing",
     "v1",
     "v2",
 ]

@@ -20,13 +20,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-use honba_core::{Exchange, InstrumentId, OrderRequest, OrderSide, OrderType, Price, Quantity};
+use honba_core::{Exchange, InstrumentId, Money, OrderRequest, OrderSide, OrderType, Price, Quantity};
 use honba_mon::RiskEngine;
 use rust_decimal::Decimal;
 
 use crate::decimal::{from_py_decimal, to_py_decimal};
-use crate::pyclasses::core::{PyBar, PyInstrumentId, PyPrice, PyQuantity};
+use crate::pyclasses::core::{PyBar, PyInstrumentId, PyMoney, PyPrice, PyQuantity};
 use crate::pyclasses::order::PyOrderRequest;
+use crate::pyclasses::sizing::{PyPositionSizingResult, PySignal, size_signal_default};
 
 /// One order the strategy asked for.
 #[pyclass(name = "OrderIntent", module = "honba._honba")]
@@ -131,6 +132,8 @@ pub(crate) struct ContextState {
     pub(crate) refusals: Vec<String>,
     pub(crate) errors: Vec<String>,
     pub(crate) degraded: bool,
+    /// The account equity the run started with; `size_signal` sizes against it.
+    pub(crate) equity: Money,
 }
 
 #[pymethods]
@@ -162,6 +165,47 @@ impl PyContext {
         let instrument = instrument_from(instrument)?;
         let order = build_order(&instrument, "SELL", Decimal::ZERO, &self.algo_id)?;
         self.submit_order(order)
+    }
+
+    /// The account equity available to the strategy.
+    #[getter]
+    fn equity(&self) -> PyResult<PyMoney> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+        Ok(PyMoney {
+            inner: state.equity,
+        })
+    }
+
+    /// Sizes `signal` against the run's equity.
+    ///
+    /// With no `sizer`, a fixed-fractional sizer risks 1 % of equity against
+    /// the signal's stop. With a sizer, its `calculate_size(signal, equity)`
+    /// method is called, so a Python `honba.sizing` sizer and a native kernel
+    /// are interchangeable.
+    #[pyo3(signature = (signal, sizer=None))]
+    fn size_signal(
+        &self,
+        py: Python<'_>,
+        signal: &Bound<'_, PyAny>,
+        sizer: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyPositionSizingResult> {
+        let equity = {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+            state.equity
+        };
+        if let Some(sizer) = sizer {
+            let money = Py::new(py, PyMoney { inner: equity })?;
+            let result = sizer.call_method1("calculate_size", (signal, money))?;
+            return result.extract::<PyPositionSizingResult>();
+        }
+        let signal = signal.extract::<PySignal>()?;
+        size_signal_default(py, &signal, equity)
     }
 
     /// The orders approved so far.
@@ -260,6 +304,42 @@ impl PyContextV2 {
         let instrument = instrument_from(instrument)?;
         let order = build_order(&instrument, "SELL", Decimal::ZERO, &self.algo_id)?;
         self.submit_order(order)
+    }
+
+    /// The account equity available to the strategy.
+    #[getter]
+    fn equity(&self) -> PyResult<PyMoney> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+        Ok(PyMoney {
+            inner: state.equity,
+        })
+    }
+
+    /// Sizes `signal` against the run's equity (see `PyContext.size_signal`).
+    #[pyo3(signature = (signal, sizer=None))]
+    fn size_signal(
+        &self,
+        py: Python<'_>,
+        signal: &Bound<'_, PyAny>,
+        sizer: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyPositionSizingResult> {
+        let equity = {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| PyValueError::new_err("the context is poisoned"))?;
+            state.equity
+        };
+        if let Some(sizer) = sizer {
+            let money = Py::new(py, PyMoney { inner: equity })?;
+            let result = sizer.call_method1("calculate_size", (signal, money))?;
+            return result.extract::<PyPositionSizingResult>();
+        }
+        let signal = signal.extract::<PySignal>()?;
+        size_signal_default(py, &signal, equity)
     }
 
     #[getter]
@@ -403,6 +483,7 @@ impl PyRunner {
             refusals: Vec::new(),
             errors: Vec::new(),
             degraded: false,
+            equity: Money::inr(self.starting_cash),
         }));
         let context = Py::new(
             py,

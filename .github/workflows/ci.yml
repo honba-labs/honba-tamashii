@@ -7,36 +7,100 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  # ---------------------------------------------------------------------------
+  # Format, lint and unit tests on Linux (the host runner this CI executes on).
+  # ---------------------------------------------------------------------------
+  lint-and-test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-        target-platform: ["linux-x86_64", "linux-aarch64"]
-        include:
-          - python-version: "3.10"
-            target-platform: "linux-x86_64"
-          - python-version: "3.10"
-            target-platform: "linux-aarch64"
-          - python-version: "3.11"
-            target-platform: "linux-x86_64"
-          - python-version: "3.11"
-            target-platform: "linux-aarch64"
-          - python-version: "3.12"
-            target-platform: "linux-x86_64"
-
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Rust fmt + clippy
+        run: |
+          cargo fmt --check --workspace
+          cargo clippy --all-targets --workspace -- -D warnings
       - name: Install maturin and dependencies
         run: |
           pip install maturin
           pip install -e .
-      - name: Build and test
+      - name: Build (editable) and run tests
         run: |
           maturin develop
           pip install pytest ruff
           python -m pytest -q
+
+  # ---------------------------------------------------------------------------
+  # Wheel build + test matrix for the five distribution targets.
+  #
+  # Each target is built on its native runner with maturin so the shipped
+  # wheel is a real, platform-specific abi3 wheel (Python >= 3.10).
+  # ---------------------------------------------------------------------------
+  wheels:
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runs-on: ubuntu-latest
+            target-platform: linux-x86_64
+            python-version: "3.10"
+          - runs-on: ubuntu-24.04-arm
+            target-platform: linux-aarch64
+            python-version: "3.11"
+          - runs-on: macos-latest
+            target-platform: macos-x86_64
+            python-version: "3.11"
+          - runs-on: macos-latest
+            target-platform: macos-aarch64
+            python-version: "3.12"
+          - runs-on: windows-latest
+            target-platform: windows-x86_64
+            python-version: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      - name: Install maturin and dependencies
+        run: |
+          pip install maturin
+          pip install -e .
+      - name: Build the wheel for ${{ matrix.target-platform }}
+        run: |
+          # `maturin build --release` produces a stripped platform wheel under
+          # `dist/`. On the native runner this is the target wheel.
+          maturin build --release
+      - name: Install the built wheel and run tests
+        run: |
+          pip install dist/honba*.whl
+          pip install pytest ruff
+          python -m pytest -q
+      - name: Verify wheel size budget (< 20 MB stripped)
+        run: |
+          size_bytes=$(stat -c %s dist/honba*.whl 2>/dev/null || stat -f %z dist/honba*.whl)
+          size_mb=$(( size_bytes / 1024 / 1024 ))
+          echo "wheel size: ${size_mb} MB"
+          if [ "$size_mb" -ge 20 ]; then
+            echo "wheel exceeds the 20 MB budget" >&2
+            exit 1
+          fi

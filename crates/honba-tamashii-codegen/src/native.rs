@@ -1081,6 +1081,378 @@ pub const CLASSES: &[Class] = &[
         ],
         methods: &[],
     },
+    Class {
+        name: "SizingMethod",
+        doc: "One dynamic position sizing model.",
+        attributes: &[Attribute {
+            name: "kind",
+            annotation: "str",
+        }],
+        methods: &[
+            Method {
+                name: "fixed_fractional",
+                signature: "def fixed_fractional(risk_pct: decimal.Decimal | int | str) -> SizingMethod: ...",
+            },
+            Method {
+                name: "volatility_target",
+                signature: "def volatility_target(target_annual_vol: decimal.Decimal | int | str, lookback_bars: int = 20) -> SizingMethod: ...",
+            },
+            Method {
+                name: "kelly_criterion",
+                signature: "def kelly_criterion(win_rate: decimal.Decimal | int | str, payoff_ratio: decimal.Decimal | int | str, fraction: decimal.Decimal | int | str | None = None) -> SizingMethod: ...",
+            },
+            Method {
+                name: "equal_risk_contribution",
+                signature: "def equal_risk_contribution() -> SizingMethod: ...",
+            },
+            Method {
+                name: "fixed_notional",
+                signature: "def fixed_notional(notional: decimal.Decimal | int | str | Money) -> SizingMethod: ...",
+            },
+            Method {
+                name: "from_json",
+                signature: "def from_json(text: str) -> SizingMethod: ...",
+            },
+            Method {
+                name: "to_json",
+                signature: "def to_json(self) -> str: ...",
+            },
+        ],
+    },
+    Class {
+        name: "RiskBudget",
+        doc: "Account equity, risk fraction and position limits for a sizing run.",
+        attributes: &[
+            Attribute {
+                name: "equity",
+                annotation: "Money",
+            },
+            Attribute {
+                name: "risk_pct",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "min_lot_size",
+                annotation: "Quantity",
+            },
+            Attribute {
+                name: "max_position_notional",
+                annotation: "Money | None",
+            },
+            Attribute {
+                name: "max_position_qty",
+                annotation: "Quantity | None",
+            },
+            Attribute {
+                name: "max_portfolio_risk_pct",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "freeze_limit_qty",
+                annotation: "Quantity | None",
+            },
+        ],
+        methods: &[
+            Method {
+                name: "with_max_notional",
+                signature: "def with_max_notional(self, max_notional: decimal.Decimal | int | str | Money) -> RiskBudget: ...",
+            },
+            Method {
+                name: "with_max_qty",
+                signature: "def with_max_qty(self, max_qty: decimal.Decimal | int | str) -> RiskBudget: ...",
+            },
+            Method {
+                name: "with_freeze_limit",
+                signature: "def with_freeze_limit(self, freeze_qty: decimal.Decimal | int | str) -> RiskBudget: ...",
+            },
+            Method {
+                name: "with_max_portfolio_risk",
+                signature: "def with_max_portfolio_risk(self, max_risk: decimal.Decimal | int | str) -> RiskBudget: ...",
+            },
+            Method {
+                name: "to_json",
+                signature: "def to_json(self) -> str: ...",
+            },
+        ],
+    },
+    Class {
+        name: "PositionSizingRequest",
+        doc: "A sizing question: instrument, side, entry, stop, equity, budget, method.",
+        attributes: &[
+            Attribute {
+                name: "instrument",
+                annotation: "InstrumentId",
+            },
+            Attribute {
+                name: "side",
+                annotation: "str",
+            },
+            Attribute {
+                name: "entry_price",
+                annotation: "Price",
+            },
+            Attribute {
+                name: "stop_loss",
+                annotation: "Price | None",
+            },
+            Attribute {
+                name: "current_volatility",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "account_equity",
+                annotation: "Money",
+            },
+            Attribute {
+                name: "risk_budget",
+                annotation: "RiskBudget",
+            },
+            Attribute {
+                name: "sizing_method",
+                annotation: "SizingMethod",
+            },
+        ],
+        methods: &[
+            Method {
+                name: "with_stop_loss",
+                signature: "def with_stop_loss(self, stop_loss: decimal.Decimal | int | str | Price) -> PositionSizingRequest: ...",
+            },
+            Method {
+                name: "with_volatility",
+                signature: "def with_volatility(self, volatility: decimal.Decimal | int | str) -> PositionSizingRequest: ...",
+            },
+            Method {
+                name: "calculate",
+                signature: "def calculate(self) -> PositionSizingResult: ...",
+            },
+            Method {
+                name: "to_json",
+                signature: "def to_json(self) -> str: ...",
+            },
+        ],
+    },
+    Class {
+        name: "PositionSizingResult",
+        doc: "The answer: a lot-rounded quantity plus its notional and risk.",
+        attributes: &[
+            Attribute {
+                name: "instrument",
+                annotation: "InstrumentId",
+            },
+            Attribute {
+                name: "quantity",
+                annotation: "Quantity",
+            },
+            Attribute {
+                name: "allocated_notional",
+                annotation: "Money",
+            },
+            Attribute {
+                name: "risk_at_stake",
+                annotation: "Money",
+            },
+            Attribute {
+                name: "target_weight",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "capped_by_limit",
+                annotation: "bool",
+            },
+            Attribute {
+                name: "reason",
+                annotation: "str | None",
+            },
+        ],
+        methods: &[Method {
+            name: "to_json",
+            signature: "def to_json(self) -> str: ...",
+        }],
+    },
+    Class {
+        name: "Signal",
+        doc: "A strategy signal: what to trade, in which direction, at which levels.",
+        attributes: &[
+            Attribute {
+                name: "instrument",
+                annotation: "InstrumentId",
+            },
+            Attribute {
+                name: "direction",
+                annotation: "str",
+            },
+            Attribute {
+                name: "horizon",
+                annotation: "str",
+            },
+            Attribute {
+                name: "timeframe",
+                annotation: "str",
+            },
+            Attribute {
+                name: "strength",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "generated_by",
+                annotation: "str",
+            },
+            Attribute {
+                name: "timestamp",
+                annotation: "str",
+            },
+            Attribute {
+                name: "entry_price",
+                annotation: "Price | None",
+            },
+            Attribute {
+                name: "stop_loss",
+                annotation: "Price | None",
+            },
+            Attribute {
+                name: "take_profit",
+                annotation: "Price | None",
+            },
+            Attribute {
+                name: "volatility_atr",
+                annotation: "decimal.Decimal | None",
+            },
+            Attribute {
+                name: "side",
+                annotation: "str | None",
+            },
+        ],
+        methods: &[
+            Method {
+                name: "with_entry_price",
+                signature: "def with_entry_price(self, price: decimal.Decimal | int | str | Price) -> Signal: ...",
+            },
+            Method {
+                name: "with_stop_loss",
+                signature: "def with_stop_loss(self, price: decimal.Decimal | int | str | Price) -> Signal: ...",
+            },
+            Method {
+                name: "with_take_profit",
+                signature: "def with_take_profit(self, price: decimal.Decimal | int | str | Price) -> Signal: ...",
+            },
+            Method {
+                name: "with_volatility_atr",
+                signature: "def with_volatility_atr(self, value: decimal.Decimal | int | str) -> Signal: ...",
+            },
+            Method {
+                name: "to_json",
+                signature: "def to_json(self) -> str: ...",
+            },
+        ],
+    },
+    Class {
+        name: "FixedFractionalSizer",
+        doc: "Risk a fixed fraction of equity against the stop distance.",
+        attributes: &[
+            Attribute {
+                name: "risk_pct",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "lot_size",
+                annotation: "Quantity",
+            },
+        ],
+        methods: &[Method {
+            name: "calculate_size",
+            signature: "def calculate_size(self, instrument: InstrumentId | str, entry_price: decimal.Decimal | int | str | Price, equity: decimal.Decimal | int | str | Money, side: str = 'BUY', stop_loss: decimal.Decimal | int | str | Price | None = None) -> PositionSizingResult: ...",
+        }],
+    },
+    Class {
+        name: "AtrVolatilitySizer",
+        doc: "Size inversely proportional to the ATR band.",
+        attributes: &[
+            Attribute {
+                name: "target_risk",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "multiplier",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "lot_size",
+                annotation: "Quantity",
+            },
+        ],
+        methods: &[Method {
+            name: "calculate_size",
+            signature: "def calculate_size(self, instrument: InstrumentId | str, entry_price: decimal.Decimal | int | str | Price, equity: decimal.Decimal | int | str | Money, atr: decimal.Decimal | int | str, side: str = 'BUY', stop_loss: decimal.Decimal | int | str | Price | None = None) -> PositionSizingResult: ...",
+        }],
+    },
+    Class {
+        name: "KellySizer",
+        doc: "Damped Kelly growth sizing.",
+        attributes: &[
+            Attribute {
+                name: "win_rate",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "payoff_ratio",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "fraction",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "lot_size",
+                annotation: "Quantity",
+            },
+        ],
+        methods: &[
+            Method {
+                name: "kelly_fraction",
+                signature: "def kelly_fraction(self) -> decimal.Decimal: ...",
+            },
+            Method {
+                name: "calculate_size",
+                signature: "def calculate_size(self, instrument: InstrumentId | str, entry_price: decimal.Decimal | int | str | Price, equity: decimal.Decimal | int | str | Money, side: str = 'BUY', stop_loss: decimal.Decimal | int | str | Price | None = None) -> PositionSizingResult: ...",
+            },
+        ],
+    },
+    Class {
+        name: "EqualRiskSizer",
+        doc: "Inverse-volatility risk parity across active signals.",
+        attributes: &[
+            Attribute {
+                name: "risk_pct",
+                annotation: "decimal.Decimal",
+            },
+            Attribute {
+                name: "lot_size",
+                annotation: "Quantity",
+            },
+        ],
+        methods: &[Method {
+            name: "allocate",
+            signature: "def allocate(self, equity: decimal.Decimal | int | str | Money, instruments: list[InstrumentId | str], entry_prices: list[decimal.Decimal | int | str | Price], volatilities: list[decimal.Decimal | int | str], gross_exposure: decimal.Decimal | int | str = 1) -> list[PositionSizingResult]: ...",
+        }],
+    },
+    Class {
+        name: "FixedNotionalSizer",
+        doc: "Allocate a fixed cash notional per trade, lot-rounded.",
+        attributes: &[
+            Attribute {
+                name: "notional",
+                annotation: "Money",
+            },
+            Attribute {
+                name: "lot_size",
+                annotation: "Quantity",
+            },
+        ],
+        methods: &[Method {
+            name: "calculate_size",
+            signature: "def calculate_size(self, instrument: InstrumentId | str, entry_price: decimal.Decimal | int | str | Price, side: str = 'BUY') -> PositionSizingResult: ...",
+        }],
+    },
 ];
 
 /// The module-level functions.
@@ -1216,6 +1588,10 @@ pub const FUNCTIONS: &[Function] = &[
     Function {
         name: "batch_obv",
         signature: "def batch_obv(close: list[float], volume: list[float]) -> list[float | None]: ...",
+    },
+    Function {
+        name: "size_batch",
+        signature: "def size_batch(instruments: list[InstrumentId | str], entry_prices: list[decimal.Decimal | int | str | Price], equity: decimal.Decimal | int | str | Money, risk_pct: decimal.Decimal | int | str | None = None, lot_size: decimal.Decimal | int | str | None = None, stop_losses: list[decimal.Decimal | int | str | Price | None] | None = None, volatilities: list[decimal.Decimal | int | str | None] | None = None, method: str = 'fixed_fractional') -> list[PositionSizingResult]: ...",
     },
 ];
 

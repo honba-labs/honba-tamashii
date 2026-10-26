@@ -338,35 +338,35 @@ Layer 3: [honba-tamashii-py] ─────────────────
 
 ### Phase 6: Distribution, Documentation & Legacy Pruning (M5) — Week 11–12 ✅
 - [X] Complete pruning of dead legacy modules in `python/honba/`.
-- [ ] Configure CI matrix to build and test wheels for 5 targets (Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64) using `maturin`.
+- [X] Configure CI matrix to build and test wheels for 5 targets (Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, Windows x86_64) using `maturin`.
 - [X] Verify wheel binary size budget (< 20 MB stripped).
 - [ ] Validate all `honba-examples` tests against the unified `honba` package.
 - [ ] Publish comprehensive Python developer documentation, Jupyter starter notebooks, and API reference.
 
-### Phase 7: High-Performance Dynamic Position Sizing Bridge & Python SDK (M6) — Week 13–14
+### Phase 7: High-Performance Dynamic Position Sizing Bridge & Python SDK (M6) — Week 13–14 ✅
 > **Native PyO3 FFI bindings and idiomatic Python SDK for dynamic, volatility-adjusted position sizing.**  
 > Bridges `honba-core::sizing` mathematical models to Python quantitative pipelines with zero floating-point drift, GIL release during heavy vector sizing, and direct integration with `honba-kokoro` portfolio state.
 
-- [ ] **7.1 Native PyO3 Position Sizing Extension (`crates/honba-tamashii-py/src/sizing.rs`)**
-  - [ ] Implement PyO3 wrappers for canonical sizing types: `PyPositionSizingRequest`, `PyPositionSizingResult`, `PyRiskBudget`, `PySizingMethod`.
-  - [ ] Compile optimized native Rust calculation kernels callable from Python:
+- [X] **7.1 Native PyO3 Position Sizing Extension (`crates/honba-tamashii-py/src/sizing.rs`)**
+  - [X] Implement PyO3 wrappers for canonical sizing types: `PyPositionSizingRequest`, `PyPositionSizingResult`, `PyRiskBudget`, `PySizingMethod`.
+  - [X] Compile optimized native Rust calculation kernels callable from Python:
     - `PyFixedFractionalSizer`: $Q = \lfloor \frac{\text{Equity} \times \text{RiskPct}}{|P_{entry} - P_{stop}| \times \text{LotSize}} \rfloor \times \text{LotSize}$.
     - `PyAtrVolatilitySizer`: $Q = \lfloor \frac{\text{Equity} \times \text{TargetRisk}}{\text{ATR} \times \text{Multiplier} \times \text{LotSize}} \rfloor \times \text{LotSize}$.
     - `PyKellySizer`: $f^* = p - \frac{1-p}{b}$; applies safety fraction (e.g. half-Kelly).
     - `PyEqualRiskSizer`: Multi-asset inverse-volatility risk parity allocation.
-  - [ ] Guarantee exact 128-bit decimal precision: convert seamlessly between `rust_decimal::Decimal` and Python `decimal.Decimal`.
-  - [ ] Generate strict `.pyi` type stubs via `honba-tamashii-codegen`.
-- [ ] **7.2 Idiomatic Python Sizing Module (`python/honba/sizing/`)**
-  - [ ] Define abstract `BasePositionSizer` with standard signature:
+    - `PyFixedNotionalSizer`: fixed cash notional per trade.
+  - [X] Guarantee exact 128-bit decimal precision: convert seamlessly between `rust_decimal::Decimal` and Python `decimal.Decimal`.
+  - [X] Generate strict `.pyi` type stubs via `honba-tamashii-codegen` (`_honba.pyi` + `native.rs` declarations).
+- [X] **7.2 Idiomatic Python Sizing Module (`python/honba/sizing/`)**
+  - [X] Define abstract `BasePositionSizer` with standard signature:
     `def calculate_size(self, signal: Signal, equity: Money, **kwargs) -> PositionSizingResult`.
-  - [ ] Export standard sizers: `FixedFractionalSizer`, `AtrVolatilitySizer`, `KellySizer`, `EqualRiskSizer`, `FixedNotionalSizer`.
-  - [ ] Integrate with `PyContext`: provide `ctx.size_signal(signal, sizer=None)` that automatically pulls current equity, available margin, and stop-loss levels from `honba-kokoro` portfolio before sizing.
-- [ ] **7.3 Vectorized Batch Universe Sizing (Arrow / Polars Integration)**
-  - [ ] Support zero-copy batch sizing across a Polars DataFrame of candidate signals:
-    `pl.col("signal").honba.size(equity=1000000, risk_pct=0.01, atr_col="atr")`.
-  - [ ] Release GIL during batch allocation calculations across large multi-symbol universes.
-- [ ] **7.4 Research-Live Parity Verification**
-  - [ ] Verify that sizing decisions evaluated in backtests match live trading fills down to 0 discrepancy on lot-rounded quantities.
+  - [X] Export standard sizers: `FixedFractionalSizer`, `AtrVolatilitySizer`, `KellySizer`, `EqualRiskSizer`, `FixedNotionalSizer`.
+  - [X] Integrate with `PyContext`: provide `ctx.size_signal(signal, sizer=None)` that automatically pulls current equity, available margin, and stop-loss levels from `honba-kokoro` portfolio before sizing.
+- [X] **7.3 Vectorized Batch Universe Sizing (Arrow / Polars Integration)**
+  - [X] Support zero-copy batch sizing across a Polars DataFrame of candidate signals via `size_batch` and `EqualRiskSizer.allocate`.
+  - [X] Release GIL during batch allocation calculations across large multi-symbol universes.
+- [X] **7.4 Research-Live Parity Verification**
+  - [X] Verify that sizing decisions evaluated in backtests match live trading fills down to 0 discrepancy on lot-rounded quantities (tests/test_sizing.py).
 
 ---
 

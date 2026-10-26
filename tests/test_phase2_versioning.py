@@ -97,9 +97,9 @@ class CustomV1(V1Strategy):
         super().__init__()
         self.bars = 0
 
-    def on_bar(self, bar, ctx):
+    def on_bar(self, bar, ctx=None):
         self.bars += 1
-        if self.bars == 1:
+        if self.bars == 1 and ctx is not None:
             ctx.submit("RELIANCE", "BUY", "10")
 
 
@@ -111,10 +111,10 @@ class CustomV2(V2Strategy):
         self.steps = 0
         self.received_event = None
 
-    def on_step(self, event, ctx):
+    def on_step(self, event, ctx=None):
         self.steps += 1
         self.received_event = event
-        assert ctx.version == "2.0.0"
+        assert ctx is not None and ctx.version == "2.0.0"
         if self.steps == 1:
             ctx.submit("RELIANCE", "BUY", "20")
 

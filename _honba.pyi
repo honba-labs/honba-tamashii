@@ -416,6 +416,285 @@ class BhavRecord:
     deliverable_qty: decimal.Decimal | None
     deliverable_pct: decimal.Decimal | None
 
+class SizingMethod:
+    """One dynamic position sizing model."""
+
+    kind: str
+
+    @staticmethod
+    def fixed_fractional(
+        risk_pct: decimal.Decimal | int | str,
+    ) -> SizingMethod: ...
+    @staticmethod
+    def volatility_target(
+        target_annual_vol: decimal.Decimal | int | str, lookback_bars: int = 20
+    ) -> SizingMethod: ...
+    @staticmethod
+    def kelly_criterion(
+        win_rate: decimal.Decimal | int | str,
+        payoff_ratio: decimal.Decimal | int | str,
+        fraction: decimal.Decimal | int | str | None = None,
+    ) -> SizingMethod: ...
+    @staticmethod
+    def equal_risk_contribution() -> SizingMethod: ...
+    @staticmethod
+    def fixed_notional(
+        notional: decimal.Decimal | int | str | Money,
+    ) -> SizingMethod: ...
+    @staticmethod
+    def from_json(text: str) -> SizingMethod: ...
+    def to_json(self) -> str: ...
+
+class RiskBudget:
+    """Account equity, risk fraction and position limits for a sizing run."""
+
+    equity: Money
+    risk_pct: decimal.Decimal
+    min_lot_size: Quantity
+    max_position_notional: Money | None
+    max_position_qty: Quantity | None
+    max_portfolio_risk_pct: decimal.Decimal | None
+    freeze_limit_qty: Quantity | None
+
+    def __init__(
+        self,
+        equity: decimal.Decimal | int | str | Money,
+        risk_pct: decimal.Decimal | int | str,
+        min_lot_size: decimal.Decimal | int | str | None = None,
+        max_position_notional: decimal.Decimal | int | str | Money | None = None,
+        max_position_qty: decimal.Decimal | int | str | None = None,
+        max_portfolio_risk_pct: decimal.Decimal | int | str | None = None,
+        freeze_limit_qty: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    def with_max_notional(self, max_notional: decimal.Decimal | int | str | Money) -> RiskBudget: ...
+    def with_max_qty(self, max_qty: decimal.Decimal | int | str) -> RiskBudget: ...
+    def with_freeze_limit(self, freeze_qty: decimal.Decimal | int | str) -> RiskBudget: ...
+    def with_max_portfolio_risk(
+        self, max_risk: decimal.Decimal | int | str
+    ) -> RiskBudget: ...
+    def to_json(self) -> str: ...
+
+class PositionSizingRequest:
+    """A sizing question: instrument, side, entry, stop, equity, budget, method."""
+
+    instrument: InstrumentId
+    side: str
+    entry_price: Price
+    stop_loss: Price | None
+    current_volatility: decimal.Decimal | None
+    account_equity: Money
+    risk_budget: RiskBudget
+    sizing_method: SizingMethod
+
+    def __init__(
+        self,
+        instrument: InstrumentId | str,
+        side: str,
+        entry_price: decimal.Decimal | int | str | Price,
+        account_equity: decimal.Decimal | int | str | Money,
+        risk_budget: RiskBudget,
+        sizing_method: SizingMethod,
+    ) -> None: ...
+    def with_stop_loss(
+        self, stop_loss: decimal.Decimal | int | str | Price
+    ) -> PositionSizingRequest: ...
+    def with_volatility(
+        self, volatility: decimal.Decimal | int | str
+    ) -> PositionSizingRequest: ...
+    def calculate(self) -> PositionSizingResult: ...
+    def to_json(self) -> str: ...
+
+class PositionSizingResult:
+    """The answer: a lot-rounded quantity plus its notional and risk."""
+
+    instrument: InstrumentId
+    quantity: Quantity
+    allocated_notional: Money
+    risk_at_stake: Money
+    target_weight: decimal.Decimal | None
+    capped_by_limit: bool
+    reason: str | None
+
+    def to_json(self) -> str: ...
+
+class Signal:
+    """A strategy signal: what to trade, in which direction, at which levels."""
+
+    instrument: InstrumentId
+    direction: str
+    horizon: str
+    timeframe: str
+    strength: decimal.Decimal
+    generated_by: str
+    timestamp: str
+    entry_price: Price | None
+    stop_loss: Price | None
+    take_profit: Price | None
+    volatility_atr: decimal.Decimal | None
+    side: str | None
+
+    def __init__(
+        self,
+        instrument: InstrumentId | str,
+        direction: str = "bullish",
+        horizon: str = "intraday",
+        timeframe: str = "1d",
+        strength: decimal.Decimal | int | str | None = None,
+        generated_by: str = "python",
+        timestamp: str | None = None,
+        entry_price: decimal.Decimal | int | str | Price | None = None,
+        stop_loss: decimal.Decimal | int | str | Price | None = None,
+        take_profit: decimal.Decimal | int | str | Price | None = None,
+        volatility_atr: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    def with_entry_price(
+        self, price: decimal.Decimal | int | str | Price
+    ) -> Signal: ...
+    def with_stop_loss(
+        self, price: decimal.Decimal | int | str | Price
+    ) -> Signal: ...
+    def with_take_profit(
+        self, price: decimal.Decimal | int | str | Price
+    ) -> Signal: ...
+    def with_volatility_atr(
+        self, value: decimal.Decimal | int | str
+    ) -> Signal: ...
+    def to_json(self) -> str: ...
+
+class FixedFractionalSizer:
+    """Risk a fixed fraction of equity against the stop distance."""
+
+    risk_pct: decimal.Decimal
+    lot_size: Quantity
+
+    def __init__(
+        self,
+        risk_pct: decimal.Decimal | int | str | None = None,
+        lot_size: decimal.Decimal | int | str | None = None,
+        max_position_notional: decimal.Decimal | int | str | Money | None = None,
+        max_position_qty: decimal.Decimal | int | str | None = None,
+        freeze_limit_qty: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    def calculate_size(
+        self,
+        instrument: InstrumentId | str,
+        entry_price: decimal.Decimal | int | str | Price,
+        equity: decimal.Decimal | int | str | Money,
+        side: str = "BUY",
+        stop_loss: decimal.Decimal | int | str | Price | None = None,
+    ) -> PositionSizingResult: ...
+
+class AtrVolatilitySizer:
+    """Size inversely proportional to the ATR band."""
+
+    target_risk: decimal.Decimal
+    multiplier: decimal.Decimal
+    lot_size: Quantity
+
+    def __init__(
+        self,
+        target_risk: decimal.Decimal | int | str | None = None,
+        multiplier: decimal.Decimal | int | str | None = None,
+        lookback_bars: int = 20,
+        lot_size: decimal.Decimal | int | str | None = None,
+        max_position_notional: decimal.Decimal | int | str | Money | None = None,
+        max_position_qty: decimal.Decimal | int | str | None = None,
+        freeze_limit_qty: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    def calculate_size(
+        self,
+        instrument: InstrumentId | str,
+        entry_price: decimal.Decimal | int | str | Price,
+        equity: decimal.Decimal | int | str | Money,
+        atr: decimal.Decimal | int | str,
+        side: str = "BUY",
+        stop_loss: decimal.Decimal | int | str | Price | None = None,
+    ) -> PositionSizingResult: ...
+
+class KellySizer:
+    """Damped Kelly growth sizing."""
+
+    win_rate: decimal.Decimal
+    payoff_ratio: decimal.Decimal
+    fraction: decimal.Decimal
+    lot_size: Quantity
+
+    def __init__(
+        self,
+        win_rate: decimal.Decimal | int | str,
+        payoff_ratio: decimal.Decimal | int | str,
+        fraction: decimal.Decimal | int | str | None = None,
+        lot_size: decimal.Decimal | int | str | None = None,
+        max_position_notional: decimal.Decimal | int | str | Money | None = None,
+        max_position_qty: decimal.Decimal | int | str | None = None,
+        freeze_limit_qty: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    @property
+    def kelly_fraction(self) -> decimal.Decimal: ...
+    def calculate_size(
+        self,
+        instrument: InstrumentId | str,
+        entry_price: decimal.Decimal | int | str | Price,
+        equity: decimal.Decimal | int | str | Money,
+        side: str = "BUY",
+        stop_loss: decimal.Decimal | int | str | Price | None = None,
+    ) -> PositionSizingResult: ...
+
+class EqualRiskSizer:
+    """Inverse-volatility risk parity across active signals."""
+
+    risk_pct: decimal.Decimal
+    lot_size: Quantity
+
+    def __init__(
+        self,
+        risk_pct: decimal.Decimal | int | str | None = None,
+        lot_size: decimal.Decimal | int | str | None = None,
+        max_position_notional: decimal.Decimal | int | str | Money | None = None,
+        max_position_qty: decimal.Decimal | int | str | None = None,
+        freeze_limit_qty: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    def allocate(
+        self,
+        equity: decimal.Decimal | int | str | Money,
+        instruments: list[InstrumentId | str],
+        entry_prices: list[decimal.Decimal | int | str | Price],
+        volatilities: list[decimal.Decimal | int | str],
+        gross_exposure: decimal.Decimal | int | str = 1,
+    ) -> list[PositionSizingResult]: ...
+
+class FixedNotionalSizer:
+    """Allocate a fixed cash notional per trade, lot-rounded."""
+
+    notional: Money
+    lot_size: Quantity
+
+    def __init__(
+        self,
+        notional: decimal.Decimal | int | str | Money,
+        lot_size: decimal.Decimal | int | str | None = None,
+        max_position_notional: decimal.Decimal | int | str | Money | None = None,
+        max_position_qty: decimal.Decimal | int | str | None = None,
+        freeze_limit_qty: decimal.Decimal | int | str | None = None,
+    ) -> None: ...
+    def calculate_size(
+        self,
+        instrument: InstrumentId | str,
+        entry_price: decimal.Decimal | int | str | Price,
+        side: str = "BUY",
+    ) -> PositionSizingResult: ...
+
+def size_batch(
+    instruments: list[InstrumentId | str],
+    entry_prices: list[decimal.Decimal | int | str | Price],
+    equity: decimal.Decimal | int | str | Money,
+    risk_pct: decimal.Decimal | int | str | None = None,
+    lot_size: decimal.Decimal | int | str | None = None,
+    stop_losses: list[decimal.Decimal | int | str | Price | None] | None = None,
+    volatilities: list[decimal.Decimal | int | str | None] | None = None,
+    method: str = "fixed_fractional",
+) -> list[PositionSizingResult]: ...
+
 def canonical_json(kind: str, payload: str) -> str: ...
 def wire_enum_values() -> dict[str, list[str]]: ...
 def currency_minor_units() -> dict[str, tuple[int, str, str]]: ...
