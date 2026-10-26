@@ -17,6 +17,14 @@ from honba.strategies.declarative import (
     Entry,
     TargetWeightStrategy,
 )
+from honba.strategies.loader import (
+    CatalogError,
+    CatalogStrategy,
+    find_catalog,
+    load_catalog_strategy,
+    load_named,
+    load_strategy,
+)
 from honba.strategies.portfolio import (
     EqualWeight,
     EveryNDays,
@@ -56,6 +64,8 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "AdaptiveMomentum",
     "ArbitrageStrategy",
+    "CatalogError",
+    "CatalogStrategy",
     "DeclarativeStrategy",
     "Entry",
     "EqualWeight",
@@ -81,5 +91,9 @@ __all__ = [
     "TargetWeightStrategy",
     "Universe",
     "WeightingScheme",
+    "find_catalog",
     "indicators",
+    "load_catalog_strategy",
+    "load_named",
+    "load_strategy",
 ]
