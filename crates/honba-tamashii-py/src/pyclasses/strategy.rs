@@ -33,11 +33,7 @@ impl RustSmaCrossover {
     /// Builds a crossover over `fast` and `slow` simple moving averages.
     #[new]
     #[pyo3(signature = (fast=3, slow=8, qty=None))]
-    pub fn new(
-        fast: usize,
-        slow: usize,
-        qty: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
+    pub fn new(fast: usize, slow: usize, qty: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
         let qty = match qty {
             Some(value) => from_py_decimal(value)?,
             None => Decimal::ONE,
@@ -58,7 +54,7 @@ impl RustSmaCrossover {
         &mut self,
         py: Python<'py>,
         bar: &PyBar,
-    ) ->PyResult<Option<(String, Bound<'py, PyAny>)>> {
+    ) -> PyResult<Option<(String, Bound<'py, PyAny>)>> {
         self.push(py, bar.inner.close.0)
     }
 
@@ -67,13 +63,13 @@ impl RustSmaCrossover {
         &mut self,
         py: Python<'py>,
         close: &Bound<'_, PyAny>,
-    ) ->PyResult<Option<(String, Bound<'py, PyAny>)>> {
+    ) -> PyResult<Option<(String, Bound<'py, PyAny>)>> {
         self.push(py, from_py_decimal(close)?)
     }
 
     /// The current position.
     #[getter]
-    fn position<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+    fn position<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         to_py_decimal(py, self.position)
     }
 
@@ -84,7 +80,7 @@ impl RustSmaCrossover {
     }
 
     /// The signals that fired.
-    fn intents<'py>(&self, py: Python<'py>) ->PyResult<Vec<(String, Bound<'py, PyAny>)>> {
+    fn intents<'py>(&self, py: Python<'py>) -> PyResult<Vec<(String, Bound<'py, PyAny>)>> {
         self.intents
             .iter()
             .map(|(side, qty)| Ok((side.clone(), to_py_decimal(py, *qty)?)))
@@ -98,15 +94,13 @@ impl RustSmaCrossover {
         &mut self,
         py: Python<'py>,
         close: Decimal,
-    ) ->PyResult<Option<(String, Bound<'py, PyAny>)>> {
+    ) -> PyResult<Option<(String, Bound<'py, PyAny>)>> {
         self.prices.push(close);
         if self.prices.len() < self.slow {
             return Ok(None);
         }
-        let (Some(fast), Some(slow)) = (
-            sma(&self.prices, self.fast),
-            sma(&self.prices, self.slow),
-        ) else {
+        let (Some(fast), Some(slow)) = (sma(&self.prices, self.fast), sma(&self.prices, self.slow))
+        else {
             return Ok(None);
         };
         let diff = fast - slow;
@@ -116,7 +110,8 @@ impl RustSmaCrossover {
             if prev <= Decimal::ZERO && diff > Decimal::ZERO && self.position.is_zero() {
                 self.position = self.qty;
                 fired = Some(("buy".to_string(), self.qty));
-            } else if prev >= Decimal::ZERO && diff < Decimal::ZERO && self.position > Decimal::ZERO {
+            } else if prev >= Decimal::ZERO && diff < Decimal::ZERO && self.position > Decimal::ZERO
+            {
                 let quantity = self.position;
                 self.position = Decimal::ZERO;
                 fired = Some(("sell".to_string(), quantity));

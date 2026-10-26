@@ -63,12 +63,14 @@ fn an_unregistered_algo_is_refused_with_the_engines_rule_code() {
         let error = engine
             .call_method1("check_order", (request,))
             .expect_err("an unregistered algo is refused");
-        assert!(error
-            .get_type_bound(py)
-            .name()
-            .unwrap()
-            .to_string()
-            .contains("RiskRefusalError"));
+        assert!(
+            error
+                .get_type_bound(py)
+                .name()
+                .unwrap()
+                .to_string()
+                .contains("RiskRefusalError")
+        );
 
         let rule = error
             .value_bound(py)
@@ -132,7 +134,14 @@ fn a_price_outside_the_circuit_band_is_refused() {
         let request = module
             .getattr("OrderRequest")
             .unwrap()
-            .call((instrument, module.getattr("OrderSide").unwrap().getattr("BUY").unwrap(), "10"), Some(&kwargs))
+            .call(
+                (
+                    instrument,
+                    module.getattr("OrderSide").unwrap().getattr("BUY").unwrap(),
+                    "10",
+                ),
+                Some(&kwargs),
+            )
             .unwrap();
 
         let error = engine
@@ -157,9 +166,7 @@ fn the_global_kill_switch_refuses_everything() {
         let module = native(py);
         let engine = module.getattr("RiskEngine").unwrap().call0().unwrap();
         engine.call_method1("register_algo", ("ALGO_1",)).unwrap();
-        engine
-            .call_method1("halt_global", ("operator",))
-            .unwrap();
+        engine.call_method1("halt_global", ("operator",)).unwrap();
         let request = order(py, &module, "ALGO_1", "10");
         let error = engine
             .call_method1("check_order", (request,))
@@ -188,15 +195,23 @@ fn limits_are_parsed_from_the_config_table() {
             .unwrap()
             .call_method1("from_dict", (table,))
             .unwrap();
-        assert!(!limits.call_method0("is_empty").unwrap().is_truthy().unwrap());
+        assert!(
+            !limits
+                .call_method0("is_empty")
+                .unwrap()
+                .is_truthy()
+                .unwrap()
+        );
 
         // An unknown key is refused, so a typo in a config file is an error.
         let bad = PyDict::new_bound(py);
         bad.set_item("nope", 1).unwrap();
-        assert!(module
-            .getattr("RiskLimits")
-            .unwrap()
-            .call_method1("from_dict", (bad,))
-            .is_err());
+        assert!(
+            module
+                .getattr("RiskLimits")
+                .unwrap()
+                .call_method1("from_dict", (bad,))
+                .is_err()
+        );
     });
 }

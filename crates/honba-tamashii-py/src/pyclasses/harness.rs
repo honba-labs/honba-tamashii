@@ -20,7 +20,9 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyModule};
 
-use honba_core::{Exchange, InstrumentId, Money, OrderRequest, OrderSide, OrderType, Price, Quantity};
+use honba_core::{
+    Exchange, InstrumentId, Money, OrderRequest, OrderSide, OrderType, Price, Quantity,
+};
 use honba_mon::RiskEngine;
 use rust_decimal::Decimal;
 
@@ -501,12 +503,22 @@ impl PyRunner {
         )?;
 
         if strat_bound.hasattr("setup")? {
-            if let Err(err) = strat_bound.call_method0("setup") {
-                record_error(&state, err);
+            match strat_bound.call_method0("setup") {
+                Ok(val) => {
+                    if let Err(err) = crate::async_bridge::resolve_callback_cooperative(py, val) {
+                        record_error(&state, err);
+                    }
+                }
+                Err(err) => record_error(&state, err),
             }
         } else if strat_bound.hasattr("on_start")? {
-            if let Err(err) = strat_bound.call_method0("on_start") {
-                record_error(&state, err);
+            match strat_bound.call_method0("on_start") {
+                Ok(val) => {
+                    if let Err(err) = crate::async_bridge::resolve_callback_cooperative(py, val) {
+                        record_error(&state, err);
+                    }
+                }
+                Err(err) => record_error(&state, err),
             }
         }
 
@@ -558,6 +570,11 @@ impl PyRunner {
                 }
             };
 
+            let call_res = match call_res {
+                Ok(val) => crate::async_bridge::resolve_callback_cooperative(py, val).map(|_| ()),
+                Err(err) => Err(err),
+            };
+
             if let Err(err) = call_res {
                 if err.is_instance_of::<crate::pyclasses::risk::RiskRefusalError>(py) {
                     // A refused order is a decision, not a crash: the strategy may
@@ -571,8 +588,13 @@ impl PyRunner {
         }
 
         if strat_bound.hasattr("on_stop")? {
-            if let Err(err) = strat_bound.call_method0("on_stop") {
-                record_error(&state, err);
+            match strat_bound.call_method0("on_stop") {
+                Ok(val) => {
+                    if let Err(err) = crate::async_bridge::resolve_callback_cooperative(py, val) {
+                        record_error(&state, err);
+                    }
+                }
+                Err(err) => record_error(&state, err),
             }
         }
 

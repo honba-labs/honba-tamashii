@@ -57,8 +57,8 @@ impl PyFnoContract {
 /// Parse an Indian F&O contract symbol into its structured components.
 #[pyfunction]
 pub fn parse_fno_symbol(symbol: &str) -> PyResult<PyFnoContract> {
-    let contract: FnoContract = parse_market_fno_symbol(symbol)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let contract: FnoContract =
+        parse_market_fno_symbol(symbol).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(fno_contract_of(&contract))
 }
 

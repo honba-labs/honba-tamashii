@@ -21,6 +21,7 @@ extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 pyo3.workspace = true
+pyo3-async-runtimes.workspace = true
 tokio.workspace = true
 honba-core.workspace = true
 honba-mon.workspace = true

@@ -59,7 +59,8 @@ pub enum Artifact {
 
 impl Artifact {
     /// Every artifact, in [`Codegen::write_all`] order.
-    pub const ALL: &'static [Artifact] = &[Artifact::JsonSchema, Artifact::Pyi, Artifact::NativePyi];
+    pub const ALL: &'static [Artifact] =
+        &[Artifact::JsonSchema, Artifact::Pyi, Artifact::NativePyi];
 
     /// The stable name used across the FFI boundary and on the command line.
     pub fn name(self) -> &'static str {

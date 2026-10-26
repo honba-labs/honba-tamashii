@@ -37,7 +37,10 @@ fn a_valid_manifest_compiles_to_an_ir() {
     let ir: Value = serde_json::from_str(&ir).unwrap();
     assert_eq!(ir["strategy_api_version"], json!(STRATEGY_API_VERSION));
     assert_eq!(ir["warmup_bars"], json!(10));
-    assert_eq!(ir["universe"]["instruments"][0]["symbol"], json!("RELIANCE"));
+    assert_eq!(
+        ir["universe"]["instruments"][0]["symbol"],
+        json!("RELIANCE")
+    );
     assert_eq!(ir["subscriptions"]["bars"][0]["exchange"], json!("NSE"));
     assert!(ir["subscriptions"]["quotes"].as_array().unwrap().is_empty());
 }

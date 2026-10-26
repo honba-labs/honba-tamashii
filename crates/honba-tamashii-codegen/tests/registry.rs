@@ -39,7 +39,10 @@ fn the_canonical_wire_types_are_published() {
         "OrderAck",
         "FillReport",
     ] {
-        assert!(set.get(name).is_some(), "{name} is missing from the registry");
+        assert!(
+            set.get(name).is_some(),
+            "{name} is missing from the registry"
+        );
     }
 }
 

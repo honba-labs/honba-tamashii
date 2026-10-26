@@ -1,0 +1,1434 @@
+{
+  "version": [
+    0,
+    1,
+    0
+  ],
+  "surface": {
+    "constants": {
+      "SCHEMA_VERSION": "int",
+      "API_VERSION": "str",
+      "STRATEGY_API_VERSION": "str"
+    },
+    "classes": {
+      "Price": {
+        "attributes": {},
+        "methods": {
+          "to_decimal": {
+            "params": [
+              "self"
+            ],
+            "returns": "decimal.Decimal"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          },
+          "is_positive": {
+            "params": [
+              "self"
+            ],
+            "returns": "bool"
+          },
+          "is_tick_aligned": {
+            "params": [
+              "self",
+              "tick_size"
+            ],
+            "returns": "bool"
+          }
+        }
+      },
+      "Quantity": {
+        "attributes": {},
+        "methods": {
+          "to_decimal": {
+            "params": [
+              "self"
+            ],
+            "returns": "decimal.Decimal"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          },
+          "is_positive": {
+            "params": [
+              "self"
+            ],
+            "returns": "bool"
+          },
+          "is_lot_multiple": {
+            "params": [
+              "self",
+              "lot_size"
+            ],
+            "returns": "bool"
+          }
+        }
+      },
+      "Money": {
+        "attributes": {
+          "currency": "str"
+        },
+        "methods": {
+          "to_decimal": {
+            "params": [
+              "self"
+            ],
+            "returns": "decimal.Decimal"
+          },
+          "to_major": {
+            "params": [
+              "self"
+            ],
+            "returns": "decimal.Decimal"
+          },
+          "to_minor": {
+            "params": [
+              "self"
+            ],
+            "returns": "decimal.Decimal"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "MinorUnit": {
+        "attributes": {
+          "singular": "str",
+          "plural": "str"
+        },
+        "methods": {
+          "of_currency": {
+            "params": [
+              "currency"
+            ],
+            "returns": "MinorUnit"
+          }
+        }
+      },
+      "InstrumentId": {
+        "attributes": {
+          "symbol": "str",
+          "exchange": "str",
+          "token": "str | None",
+          "isin": "str | None"
+        },
+        "methods": {
+          "from_string": {
+            "params": [
+              "text"
+            ],
+            "returns": "InstrumentId"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "PriceBand": {
+        "attributes": {
+          "lower": "Price",
+          "upper": "Price",
+          "reference_price": "Price",
+          "band_pct": "decimal.Decimal | None"
+        },
+        "methods": {
+          "contains": {
+            "params": [
+              "self",
+              "price"
+            ],
+            "returns": "bool"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "DepthLevel": {
+        "attributes": {
+          "price": "Price",
+          "quantity": "Quantity",
+          "orders_count": "int | None"
+        },
+        "methods": {}
+      },
+      "Bar": {
+        "attributes": {
+          "instrument": "InstrumentId",
+          "open": "Price",
+          "high": "Price",
+          "low": "Price",
+          "close": "Price",
+          "volume": "Quantity",
+          "timestamp": "datetime.datetime"
+        },
+        "methods": {
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "Tick": {
+        "attributes": {
+          "kind": "str",
+          "instrument": "InstrumentId",
+          "last_price": "Price | None",
+          "bid": "Price | None",
+          "ask": "Price | None",
+          "volume": "Quantity | None",
+          "exchange_ts": "datetime.datetime",
+          "receive_ts": "datetime.datetime",
+          "band": "PriceBand | None"
+        },
+        "methods": {
+          "from_json": {
+            "params": [
+              "payload"
+            ],
+            "returns": "Tick"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "OrderSide": {
+        "attributes": {
+          "BUY": "OrderSide",
+          "SELL": "OrderSide"
+        },
+        "methods": {}
+      },
+      "OrderType": {
+        "attributes": {
+          "MARKET": "OrderType",
+          "LIMIT": "OrderType",
+          "STOP_LOSS": "OrderType",
+          "STOP_LIMIT": "OrderType"
+        },
+        "methods": {}
+      },
+      "TimeInForce": {
+        "attributes": {
+          "DAY": "TimeInForce",
+          "IOC": "TimeInForce",
+          "GTC": "TimeInForce"
+        },
+        "methods": {}
+      },
+      "OrderStatus": {
+        "attributes": {
+          "PENDING_NEW": "OrderStatus",
+          "NEW": "OrderStatus",
+          "PARTIALLY_FILLED": "OrderStatus",
+          "FILLED": "OrderStatus",
+          "CANCELLED": "OrderStatus",
+          "REJECTED": "OrderStatus",
+          "EXPIRED": "OrderStatus"
+        },
+        "methods": {
+          "is_terminal": {
+            "params": [
+              "self"
+            ],
+            "returns": "bool"
+          }
+        }
+      },
+      "OrderRequest": {
+        "attributes": {
+          "instrument": "InstrumentId",
+          "side": "OrderSide",
+          "order_type": "OrderType",
+          "quantity": "Quantity",
+          "price": "Price | None",
+          "trigger_price": "Price | None",
+          "tif": "TimeInForce",
+          "algo_id": "str",
+          "client_order_id": "str"
+        },
+        "methods": {
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "OrderAck": {
+        "attributes": {
+          "order_id": "str",
+          "client_order_id": "str",
+          "status": "OrderStatus",
+          "timestamp": "datetime.datetime"
+        },
+        "methods": {
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "FillReport": {
+        "attributes": {
+          "fill_id": "str",
+          "order_id": "str",
+          "instrument": "InstrumentId",
+          "side": "OrderSide",
+          "price": "Price",
+          "quantity": "Quantity",
+          "algo_id": "str",
+          "timestamp": "datetime.datetime"
+        },
+        "methods": {
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "OrderIntent": {
+        "attributes": {
+          "instrument": "InstrumentId",
+          "side": "str",
+          "quantity": "Quantity",
+          "order_type": "str",
+          "price": "Price | None",
+          "algo_id": "str"
+        },
+        "methods": {}
+      },
+      "RiskLimits": {
+        "attributes": {
+          "max_notional_per_order": "decimal.Decimal | None",
+          "max_quantity_per_order": "decimal.Decimal | None",
+          "max_daily_loss": "decimal.Decimal | None"
+        },
+        "methods": {
+          "from_dict": {
+            "params": [
+              "config"
+            ],
+            "returns": "RiskLimits"
+          },
+          "is_empty": {
+            "params": [
+              "self"
+            ],
+            "returns": "bool"
+          },
+          "require_live": {
+            "params": [
+              "self"
+            ],
+            "returns": "None"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "OtrConfig": {
+        "attributes": {
+          "max_otr": "decimal.Decimal"
+        },
+        "methods": {
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "RiskRefusal": {
+        "attributes": {
+          "rule": "str",
+          "reason": "str"
+        },
+        "methods": {
+          "details": {
+            "params": [
+              "self"
+            ],
+            "returns": "dict[str, Any]"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "RiskRefusalError": {
+        "attributes": {
+          "rule": "str",
+          "refusal": "str"
+        },
+        "methods": {}
+      },
+      "RiskEngine": {
+        "attributes": {},
+        "methods": {
+          "register_algo": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "None"
+          },
+          "suspend_algo": {
+            "params": [
+              "self",
+              "algo_id",
+              "reason"
+            ],
+            "returns": "None"
+          },
+          "reactivate_algo": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "None"
+          },
+          "unregister_algo": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "None"
+          },
+          "is_algo_registered": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "bool"
+          },
+          "halt_global": {
+            "params": [
+              "self",
+              "reason",
+              "now"
+            ],
+            "returns": "None"
+          },
+          "resume_global": {
+            "params": [
+              "self"
+            ],
+            "returns": "None"
+          },
+          "halt_algo": {
+            "params": [
+              "self",
+              "algo_id",
+              "reason",
+              "now"
+            ],
+            "returns": "None"
+          },
+          "resume_algo": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "None"
+          },
+          "set_price_band": {
+            "params": [
+              "self",
+              "instrument",
+              "band"
+            ],
+            "returns": "None"
+          },
+          "check_order": {
+            "params": [
+              "self",
+              "order",
+              "now"
+            ],
+            "returns": "None"
+          },
+          "check_order_fast": {
+            "params": [
+              "self",
+              "algo_id",
+              "instrument",
+              "quantity",
+              "limit_price",
+              "now"
+            ],
+            "returns": "None"
+          },
+          "check_decision": {
+            "params": [
+              "self",
+              "decision",
+              "now"
+            ],
+            "returns": "None"
+          },
+          "record_fill": {
+            "params": [
+              "self",
+              "fill"
+            ],
+            "returns": "None"
+          },
+          "record_cancellation": {
+            "params": [
+              "self",
+              "algo_id",
+              "now"
+            ],
+            "returns": "None"
+          },
+          "otr_for_algo": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "decimal.Decimal | None"
+          },
+          "total_refusals": {
+            "params": [
+              "self"
+            ],
+            "returns": "int"
+          },
+          "refusals_for_rule": {
+            "params": [
+              "self",
+              "rule"
+            ],
+            "returns": "int"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "RiskDecision": {
+        "attributes": {
+          "approved": "bool",
+          "code": "str",
+          "rule": "str",
+          "context": "str"
+        },
+        "methods": {}
+      },
+      "RiskStage": {
+        "attributes": {
+          "engine": "RiskEngine"
+        },
+        "methods": {
+          "check": {
+            "params": [
+              "self",
+              "order",
+              "now"
+            ],
+            "returns": "RiskDecision"
+          },
+          "register_algo": {
+            "params": [
+              "self",
+              "algo_id"
+            ],
+            "returns": "None"
+          }
+        }
+      },
+      "TradingState": {
+        "attributes": {
+          "ACTIVE": "TradingState",
+          "REDUCING": "TradingState",
+          "HALTED": "TradingState"
+        },
+        "methods": {}
+      },
+      "Command": {
+        "attributes": {
+          "kind": "str",
+          "state": "TradingState | None"
+        },
+        "methods": {
+          "stop": {
+            "params": [],
+            "returns": "Command"
+          },
+          "state": {
+            "params": [
+              "state"
+            ],
+            "returns": "Command"
+          }
+        }
+      },
+      "Metrics": {
+        "attributes": {
+          "orders": "list[OrderIntent]",
+          "final_cash": "decimal.Decimal | None",
+          "degraded": "bool",
+          "errors": "list[str]",
+          "refusals": "list[str]"
+        },
+        "methods": {}
+      },
+      "PyContext": {
+        "attributes": {
+          "orders": "list[OrderIntent]",
+          "refusals": "list[str]"
+        },
+        "methods": {
+          "submit": {
+            "params": [
+              "self",
+              "instrument",
+              "side",
+              "quantity"
+            ],
+            "returns": "str"
+          },
+          "submit_request": {
+            "params": [
+              "self",
+              "order"
+            ],
+            "returns": "str"
+          },
+          "close_all": {
+            "params": [
+              "self",
+              "instrument"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "Runner": {
+        "attributes": {
+          "num_bars": "int",
+          "instrument": "str",
+          "starting_cash": "decimal.Decimal",
+          "algo_id": "str"
+        },
+        "methods": {
+          "run": {
+            "params": [
+              "self",
+              "strategy"
+            ],
+            "returns": "Metrics"
+          }
+        }
+      },
+      "Sma": {
+        "attributes": {
+          "value": "decimal.Decimal | None"
+        },
+        "methods": {
+          "update": {
+            "params": [
+              "self",
+              "value"
+            ],
+            "returns": "decimal.Decimal | None"
+          }
+        }
+      },
+      "RustSmaCrossover": {
+        "attributes": {
+          "position": "decimal.Decimal",
+          "intent_count": "int"
+        },
+        "methods": {
+          "on_bar": {
+            "params": [
+              "self",
+              "bar"
+            ],
+            "returns": "tuple[str, decimal.Decimal] | None"
+          },
+          "on_close": {
+            "params": [
+              "self",
+              "close"
+            ],
+            "returns": "tuple[str, decimal.Decimal] | None"
+          },
+          "intents": {
+            "params": [
+              "self"
+            ],
+            "returns": "list[tuple[str, decimal.Decimal]]"
+          }
+        }
+      },
+      "FnoContract": {
+        "attributes": {
+          "symbol": "str",
+          "underlying": "str",
+          "kind": "str",
+          "expiry_year": "int",
+          "expiry_month": "int",
+          "expiry_day": "int | None",
+          "is_weekly": "bool",
+          "strike": "str | None",
+          "option_type": "str | None"
+        },
+        "methods": {}
+      },
+      "ArrowStream": {
+        "attributes": {
+          "num_rows": "int",
+          "num_batches": "int",
+          "column_names": "list[str]"
+        },
+        "methods": {
+          "__arrow_c_schema__": {
+            "params": [
+              "self"
+            ],
+            "returns": "Any"
+          },
+          "__arrow_c_stream__": {
+            "params": [
+              "self",
+              "requested_schema"
+            ],
+            "returns": "Any"
+          },
+          "to_pyarrow": {
+            "params": [
+              "self"
+            ],
+            "returns": "Any"
+          },
+          "to_polars": {
+            "params": [
+              "self"
+            ],
+            "returns": "Any"
+          }
+        }
+      },
+      "Lakehouse": {
+        "attributes": {
+          "root": "str"
+        },
+        "methods": {
+          "write_bars": {
+            "params": [
+              "self",
+              "timeframe",
+              "bars"
+            ],
+            "returns": "list[str]"
+          },
+          "write_ticks": {
+            "params": [
+              "self",
+              "ticks"
+            ],
+            "returns": "list[str]"
+          },
+          "read_bars": {
+            "params": [
+              "self",
+              "instrument",
+              "timeframe",
+              "start",
+              "end"
+            ],
+            "returns": "list[Bar]"
+          },
+          "read_ticks": {
+            "params": [
+              "self",
+              "instrument",
+              "start",
+              "end"
+            ],
+            "returns": "list[Tick]"
+          },
+          "load_bars_arrow": {
+            "params": [
+              "self",
+              "instrument",
+              "timeframe",
+              "start",
+              "end"
+            ],
+            "returns": "ArrowStream"
+          },
+          "load_ticks_arrow": {
+            "params": [
+              "self",
+              "instrument",
+              "start",
+              "end"
+            ],
+            "returns": "ArrowStream"
+          }
+        }
+      },
+      "BhavRecord": {
+        "attributes": {
+          "date": "str",
+          "series": "str",
+          "bar": "Bar",
+          "prev_close": "decimal.Decimal | None",
+          "vwap": "decimal.Decimal | None",
+          "trades": "int | None",
+          "deliverable_qty": "decimal.Decimal | None",
+          "deliverable_pct": "decimal.Decimal | None"
+        },
+        "methods": {}
+      },
+      "SizingMethod": {
+        "attributes": {
+          "kind": "str"
+        },
+        "methods": {
+          "fixed_fractional": {
+            "params": [
+              "risk_pct"
+            ],
+            "returns": "SizingMethod"
+          },
+          "volatility_target": {
+            "params": [
+              "target_annual_vol",
+              "lookback_bars"
+            ],
+            "returns": "SizingMethod"
+          },
+          "kelly_criterion": {
+            "params": [
+              "win_rate",
+              "payoff_ratio",
+              "fraction"
+            ],
+            "returns": "SizingMethod"
+          },
+          "equal_risk_contribution": {
+            "params": [],
+            "returns": "SizingMethod"
+          },
+          "fixed_notional": {
+            "params": [
+              "notional"
+            ],
+            "returns": "SizingMethod"
+          },
+          "from_json": {
+            "params": [
+              "text"
+            ],
+            "returns": "SizingMethod"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "RiskBudget": {
+        "attributes": {
+          "equity": "Money",
+          "risk_pct": "decimal.Decimal",
+          "min_lot_size": "Quantity",
+          "max_position_notional": "Money | None",
+          "max_position_qty": "Quantity | None",
+          "max_portfolio_risk_pct": "decimal.Decimal | None",
+          "freeze_limit_qty": "Quantity | None"
+        },
+        "methods": {
+          "with_max_notional": {
+            "params": [
+              "self",
+              "max_notional"
+            ],
+            "returns": "RiskBudget"
+          },
+          "with_max_qty": {
+            "params": [
+              "self",
+              "max_qty"
+            ],
+            "returns": "RiskBudget"
+          },
+          "with_freeze_limit": {
+            "params": [
+              "self",
+              "freeze_qty"
+            ],
+            "returns": "RiskBudget"
+          },
+          "with_max_portfolio_risk": {
+            "params": [
+              "self",
+              "max_risk"
+            ],
+            "returns": "RiskBudget"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "PositionSizingRequest": {
+        "attributes": {
+          "instrument": "InstrumentId",
+          "side": "str",
+          "entry_price": "Price",
+          "stop_loss": "Price | None",
+          "current_volatility": "decimal.Decimal | None",
+          "account_equity": "Money",
+          "risk_budget": "RiskBudget",
+          "sizing_method": "SizingMethod"
+        },
+        "methods": {
+          "with_stop_loss": {
+            "params": [
+              "self",
+              "stop_loss"
+            ],
+            "returns": "PositionSizingRequest"
+          },
+          "with_volatility": {
+            "params": [
+              "self",
+              "volatility"
+            ],
+            "returns": "PositionSizingRequest"
+          },
+          "calculate": {
+            "params": [
+              "self"
+            ],
+            "returns": "PositionSizingResult"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "PositionSizingResult": {
+        "attributes": {
+          "instrument": "InstrumentId",
+          "quantity": "Quantity",
+          "allocated_notional": "Money",
+          "risk_at_stake": "Money",
+          "target_weight": "decimal.Decimal | None",
+          "capped_by_limit": "bool",
+          "reason": "str | None"
+        },
+        "methods": {
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "Signal": {
+        "attributes": {
+          "instrument": "InstrumentId",
+          "direction": "str",
+          "horizon": "str",
+          "timeframe": "str",
+          "strength": "decimal.Decimal",
+          "generated_by": "str",
+          "timestamp": "str",
+          "entry_price": "Price | None",
+          "stop_loss": "Price | None",
+          "take_profit": "Price | None",
+          "volatility_atr": "decimal.Decimal | None",
+          "side": "str | None"
+        },
+        "methods": {
+          "with_entry_price": {
+            "params": [
+              "self",
+              "price"
+            ],
+            "returns": "Signal"
+          },
+          "with_stop_loss": {
+            "params": [
+              "self",
+              "price"
+            ],
+            "returns": "Signal"
+          },
+          "with_take_profit": {
+            "params": [
+              "self",
+              "price"
+            ],
+            "returns": "Signal"
+          },
+          "with_volatility_atr": {
+            "params": [
+              "self",
+              "value"
+            ],
+            "returns": "Signal"
+          },
+          "to_json": {
+            "params": [
+              "self"
+            ],
+            "returns": "str"
+          }
+        }
+      },
+      "FixedFractionalSizer": {
+        "attributes": {
+          "risk_pct": "decimal.Decimal",
+          "lot_size": "Quantity"
+        },
+        "methods": {
+          "calculate_size": {
+            "params": [
+              "self",
+              "instrument",
+              "entry_price",
+              "equity",
+              "side",
+              "stop_loss"
+            ],
+            "returns": "PositionSizingResult"
+          }
+        }
+      },
+      "AtrVolatilitySizer": {
+        "attributes": {
+          "target_risk": "decimal.Decimal",
+          "multiplier": "decimal.Decimal",
+          "lot_size": "Quantity"
+        },
+        "methods": {
+          "calculate_size": {
+            "params": [
+              "self",
+              "instrument",
+              "entry_price",
+              "equity",
+              "atr",
+              "side",
+              "stop_loss"
+            ],
+            "returns": "PositionSizingResult"
+          }
+        }
+      },
+      "KellySizer": {
+        "attributes": {
+          "win_rate": "decimal.Decimal",
+          "payoff_ratio": "decimal.Decimal",
+          "fraction": "decimal.Decimal",
+          "lot_size": "Quantity"
+        },
+        "methods": {
+          "kelly_fraction": {
+            "params": [
+              "self"
+            ],
+            "returns": "decimal.Decimal"
+          },
+          "calculate_size": {
+            "params": [
+              "self",
+              "instrument",
+              "entry_price",
+              "equity",
+              "side",
+              "stop_loss"
+            ],
+            "returns": "PositionSizingResult"
+          }
+        }
+      },
+      "EqualRiskSizer": {
+        "attributes": {
+          "risk_pct": "decimal.Decimal",
+          "lot_size": "Quantity"
+        },
+        "methods": {
+          "allocate": {
+            "params": [
+              "self",
+              "equity",
+              "instruments",
+              "entry_prices",
+              "volatilities",
+              "gross_exposure"
+            ],
+            "returns": "list[PositionSizingResult]"
+          }
+        }
+      },
+      "FixedNotionalSizer": {
+        "attributes": {
+          "notional": "Money",
+          "lot_size": "Quantity"
+        },
+        "methods": {
+          "calculate_size": {
+            "params": [
+              "self",
+              "instrument",
+              "entry_price",
+              "side"
+            ],
+            "returns": "PositionSizingResult"
+          }
+        }
+      },
+      "PyCancellationToken": {
+        "attributes": {},
+        "methods": {
+          "cancel": {
+            "params": [
+              "self"
+            ],
+            "returns": "None"
+          },
+          "is_cancelled": {
+            "params": [
+              "self"
+            ],
+            "returns": "bool"
+          },
+          "reset": {
+            "params": [
+              "self"
+            ],
+            "returns": "None"
+          },
+          "cancelled": {
+            "params": [
+              "self"
+            ],
+            "returns": "Any"
+          }
+        }
+      }
+    },
+    "functions": {
+      "canonical_json": {
+        "params": [
+          "kind",
+          "payload"
+        ],
+        "returns": "str"
+      },
+      "wire_enum_values": {
+        "params": [],
+        "returns": "dict[str, list[str]]"
+      },
+      "currency_minor_units": {
+        "params": [],
+        "returns": "dict[str, tuple[int, str, str]]"
+      },
+      "verify_manifest": {
+        "params": [
+          "manifest_json"
+        ],
+        "returns": "str"
+      },
+      "codegen_render": {
+        "params": [
+          "kind"
+        ],
+        "returns": "tuple[str, str]"
+      },
+      "codegen_artifacts": {
+        "params": [],
+        "returns": "list[str]"
+      },
+      "parse_fno_symbol": {
+        "params": [
+          "symbol"
+        ],
+        "returns": "FnoContract"
+      },
+      "nse_equity_settlement_days": {
+        "params": [
+          "as_of"
+        ],
+        "returns": "int"
+      },
+      "runtime_start": {
+        "params": [
+          "worker_threads"
+        ],
+        "returns": "tuple[str, int, int]"
+      },
+      "runtime_stop": {
+        "params": [],
+        "returns": "bool"
+      },
+      "runtime_info": {
+        "params": [],
+        "returns": "tuple[str, int, int] | None"
+      },
+      "protocol_capsule": {
+        "params": [],
+        "returns": "ArrowStream"
+      },
+      "bars_to_arrow": {
+        "params": [
+          "bars"
+        ],
+        "returns": "ArrowStream"
+      },
+      "ticks_to_arrow": {
+        "params": [
+          "ticks"
+        ],
+        "returns": "ArrowStream"
+      },
+      "export_capsule": {
+        "params": [
+          "bars"
+        ],
+        "returns": "Any"
+      },
+      "parse_bhavcopy_csv": {
+        "params": [
+          "csv_text",
+          "fallback_date",
+          "delivery_dat"
+        ],
+        "returns": "list[BhavRecord]"
+      },
+      "bhavcopy_to_bars": {
+        "params": [
+          "csv_text",
+          "fallback_date",
+          "series"
+        ],
+        "returns": "list[Bar]"
+      },
+      "bhavcopy_to_arrow": {
+        "params": [
+          "csv_text",
+          "fallback_date",
+          "series"
+        ],
+        "returns": "ArrowStream"
+      },
+      "batch_sma": {
+        "params": [
+          "values",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_ema": {
+        "params": [
+          "values",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_rma": {
+        "params": [
+          "values",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_rsi": {
+        "params": [
+          "values",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_bollinger": {
+        "params": [
+          "values",
+          "period",
+          "num_std"
+        ],
+        "returns": "tuple[list[float | None], list[float | None], list[float | None]]"
+      },
+      "batch_macd": {
+        "params": [
+          "values",
+          "fast_period",
+          "slow_period",
+          "signal_period"
+        ],
+        "returns": "tuple[list[float | None], list[float | None], list[float | None]]"
+      },
+      "batch_atr": {
+        "params": [
+          "high",
+          "low",
+          "close",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_donchian": {
+        "params": [
+          "high",
+          "low",
+          "period"
+        ],
+        "returns": "tuple[list[float | None], list[float | None], list[float | None]]"
+      },
+      "batch_stochastic": {
+        "params": [
+          "high",
+          "low",
+          "close",
+          "k_period",
+          "d_period"
+        ],
+        "returns": "tuple[list[float | None], list[float | None]]"
+      },
+      "batch_williams_r": {
+        "params": [
+          "high",
+          "low",
+          "close",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_supertrend": {
+        "params": [
+          "high",
+          "low",
+          "close",
+          "period",
+          "multiplier"
+        ],
+        "returns": "tuple[list[float | None], list[int]]"
+      },
+      "batch_vwap": {
+        "params": [
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_cpr": {
+        "params": [
+          "high",
+          "low",
+          "close"
+        ],
+        "returns": "tuple[list[float | None], list[float | None], list[float | None], list[float | None]]"
+      },
+      "batch_adx": {
+        "params": [
+          "high",
+          "low",
+          "close",
+          "period"
+        ],
+        "returns": "list[float | None]"
+      },
+      "batch_obv": {
+        "params": [
+          "close",
+          "volume"
+        ],
+        "returns": "list[float | None]"
+      },
+      "size_batch": {
+        "params": [
+          "instruments",
+          "entry_prices",
+          "equity",
+          "risk_pct",
+          "lot_size",
+          "stop_losses",
+          "volatilities",
+          "method"
+        ],
+        "returns": "list[PositionSizingResult]"
+      },
+      "run_coroutine": {
+        "params": [
+          "coro",
+          "timeout_secs",
+          "token"
+        ],
+        "returns": "Any"
+      },
+      "spawn_blocking_call": {
+        "params": [
+          "callable",
+          "args",
+          "timeout_secs"
+        ],
+        "returns": "Any"
+      },
+      "run_in_blocking_pool": {
+        "params": [
+          "callable",
+          "args"
+        ],
+        "returns": "Any"
+      }
+    }
+  }
+}

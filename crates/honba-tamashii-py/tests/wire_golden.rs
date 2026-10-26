@@ -47,8 +47,7 @@ fn kind_of(file: &str) -> &'static str {
 fn every_golden_vector_round_trips_unchanged_and_idempotently() {
     for (file, doc) in golden_files() {
         let kind = kind_of(&file);
-        let out = canonical(kind, &doc.to_string())
-            .unwrap_or_else(|e| panic!("{file}: {e}"));
+        let out = canonical(kind, &doc.to_string()).unwrap_or_else(|e| panic!("{file}: {e}"));
         let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(&parsed, &doc, "{file}");
         assert_eq!(canonical(kind, &out).unwrap(), out, "{file}");

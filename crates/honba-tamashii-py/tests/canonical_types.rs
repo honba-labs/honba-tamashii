@@ -72,11 +72,29 @@ fn prices_compare_and_add() {
         let price = module.getattr("Price").unwrap();
         let ten = price.call1(("10",)).unwrap();
         let eleven = price.call1(("11",)).unwrap();
-        assert!(ten.call_method1("__lt__", (eleven.clone(),)).unwrap().is_truthy().unwrap());
-        assert!(eleven.call_method1("__gt__", (ten.clone(),)).unwrap().is_truthy().unwrap());
-        assert!(ten.call_method1("__eq__", (price.call1(("10.00",)).unwrap(),)).unwrap().is_truthy().unwrap());
+        assert!(
+            ten.call_method1("__lt__", (eleven.clone(),))
+                .unwrap()
+                .is_truthy()
+                .unwrap()
+        );
+        assert!(
+            eleven
+                .call_method1("__gt__", (ten.clone(),))
+                .unwrap()
+                .is_truthy()
+                .unwrap()
+        );
+        assert!(
+            ten.call_method1("__eq__", (price.call1(("10.00",)).unwrap(),))
+                .unwrap()
+                .is_truthy()
+                .unwrap()
+        );
 
-        let sum = ten.call_method1("__add__", (price.call1(("2.50",)).unwrap(),)).unwrap();
+        let sum = ten
+            .call_method1("__add__", (price.call1(("2.50",)).unwrap(),))
+            .unwrap();
         assert_eq!(sum.str().unwrap().to_string(), "12.50");
     });
 }
@@ -86,7 +104,11 @@ fn a_price_times_a_quantity_is_the_notional() {
     init_python();
     Python::with_gil(|py| {
         let module = native(py);
-        let price = module.getattr("Price").unwrap().call1(("2540.50",)).unwrap();
+        let price = module
+            .getattr("Price")
+            .unwrap()
+            .call1(("2540.50",))
+            .unwrap();
         let quantity = module.getattr("Quantity").unwrap().call1(("10",)).unwrap();
         let notional = price.call_method1("__mul__", (quantity,)).unwrap();
         assert_eq!(notional.get_type().name().unwrap(), "Money");
@@ -111,8 +133,14 @@ fn the_currency_table_comes_from_the_kernel() {
         let table = table.downcast::<PyDict>().unwrap();
         let inr = table.get_item("INR").unwrap().unwrap();
         assert_eq!(inr.get_item(0).unwrap().extract::<u8>().unwrap(), 2);
-        assert_eq!(inr.get_item(1).unwrap().extract::<String>().unwrap(), "paisa");
-        assert_eq!(inr.get_item(2).unwrap().extract::<String>().unwrap(), "paise");
+        assert_eq!(
+            inr.get_item(1).unwrap().extract::<String>().unwrap(),
+            "paisa"
+        );
+        assert_eq!(
+            inr.get_item(2).unwrap().extract::<String>().unwrap(),
+            "paise"
+        );
     });
 }
 
@@ -122,11 +150,19 @@ fn the_version_axes_are_exported() {
     Python::with_gil(|py| {
         let module = native(py);
         assert_eq!(
-            module.getattr("SCHEMA_VERSION").unwrap().extract::<u32>().unwrap(),
+            module
+                .getattr("SCHEMA_VERSION")
+                .unwrap()
+                .extract::<u32>()
+                .unwrap(),
             honba_core::SCHEMA_VERSION
         );
         assert_eq!(
-            module.getattr("API_VERSION").unwrap().extract::<String>().unwrap(),
+            module
+                .getattr("API_VERSION")
+                .unwrap()
+                .extract::<String>()
+                .unwrap(),
             honba_core::API_VERSION
         );
         assert_eq!(

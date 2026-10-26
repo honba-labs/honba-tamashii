@@ -17,7 +17,9 @@ use honba_core::{Decision, Quantity};
 use honba_mon::{OtrConfig, RiskEngine, RiskLimits, RiskRefusal};
 use rust_decimal::Decimal;
 
-use crate::decimal::{from_py_decimal, from_py_optional_decimal, from_py_optional_timestamp, to_py_decimal};
+use crate::decimal::{
+    from_py_decimal, from_py_optional_decimal, from_py_optional_timestamp, to_py_decimal,
+};
 use crate::pyclasses::core::{PyInstrumentId, PyPriceBand};
 use crate::pyclasses::order::{PyFillReport, PyOrderRequest};
 
@@ -53,16 +55,14 @@ impl PyRiskRefusal {
             RiskRefusal::OrderRateExceeded { .. } => "OrderRateExceeded",
             RiskRefusal::DailyLossExceeded { .. } => "DailyLossExceeded",
             RiskRefusal::ReduceOnlyViolation { .. } => "ReduceOnlyViolation",
-            RiskRefusal::PositionConcentrationExceeded { .. } => {
-                "PositionConcentrationExceeded"
-            }
+            RiskRefusal::PositionConcentrationExceeded { .. } => "PositionConcentrationExceeded",
             RiskRefusal::MisLeverageExceeded { .. } => "MisLeverageExceeded",
             RiskRefusal::InvalidOrder { .. } => "InvalidOrder",
         }
     }
 
     /// The refusal's details, keyed by field name.
-    fn details<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyDict>> {
+    fn details<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let details = PyDict::new_bound(py);
         match &self.inner {
             RiskRefusal::GlobalHalted { reason } => {
@@ -138,7 +138,10 @@ impl PyRiskRefusal {
                 details.set_item("limit", limit)?;
                 details.set_item("window_ms", window_ms)?;
             }
-            RiskRefusal::DailyLossExceeded { current_loss, limit } => {
+            RiskRefusal::DailyLossExceeded {
+                current_loss,
+                limit,
+            } => {
                 details.set_item("current_loss", current_loss.to_string())?;
                 details.set_item("limit", limit.to_string())?;
             }
@@ -213,8 +216,8 @@ impl PyRiskLimits {
     ) -> PyResult<Self> {
         let mut inner = RiskLimits::default();
         inner.max_notional_per_order = from_py_optional_decimal(max_notional_per_order)?;
-        inner.max_quantity_per_order = from_py_optional_decimal(max_quantity_per_order)?
-            .map(Quantity::new);
+        inner.max_quantity_per_order =
+            from_py_optional_decimal(max_quantity_per_order)?.map(Quantity::new);
         inner.max_daily_loss = from_py_optional_decimal(max_daily_loss)?;
         inner.price_collar_bps = price_collar_bps;
         if let Some((max_orders, window_ms)) = order_rate_limit {
@@ -260,7 +263,7 @@ impl PyRiskLimits {
                             other => {
                                 return Err(PyValueError::new_err(format!(
                                     "unknown risk.order_rate key {other:?}"
-                                )))
+                                )));
                             }
                         }
                     }
@@ -274,15 +277,11 @@ impl PyRiskLimits {
                         _ => {
                             return Err(PyValueError::new_err(
                                 "risk.order_rate needs both max_orders and window_ms",
-                            ))
+                            ));
                         }
                     }
                 }
-                other => {
-                    return Err(PyValueError::new_err(format!(
-                        "unknown risk key {other:?}"
-                    )))
-                }
+                other => return Err(PyValueError::new_err(format!("unknown risk key {other:?}"))),
             }
         }
         Ok(Self { inner })
@@ -290,7 +289,7 @@ impl PyRiskLimits {
 
     /// The maximum notional per order, if any.
     #[getter]
-    fn max_notional_per_order<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn max_notional_per_order<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         Ok(match self.inner.max_notional_per_order {
             Some(value) => Some(to_py_decimal(py, value)?),
             None => None,
@@ -299,7 +298,7 @@ impl PyRiskLimits {
 
     /// The maximum quantity per order, if any.
     #[getter]
-    fn max_quantity_per_order<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn max_quantity_per_order<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         Ok(match self.inner.max_quantity_per_order {
             Some(value) => Some(to_py_decimal(py, value.0)?),
             None => None,
@@ -308,7 +307,7 @@ impl PyRiskLimits {
 
     /// The maximum daily loss, if any.
     #[getter]
-    fn max_daily_loss<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn max_daily_loss<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         Ok(match self.inner.max_daily_loss {
             Some(value) => Some(to_py_decimal(py, value)?),
             None => None,
@@ -392,7 +391,7 @@ impl PyOtrConfig {
 
     /// The maximum order-to-trade ratio.
     #[getter]
-    fn max_otr<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+    fn max_otr<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         to_py_decimal(py, self.inner.max_otr)
     }
 
@@ -453,7 +452,7 @@ impl PyRiskEngine {
     }
 
     /// Halt every order (the global kill switch).
-        #[pyo3(signature = (reason, now=None))]
+    #[pyo3(signature = (reason, now=None))]
     fn halt_global(&mut self, reason: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
         let now = timestamp_or_now(now)?;
         self.inner.halt_global(reason, now);
@@ -466,8 +465,13 @@ impl PyRiskEngine {
     }
 
     /// Halt one algo id.
-        #[pyo3(signature = (algo_id, reason, now=None))]
-    fn halt_algo(&mut self, algo_id: &str, reason: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+    #[pyo3(signature = (algo_id, reason, now=None))]
+    fn halt_algo(
+        &mut self,
+        algo_id: &str,
+        reason: &str,
+        now: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
         let now = timestamp_or_now(now)?;
         self.inner.halt_algo(algo_id, reason, now);
         Ok(())
@@ -517,13 +521,10 @@ impl PyRiskEngine {
         let now = timestamp_or_now(now)?;
         let quantity = Quantity::new(from_py_decimal(quantity)?);
         let limit_price = from_py_optional_decimal(limit_price)?.map(honba_core::Price::new);
-        match self.inner.check_order_fast(
-            algo_id,
-            &instrument.inner,
-            quantity,
-            limit_price,
-            now,
-        ) {
+        match self
+            .inner
+            .check_order_fast(algo_id, &instrument.inner, quantity, limit_price, now)
+        {
             Ok(()) => Ok(()),
             Err(refusal) => Err(refusal_error(
                 &refusal.to_string(),
@@ -534,7 +535,7 @@ impl PyRiskEngine {
     }
 
     /// Checks an AI decision against every rule.
-        #[pyo3(signature = (decision, now=None))]
+    #[pyo3(signature = (decision, now=None))]
     fn check_decision(&mut self, decision: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
         let now = timestamp_or_now(now)?;
         let decision: Decision = serde_json::from_str(decision)
@@ -555,15 +556,23 @@ impl PyRiskEngine {
     }
 
     /// Records a cancellation, so the OTR ratio rises.
-        #[pyo3(signature = (algo_id, now=None))]
-    fn record_cancellation(&mut self, algo_id: &str, now: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+    #[pyo3(signature = (algo_id, now=None))]
+    fn record_cancellation(
+        &mut self,
+        algo_id: &str,
+        now: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
         let now = timestamp_or_now(now)?;
         self.inner.record_cancellation(algo_id, now);
         Ok(())
     }
 
     /// The cumulative order-to-trade ratio of an algo id.
-    fn otr_for_algo<'py>(&self, algo_id: &str, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn otr_for_algo<'py>(
+        &self,
+        algo_id: &str,
+        py: Python<'py>,
+    ) -> PyResult<Option<Bound<'py, PyAny>>> {
         Ok(match self.inner.otr_for_algo(algo_id) {
             Some(value) => Some(to_py_decimal(py, value)?),
             None => None,
@@ -771,7 +780,10 @@ fn timestamp_or_now(now: Option<&Bound<'_, PyAny>>) -> PyResult<chrono::DateTime
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("RiskRefusalError", m.py().get_type_bound::<RiskRefusalError>())?;
+    m.add(
+        "RiskRefusalError",
+        m.py().get_type_bound::<RiskRefusalError>(),
+    )?;
     m.add_class::<PyRiskRefusal>()?;
     m.add_class::<PyRiskLimits>()?;
     m.add_class::<PyOtrConfig>()?;

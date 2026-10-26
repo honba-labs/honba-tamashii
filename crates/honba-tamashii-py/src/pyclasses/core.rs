@@ -8,7 +8,9 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use honba_core::{Currency, DepthLevel, Exchange, InstrumentId, Money, Price, PriceBand, Quantity, Tick};
+use honba_core::{
+    Currency, DepthLevel, Exchange, InstrumentId, Money, Price, PriceBand, Quantity, Tick,
+};
 use rust_decimal::Decimal;
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -88,7 +90,7 @@ impl PyPrice {
     }
 
     /// The price as a `decimal.Decimal`.
-    fn to_decimal<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+    fn to_decimal<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         to_py_decimal(py, self.inner.0)
     }
 
@@ -172,7 +174,7 @@ impl PyPrice {
     }
 
     /// `price / price` is a dimensionless ratio; `price / n` scales the price.
-    fn __truediv__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) ->PyResult<Py<PyAny>> {
+    fn __truediv__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
         if let Ok(other) = as_price(other) {
             let ratio = self.inner.0 / other.0;
             return Ok(to_py_decimal(py, ratio)?.unbind());
@@ -217,7 +219,7 @@ impl PyQuantity {
     }
 
     /// The quantity as a `decimal.Decimal`.
-    fn to_decimal<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+    fn to_decimal<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         to_py_decimal(py, self.inner.0)
     }
 
@@ -259,22 +261,26 @@ impl PyQuantity {
     }
 
     fn __lt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let other = as_quantity_operand(other).map_err(|_| operand_error("<", "Quantity", other))?;
+        let other =
+            as_quantity_operand(other).map_err(|_| operand_error("<", "Quantity", other))?;
         Ok(self.inner < other)
     }
 
     fn __le__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let other = as_quantity_operand(other).map_err(|_| operand_error("<=", "Quantity", other))?;
+        let other =
+            as_quantity_operand(other).map_err(|_| operand_error("<=", "Quantity", other))?;
         Ok(self.inner <= other)
     }
 
     fn __gt__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let other = as_quantity_operand(other).map_err(|_| operand_error(">", "Quantity", other))?;
+        let other =
+            as_quantity_operand(other).map_err(|_| operand_error(">", "Quantity", other))?;
         Ok(self.inner > other)
     }
 
     fn __ge__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
-        let other = as_quantity_operand(other).map_err(|_| operand_error(">=", "Quantity", other))?;
+        let other =
+            as_quantity_operand(other).map_err(|_| operand_error(">=", "Quantity", other))?;
         Ok(self.inner >= other)
     }
 
@@ -300,7 +306,7 @@ impl PyQuantity {
         })
     }
 
-    fn __truediv__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) ->PyResult<Py<PyAny>> {
+    fn __truediv__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
         if let Ok(other) = as_quantity(other) {
             if other.0.is_zero() {
                 return Err(PyValueError::new_err("division by zero"));
@@ -342,15 +348,15 @@ impl PyMoney {
     #[new]
     #[pyo3(signature = (amount, currency="INR"))]
     pub fn new(amount: &Bound<'_, PyAny>, currency: &str) -> PyResult<Self> {
-        let currency = Currency::from_code(currency)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let currency =
+            Currency::from_code(currency).map_err(|e| PyValueError::new_err(e.to_string()))?;
         Ok(Self {
             inner: Money::new(from_py_decimal(amount)?, currency),
         })
     }
 
     /// The amount as a `decimal.Decimal`.
-    fn to_decimal<'py>(&self, py: Python<'py>) ->PyResult<Bound<'py, PyAny>> {
+    fn to_decimal<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         to_py_decimal(py, self.inner.amount)
     }
 
@@ -380,7 +386,11 @@ impl PyMoney {
     }
 
     fn __repr__(&self) -> String {
-        format!("Money('{}', '{}')", self.inner.amount, self.inner.currency.code())
+        format!(
+            "Money('{}', '{}')",
+            self.inner.amount,
+            self.inner.currency.code()
+        )
     }
 
     fn __str__(&self) -> String {
@@ -451,8 +461,8 @@ impl PyInstrumentId {
         token: Option<String>,
         isin: Option<String>,
     ) -> PyResult<Self> {
-        let exchange = Exchange::from_str(exchange)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let exchange =
+            Exchange::from_str(exchange).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let mut inner = InstrumentId::new(exchange, symbol);
         if let Some(token) = token {
             inner = inner.with_token(token);
@@ -555,13 +565,17 @@ impl PyPriceBand {
     /// The lower circuit.
     #[getter]
     fn lower(&self) -> PyPrice {
-        PyPrice { inner: self.inner.lower }
+        PyPrice {
+            inner: self.inner.lower,
+        }
     }
 
     /// The upper circuit.
     #[getter]
     fn upper(&self) -> PyPrice {
-        PyPrice { inner: self.inner.upper }
+        PyPrice {
+            inner: self.inner.upper,
+        }
     }
 
     /// The reference price the band is centred on.
@@ -574,7 +588,7 @@ impl PyPriceBand {
 
     /// The band width as a fraction (`0.05` is 5%), if known.
     #[getter]
-    fn band_pct<'py>(&self, py: Python<'py>) ->PyResult<Option<Bound<'py, PyAny>>> {
+    fn band_pct<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         match self.inner.band_pct {
             Some(pct) => Ok(Some(to_py_decimal(py, pct)?)),
             None => Ok(None),
@@ -684,8 +698,10 @@ impl PyBar {
         volume: &Bound<'_, PyAny>,
         timestamp: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let timestamp = crate::decimal::from_py_optional_timestamp(timestamp)?
-            .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp"));
+        let timestamp =
+            crate::decimal::from_py_optional_timestamp(timestamp)?.unwrap_or_else(|| {
+                chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp")
+            });
         Ok(Self {
             inner: honba_core::Bar {
                 instrument: instrument.inner.clone(),
@@ -710,25 +726,33 @@ impl PyBar {
     /// The open price.
     #[getter]
     fn open(&self) -> PyPrice {
-        PyPrice { inner: self.inner.open }
+        PyPrice {
+            inner: self.inner.open,
+        }
     }
 
     /// The high price.
     #[getter]
     fn high(&self) -> PyPrice {
-        PyPrice { inner: self.inner.high }
+        PyPrice {
+            inner: self.inner.high,
+        }
     }
 
     /// The low price.
     #[getter]
     fn low(&self) -> PyPrice {
-        PyPrice { inner: self.inner.low }
+        PyPrice {
+            inner: self.inner.low,
+        }
     }
 
     /// The close price.
     #[getter]
     fn close(&self) -> PyPrice {
-        PyPrice { inner: self.inner.close }
+        PyPrice {
+            inner: self.inner.close,
+        }
     }
 
     /// The traded volume.
@@ -796,7 +820,9 @@ impl PyTick {
     /// The last traded price, if the tick carries one.
     #[getter]
     fn last_price(&self) -> Option<PyPrice> {
-        self.inner.last_price().map(|price| PyPrice { inner: price })
+        self.inner
+            .last_price()
+            .map(|price| PyPrice { inner: price })
     }
 
     /// The best bid, for a quote tick.
@@ -887,8 +913,8 @@ impl PyMinorUnit {
     /// The minor unit of a currency, straight from the kernel's table.
     #[staticmethod]
     pub fn of_currency(currency: &str) -> PyResult<Self> {
-        let currency = Currency::from_code(currency)
-            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let currency =
+            Currency::from_code(currency).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let unit = currency.minor_unit();
         Ok(Self {
             singular: unit.singular.to_string(),

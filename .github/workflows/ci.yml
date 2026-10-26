@@ -39,8 +39,11 @@ jobs:
       - name: Build (editable) and run tests
         run: |
           maturin develop
-          pip install pytest ruff
+          pip install pytest ruff hypothesis mypy
           python -m pytest -q
+      - name: Stub diff and SemVer compatibility check
+        run: |
+          python scripts/check_stub_compatibility.py
 
   # ---------------------------------------------------------------------------
   # Wheel build + test matrix for the five distribution targets.
@@ -93,7 +96,7 @@ jobs:
       - name: Install the built wheel and run tests
         run: |
           pip install dist/honba*.whl
-          pip install pytest ruff
+          pip install pytest ruff hypothesis mypy
           python -m pytest -q
       - name: Verify wheel size budget (< 20 MB stripped)
         run: |

@@ -20,10 +20,16 @@
 // crate does not define. Both come from the macro, not from this code.
 #![allow(unsafe_op_in_unsafe_fn)]
 #![allow(unexpected_cfgs)]
+#![allow(clippy::useless_conversion)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
+#![allow(clippy::wrong_self_convention)]
+#![allow(clippy::field_reassign_with_default)]
 
 use pyo3::prelude::*;
 
 pub mod arrow;
+pub mod async_bridge;
 pub mod decimal;
 pub mod pyclasses;
 pub mod runner;
@@ -37,6 +43,7 @@ pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
     arrow::register(m)?;
     runner::register(m)?;
+    async_bridge::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -50,6 +57,7 @@ pub fn register_embedded(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pyclasses::register(m)?;
     arrow::register(m)?;
     runner::register(m)?;
+    async_bridge::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;

@@ -57,7 +57,10 @@ fn wire_strings<T: Serialize>(value: &T) -> Vec<String> {
 /// Every variant of every wire enum, as its JSON string, keyed by enum name.
 pub fn enum_values() -> BTreeMap<&'static str, Vec<String>> {
     BTreeMap::from([
-        ("OrderSide", wire_strings(&[OrderSide::Buy, OrderSide::Sell])),
+        (
+            "OrderSide",
+            wire_strings(&[OrderSide::Buy, OrderSide::Sell]),
+        ),
         (
             "OrderType",
             wire_strings(&[

@@ -16,8 +16,9 @@ Money never crosses the boundary as a float: a price, quantity or amount is
 an exact decimal on both sides (`decimal.Decimal` in Python).
 """
 
-from honba import compat, data, indicators, sizing, v1, v2
+from honba import async_bridge, compat, data, indicators, sizing, v1, v2
 from honba._honba import (
+    PyCancellationToken,
     ArrowStream,
     Bar,
     BhavRecord,
@@ -65,9 +66,13 @@ from honba.strategies.base import (
 from honba.strategy import Strategy
 from honba.v1.strategies import Strategy as StrategyV1
 from honba.v2.strategies import Strategy as StrategyV2
+CancellationToken = PyCancellationToken
+
 
 __all__ = [
     "ArbitrageStrategy",
+    "CancellationToken",
+    "PyCancellationToken",
     "ArrowStream",
     "Bar",
     "BhavRecord",
@@ -112,6 +117,7 @@ __all__ = [
     "Trade",
     "TradingState",
     "arrow",
+    "async_bridge",
     "compat",
     "data",
     "indicators",

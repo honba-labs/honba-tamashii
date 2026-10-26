@@ -1453,6 +1453,29 @@ pub const CLASSES: &[Class] = &[
             signature: "def calculate_size(self, instrument: InstrumentId | str, entry_price: decimal.Decimal | int | str | Price, side: str = 'BUY') -> PositionSizingResult: ...",
         }],
     },
+    Class {
+        name: "PyCancellationToken",
+        doc: "Thread-safe cooperative cancellation token for Python and Tokio.",
+        attributes: &[],
+        methods: &[
+            Method {
+                name: "cancel",
+                signature: "def cancel(self) -> None: ...",
+            },
+            Method {
+                name: "is_cancelled",
+                signature: "def is_cancelled(self) -> bool: ...",
+            },
+            Method {
+                name: "reset",
+                signature: "def reset(self) -> None: ...",
+            },
+            Method {
+                name: "cancelled",
+                signature: "def cancelled(self) -> Any: ...",
+            },
+        ],
+    },
 ];
 
 /// The module-level functions.
@@ -1592,6 +1615,18 @@ pub const FUNCTIONS: &[Function] = &[
     Function {
         name: "size_batch",
         signature: "def size_batch(instruments: list[InstrumentId | str], entry_prices: list[decimal.Decimal | int | str | Price], equity: decimal.Decimal | int | str | Money, risk_pct: decimal.Decimal | int | str | None = None, lot_size: decimal.Decimal | int | str | None = None, stop_losses: list[decimal.Decimal | int | str | Price | None] | None = None, volatilities: list[decimal.Decimal | int | str | None] | None = None, method: str = 'fixed_fractional') -> list[PositionSizingResult]: ...",
+    },
+    Function {
+        name: "run_coroutine",
+        signature: "def run_coroutine(coro: Any, timeout_secs: float | None = None, token: PyCancellationToken | None = None) -> Any: ...",
+    },
+    Function {
+        name: "spawn_blocking_call",
+        signature: "def spawn_blocking_call(callable: Any, args: tuple[Any, ...] | None = None, timeout_secs: float | None = None) -> Any: ...",
+    },
+    Function {
+        name: "run_in_blocking_pool",
+        signature: "def run_in_blocking_pool(callable: Any, args: tuple[Any, ...] | None = None) -> Any: ...",
     },
 ];
 

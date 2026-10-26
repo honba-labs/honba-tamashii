@@ -16,8 +16,7 @@ use pyo3::types::PyModule;
 use rust_decimal::Decimal;
 
 use honba_core::sizing::{
-    PositionSizingRequest, PositionSizingResult, RiskBudget, SizingMethod,
-    calculate_position_size,
+    PositionSizingRequest, PositionSizingResult, RiskBudget, SizingMethod, calculate_position_size,
 };
 use honba_core::{
     InstrumentId, Money, PositionSide, Price, Quantity, Signal, SignalDirection, SignalHorizon,
@@ -185,8 +184,7 @@ impl PySizingMethod {
         payoff_ratio: &Bound<'_, PyAny>,
         fraction: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        let fraction = from_py_optional_decimal(fraction)?
-            .unwrap_or_else(|| Decimal::new(5, 1));
+        let fraction = from_py_optional_decimal(fraction)?.unwrap_or_else(|| Decimal::new(5, 1));
         Ok(Self {
             inner: SizingMethod::KellyCriterion {
                 fraction,
@@ -311,7 +309,9 @@ impl PyRiskBudget {
     /// The notional cap, if configured.
     #[getter]
     fn max_position_notional(&self) -> Option<PyMoney> {
-        self.inner.max_position_notional.map(|m| PyMoney { inner: m })
+        self.inner
+            .max_position_notional
+            .map(|m| PyMoney { inner: m })
     }
 
     /// The quantity cap, if configured.
@@ -338,7 +338,10 @@ impl PyRiskBudget {
     /// Returns a copy with a notional cap.
     fn with_max_notional(&self, max_notional: &Bound<'_, PyAny>) -> PyResult<Self> {
         Ok(Self {
-            inner: self.inner.clone().with_max_notional(money_from(max_notional)?),
+            inner: self
+                .inner
+                .clone()
+                .with_max_notional(money_from(max_notional)?),
         })
     }
 
@@ -509,7 +512,9 @@ impl PyPositionSizingRequest {
     fn __repr__(&self) -> String {
         format!(
             "PositionSizingRequest('{}', {}, entry='{}')",
-            self.inner.instrument, self.side(), self.inner.entry_price
+            self.inner.instrument,
+            self.side(),
+            self.inner.entry_price
         )
     }
 }
@@ -829,7 +834,9 @@ impl PySignal {
     fn __repr__(&self) -> String {
         format!(
             "Signal('{}', {}, entry={:?})",
-            self.inner.instrument, self.direction(), self.inner.entry_price
+            self.inner.instrument,
+            self.direction(),
+            self.inner.entry_price
         )
     }
 }
@@ -894,8 +901,7 @@ impl PyFixedFractionalSizer {
         freeze_limit_qty: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         Ok(Self {
-            risk_pct: from_py_optional_decimal(risk_pct)?
-                .unwrap_or_else(|| Decimal::new(1, 2)),
+            risk_pct: from_py_optional_decimal(risk_pct)?.unwrap_or_else(|| Decimal::new(1, 2)),
             limits: Limits::new(
                 lot_size,
                 max_position_notional,
@@ -1005,7 +1011,9 @@ impl PyAtrVolatilitySizer {
         let equity = money_from(equity)?;
         let entry = price_from(entry_price)?;
         if !entry.is_positive() {
-            return Err(PyValueError::new_err("entry price must be strictly positive"));
+            return Err(PyValueError::new_err(
+                "entry price must be strictly positive",
+            ));
         }
         // ATR is a price distance; the canonical volatility target is
         // dimensionless, so express the band as a fraction of the entry price.
@@ -1079,8 +1087,7 @@ impl PyKellySizer {
         Ok(Self {
             win_rate: from_py_decimal(win_rate)?,
             payoff_ratio: from_py_decimal(payoff_ratio)?,
-            fraction: from_py_optional_decimal(fraction)?
-                .unwrap_or_else(|| Decimal::new(5, 1)),
+            fraction: from_py_optional_decimal(fraction)?.unwrap_or_else(|| Decimal::new(5, 1)),
             limits: Limits::new(
                 lot_size,
                 max_position_notional,
@@ -1181,8 +1188,7 @@ impl PyEqualRiskSizer {
         freeze_limit_qty: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         Ok(Self {
-            risk_pct: from_py_optional_decimal(risk_pct)?
-                .unwrap_or_else(|| Decimal::new(1, 2)),
+            risk_pct: from_py_optional_decimal(risk_pct)?.unwrap_or_else(|| Decimal::new(1, 2)),
             limits: Limits::new(
                 lot_size,
                 max_position_notional,
@@ -1444,8 +1450,7 @@ pub fn size_batch(
     }
 
     let equity = money_from(equity)?;
-    let risk_pct = from_py_optional_decimal(risk_pct)?
-        .unwrap_or_else(|| Decimal::new(1, 2));
+    let risk_pct = from_py_optional_decimal(risk_pct)?.unwrap_or_else(|| Decimal::new(1, 2));
     let lot = optional_quantity(lot_size)?.unwrap_or_else(|| Quantity::from_u64(1));
     let caps = make_budget(equity, risk_pct, lot, None, None, None);
 

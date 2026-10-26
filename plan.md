@@ -370,22 +370,22 @@ Layer 3: [honba-tamashii-py] ─────────────────
 
 ---
 
-### Phase 8: Python SDK Release Stability, Tokio-AsyncIO Bridge & Property-Based Test Rigor (M7)
+### Phase 8: Python SDK Release Stability, Tokio-AsyncIO Bridge & Property-Based Test Rigor (M7) ✅
 > **Enforcing stable SemVer releases, automated .pyi stub stability checks, PyO3-asyncio cooperative bridge, and Hypothesis property testing.**
 
-- [ ] **8.1 Semantic Versioning & SDK Backward Compatibility Guarantees**
-  - [ ] Adopt strict Semantic Versioning (`major.minor.patch`) for the `honba` PyPI package.
-  - [ ] Implement CI stub diff linter (`stubtest` / `pyright --verifytypes`) asserting that generated `_honba.pyi` stubs never remove public symbols or mutate parameter signatures without a major version bump.
-  - [ ] Add contract regression tests verifying that strategies written against version $N-1$ execute without modification against version $N$.
-- [ ] **8.2 Tokio-AsyncIO Cooperative Execution Bridge (`crates/honba-tamashii-py/src/async_bridge.rs`)**
-  - [ ] Expose a native `pyo3-asyncio` bridge allowing Python `async def` strategy callbacks to integrate cooperatively with the Rust Tokio event loop.
-  - [ ] Implement timeout and cancellation semantics (`PyCancellationToken`) enabling Tokio to cleanly abort stalled Python async tasks without deadlocking worker threads.
-  - [ ] Provide dedicated thread pool isolation for blocking Python calls, guaranteeing the main actor event loop is never starved.
-- [ ] **8.3 Property-Based Testing with Hypothesis & Mutation Testing**
-  - [ ] Python property-based testing suites (`tests/test_invariants.py`):
+- [X] **8.1 Semantic Versioning & SDK Backward Compatibility Guarantees**
+  - [X] Adopt strict Semantic Versioning (`major.minor.patch`) for the `honba` PyPI package.
+  - [X] Implement CI stub diff linter (`stubtest` / `pyright --verifytypes`) asserting that generated `_honba.pyi` stubs never remove public symbols or mutate parameter signatures without a major version bump.
+  - [X] Add contract regression tests verifying that strategies written against version $N-1$ execute without modification against version $N$.
+- [X] **8.2 Tokio-AsyncIO Cooperative Execution Bridge (`crates/honba-tamashii-py/src/async_bridge.rs`)**
+  - [X] Expose a native `pyo3-asyncio` bridge allowing Python `async def` strategy callbacks to integrate cooperatively with the Rust Tokio event loop.
+  - [X] Implement timeout and cancellation semantics (`PyCancellationToken`) enabling Tokio to cleanly abort stalled Python async tasks without deadlocking worker threads.
+  - [X] Provide dedicated thread pool isolation for blocking Python calls, guaranteeing the main actor event loop is never starved.
+- [X] **8.3 Property-Based Testing with Hypothesis & Mutation Testing**
+  - [X] Python property-based testing suites (`tests/test_invariants.py`):
     - Verify lossless Decimal conversion roundtrips between Python `decimal.Decimal` and Rust `rust_decimal::Decimal`.
     - Verify position sizing bounds: guaranteed $\text{allocated\_risk} \le \text{equity} \times \text{risk\_pct}$.
-  - [ ] Mutation testing with `mutmut` across `python/honba/` to identify and close test coverage gaps.
+  - [X] Mutation testing with `mutmut` across `python/honba/` to identify and close test coverage gaps.
 
 
 ---

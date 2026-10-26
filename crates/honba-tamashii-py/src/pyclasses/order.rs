@@ -4,8 +4,10 @@ use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
-use honba_core::{FillReport, OrderAck, OrderRequest, OrderSide, OrderStatus, OrderType, TimeInForce};
 use honba_core::uuid::Uuid;
+use honba_core::{
+    FillReport, OrderAck, OrderRequest, OrderSide, OrderStatus, OrderType, TimeInForce,
+};
 
 use crate::decimal::{from_py_decimal, from_py_optional_decimal, from_py_optional_timestamp};
 use crate::pyclasses::core::{PyInstrumentId, PyPrice, PyQuantity};
@@ -175,7 +177,7 @@ impl PyOrderRequest {
             other => {
                 return Err(PyValueError::new_err(format!(
                     "unknown time in force {other:?}; expected DAY, IOC or GTC"
-                )))
+                )));
             }
         };
         let quantity = honba_core::Quantity::new(from_py_decimal(quantity)?);
@@ -312,8 +314,9 @@ impl PyOrderAck {
     ) -> PyResult<Self> {
         let client_order_id = Uuid::parse_str(client_order_id)
             .map_err(|e| PyValueError::new_err(format!("client_order_id must be a UUID: {e}")))?;
-        let timestamp = from_py_optional_timestamp(timestamp)?
-            .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp"));
+        let timestamp = from_py_optional_timestamp(timestamp)?.unwrap_or_else(|| {
+            chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp")
+        });
         Ok(Self {
             inner: OrderAck::new(order_id, client_order_id, status.into(), timestamp),
         })
@@ -349,7 +352,10 @@ impl PyOrderAck {
     }
 
     fn __repr__(&self) -> String {
-        format!("OrderAck('{}', {:?})", self.inner.order_id, self.inner.status)
+        format!(
+            "OrderAck('{}', {:?})",
+            self.inner.order_id, self.inner.status
+        )
     }
 }
 
@@ -379,8 +385,9 @@ impl PyFillReport {
     ) -> PyResult<Self> {
         let client_order_id = Uuid::parse_str(client_order_id)
             .map_err(|e| PyValueError::new_err(format!("client_order_id must be a UUID: {e}")))?;
-        let timestamp = from_py_optional_timestamp(timestamp)?
-            .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp"));
+        let timestamp = from_py_optional_timestamp(timestamp)?.unwrap_or_else(|| {
+            chrono::DateTime::from_timestamp(0, 0).expect("epoch is a timestamp")
+        });
         let inner = FillReport::new(
             fill_id,
             order_id,
