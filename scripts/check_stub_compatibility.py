@@ -171,7 +171,7 @@ def compare_surfaces(
 def run_stubtest() -> int:
     """Run stubtest honba._honba."""
     cmd = [sys.executable, "-m", "mypy.stubtest", "honba._honba"]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         print("stubtest failed:\n", proc.stdout, proc.stderr, file=sys.stderr)
         return proc.returncode

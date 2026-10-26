@@ -5,23 +5,13 @@ modification against version N.
 """
 
 from decimal import Decimal
-import pytest
 
 import honba
 from honba import (
     Bar,
-    MarketEvent,
-    Money,
-    PortfolioResult,
     PortfolioRunner,
-    Price,
     PyContext,
-    PyContextV2,
-    Quantity,
     Runner,
-    Strategy,
-    StrategyV1,
-    StrategyV2,
 )
 from honba.compat import (
     check_compatibility,
@@ -30,9 +20,6 @@ from honba.compat import (
 )
 from honba.v1.strategies import SmaCrossover as SmaCrossoverV1
 from honba.v1.strategies import Strategy as V1BaseStrategy
-from honba.v2.strategies import AdaptiveMomentum as MomentumV2
-from honba.v2.strategies import Strategy as V2BaseStrategy
-
 
 # ==============================================================================
 # 1. Unversioned Legacy Strategy (Pre-v1) Regression Test
@@ -53,7 +40,7 @@ class LegacyUnversionedStrategy:
     def on_bar(self, bar: Bar, ctx: PyContext):
         self.bar_count += 1
         if self.bar_count == 5:
-            ctx.submit(bar.instrument, "BUY", Decimal("100"))
+            ctx.submit(bar.instrument, "BUY", Decimal(100))
 
     def on_stop(self):
         self.stop_called = True
@@ -71,7 +58,7 @@ def test_legacy_unversioned_strategy_executes_on_version_n():
     assert metrics.degraded is False
     assert len(metrics.orders) == 1
     assert metrics.orders[0].side == "BUY"
-    assert metrics.orders[0].quantity.to_decimal() == Decimal("100")
+    assert metrics.orders[0].quantity.to_decimal() == Decimal(100)
 
 
 # ==============================================================================
@@ -92,14 +79,15 @@ class VersionOneGoldenStrategy(V1BaseStrategy):
     def setup(self):
         pass
 
-    def on_bar(self, bar: Bar, ctx: PyContext):
+    def on_bar(self, bar: Bar, ctx: PyContext | None = None):
+        assert ctx is not None
         self.bars.append(bar)
         self.equities.append(ctx.equity.to_decimal())
         if len(self.bars) == 10:
             # Submit using v1 submit signature: instrument, side, quantity
-            ctx.submit("RELIANCE", "BUY", Decimal("200"))
+            ctx.submit("RELIANCE", "BUY", Decimal(200))
         elif len(self.bars) == 20:
-            ctx.submit("RELIANCE", "SELL", Decimal("200"))
+            ctx.submit("RELIANCE", "SELL", Decimal(200))
 
     def on_stop(self):
         pass
@@ -110,18 +98,18 @@ def test_v1_strategy_contract_regression():
     strat = VersionOneGoldenStrategy()
     assert strat.__strategy_api_version__ == "1.0.0"
 
-    runner = Runner(num_bars=30, instrument="RELIANCE", starting_cash=Decimal("500000"), algo_id="HARNESS_ALGO")
+    runner = Runner(num_bars=30, instrument="RELIANCE", starting_cash=Decimal(500000), algo_id="HARNESS_ALGO")
     metrics = runner.run(strat)
 
     assert len(strat.bars) == 30
     assert len(strat.equities) == 30
-    assert strat.equities[0] == Decimal("500000")
+    assert strat.equities[0] == Decimal(500000)
     assert metrics.degraded is False
     assert len(metrics.orders) == 2
     assert metrics.orders[0].side == "BUY"
-    assert metrics.orders[0].quantity.to_decimal() == Decimal("200")
+    assert metrics.orders[0].quantity.to_decimal() == Decimal(200)
     assert metrics.orders[1].side == "SELL"
-    assert metrics.orders[1].quantity.to_decimal() == Decimal("200")
+    assert metrics.orders[1].quantity.to_decimal() == Decimal(200)
 
 
 def test_v1_sma_crossover_reference_strategy():

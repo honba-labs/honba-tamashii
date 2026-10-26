@@ -108,6 +108,8 @@ def test_catalog_strategy_tuple_unpacking():
     """Verify CatalogStrategy supports (cls, config) tuple unpacking for existing callers."""
     cls, config = load_named("twap", strategies_dir=CATALOG_PATH)
     assert cls.name == "twap"
+    from honba.strategies.config import StrategyConfig
+    assert isinstance(config, StrategyConfig)
     assert config.name == "twap"
     assert config.params["total_quantity"] == 1000
 

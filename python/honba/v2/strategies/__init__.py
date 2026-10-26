@@ -30,7 +30,7 @@ class Strategy(_BaseStrategy):
     name: ClassVar[str] = "strategy_v2"
     __strategy_api_version__: ClassVar[str] = "2.0.0"
 
-    def on_step(self, event: Any, ctx: Any = None) -> None:
+    def on_step(self, event: Any, ctx: Any = None) -> Any:
         """Called on every market event (Bar, Tick, etc.).
 
         Dispatches Bar events to `on_bar(bar, ctx)` if defined.
@@ -71,7 +71,7 @@ class AdaptiveMomentum(Strategy):
         self.instrument_id = instrument_id
         self.history: list[float] = []
 
-    def on_step(self, event: Any, ctx: Any = None) -> None:
+    def on_step(self, event: Any, ctx: Any = None) -> Any:
         close = getattr(event, "close", None)
         if close is not None:
             close_val = float(str(close))
@@ -142,7 +142,7 @@ class SmaCrossover(Strategy):
         self.fast_sma = Sma(fast)
         self.slow_sma = Sma(slow)
 
-    def on_step(self, event: Any, ctx: Any = None) -> None:
+    def on_step(self, event: Any, ctx: Any = None) -> Any:
         close = getattr(event, "close", None)
         if close is not None:
             close_val = float(str(close))

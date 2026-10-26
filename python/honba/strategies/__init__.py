@@ -1,6 +1,16 @@
 """Trading strategy interface, runners, and indicator library."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from honba.v1.strategies import Strategy as StrategyV1
+    from honba.v2.strategies import (
+        AdaptiveMomentum,
+        SmaCrossover,
+    )
+    from honba.v2.strategies import (
+        Strategy as StrategyV2,
+    )
 
 from honba.strategies import indicators
 from honba.strategies.base import (

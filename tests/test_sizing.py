@@ -8,7 +8,6 @@ bounds, float refusal at the boundary, and ``ctx.size_signal`` integration.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 import honba
 import pytest
@@ -21,7 +20,6 @@ from honba._honba import (
     KellySizer,
     Money,
     PositionSizingRequest,
-    PositionSizingResult,
     Price,
     Quantity,
     RiskBudget,
@@ -30,13 +28,21 @@ from honba._honba import (
     size_batch,
 )
 from honba.sizing import (
-    BasePositionSizer,
-    EqualRiskSizer as PyEqualRiskSizer,
-    FixedFractionalSizer as PyFixedFractionalSizer,
-    FixedNotionalSizer as PyFixedNotionalSizer,
-    KellySizer as PyKellySizer,
     SIZERS,
+    BasePositionSizer,
     sizer_by_name,
+)
+from honba.sizing import (
+    EqualRiskSizer as PyEqualRiskSizer,
+)
+from honba.sizing import (
+    FixedFractionalSizer as PyFixedFractionalSizer,
+)
+from honba.sizing import (
+    FixedNotionalSizer as PyFixedNotionalSizer,
+)
+from honba.sizing import (
+    KellySizer as PyKellySizer,
 )
 from honba.sizing.volatility import AtrVolatilitySizer as PyAtrVolatilitySizer
 
@@ -85,12 +91,12 @@ class TestNativeSizingKernels:
         assert result.allocated_notional.to_decimal() == Decimal("624963.00")
         # 246 * 40.50 = 9,963.00 <= 10,000 risk budget.
         assert result.risk_at_stake.to_decimal() == Decimal("9963.00")
-        assert result.risk_at_stake.to_decimal() <= Decimal("10000")
+        assert result.risk_at_stake.to_decimal() <= Decimal(10000)
         assert not result.capped_by_limit
         assert result.reason is None
 
     def test_fixed_fractional_sizer_native(self) -> None:
-        sizer = FixedFractionalSizer(Decimal("0.01"), lot_size=Decimal("1"))
+        sizer = FixedFractionalSizer(Decimal("0.01"), lot_size=Decimal(1))
         result = sizer.calculate_size(
             RELIANCE,
             _price("2540.50"),
@@ -102,7 +108,7 @@ class TestNativeSizingKernels:
 
     def test_risk_bound_never_exceeds_budget(self) -> None:
         # A tight stop still cannot allocate more than risk_pct of equity.
-        sizer = FixedFractionalSizer(Decimal("0.02"), lot_size=Decimal("1"))
+        sizer = FixedFractionalSizer(Decimal("0.02"), lot_size=Decimal(1))
         result = sizer.calculate_size(
             RELIANCE,
             _price("1000.00"),
@@ -110,11 +116,11 @@ class TestNativeSizingKernels:
             side="BUY",
             stop_loss=_price("999.90"),  # distance 0.10
         )
-        assert result.risk_at_stake.to_decimal() <= Decimal("10000")
+        assert result.risk_at_stake.to_decimal() <= Decimal(10000)
 
     def test_atr_volatility_sizer(self) -> None:
         sizer = AtrVolatilitySizer(
-            Decimal("0.01"), Decimal("2"), lookback_bars=20, lot_size=Decimal("1")
+            Decimal("0.01"), Decimal(2), lookback_bars=20, lot_size=Decimal(1)
         )
         # equity 1,000,000 * 1% = 10,000; ATR band 2 * 20 = 40.
         # Q = floor(10_000 / 40) = 250.
@@ -122,7 +128,7 @@ class TestNativeSizingKernels:
             RELIANCE,
             _price("2540.50"),
             _money("1000000"),
-            Decimal("20"),
+            Decimal(20),
             side="BUY",
         )
         assert result.quantity == _qty("250")
@@ -143,27 +149,27 @@ class TestNativeSizingKernels:
         assert sizer.kelly_fraction == Decimal("0.4")
 
     def test_fixed_notional_sizer(self) -> None:
-        sizer = FixedNotionalSizer(Decimal("254050"), lot_size=Decimal("1"))
+        sizer = FixedNotionalSizer(Decimal(254050), lot_size=Decimal(1))
         # Q = floor(254050 / 2540.50) = 100.
         result = sizer.calculate_size(RELIANCE, _price("2540.50"), side="BUY")
         assert result.quantity == _qty("100")
         assert result.allocated_notional.to_decimal() == Decimal("254050.00")
 
     def test_equal_risk_sizer_single(self) -> None:
-        sizer = PyEqualRiskSizer(Decimal("0.01"), lot_size=Decimal("1"))
+        sizer = PyEqualRiskSizer(Decimal("0.01"), lot_size=Decimal(1))
         result = sizer.calculate_size(
-            _signal(entry="2540.50"), _money("1000000"), gross_exposure=Decimal("1")
+            _signal(entry="2540.50"), _money("1000000"), gross_exposure=Decimal(1)
         )
         # One candidate: weight 1.0 -> notional 1,000,000; Q = floor(1_000_000/2540.50)=393.
         assert result.quantity == _qty("393")
 
     def test_equal_risk_allocate_batch(self) -> None:
-        results = EqualRiskSizer(Decimal("0.01"), lot_size=Decimal("1")).allocate(
+        results = EqualRiskSizer(Decimal("0.01"), lot_size=Decimal(1)).allocate(
             _money("1000000"),
             [RELIANCE, TCS],
             [_price("2540.50"), _price("4000.00")],
-            [Decimal("20"), Decimal("40")],
-            gross_exposure=Decimal("1"),
+            [Decimal(20), Decimal(40)],
+            gross_exposure=Decimal(1),
         )
         assert len(results) == 2
         # Inverse vol: RELIANCE weight 2/3, TCS weight 1/3.
@@ -212,22 +218,22 @@ class TestPythonSizingSdk:
             sizer_by_name("no_such_sizer")
 
     def test_fixed_fractional_python_wrapper(self) -> None:
-        sizer = PyFixedFractionalSizer(Decimal("0.01"), lot_size=Decimal("1"))
+        sizer = PyFixedFractionalSizer(Decimal("0.01"), lot_size=Decimal(1))
         assert isinstance(sizer, BasePositionSizer)
         assert sizer.name == "fixed_fractional"
         result = sizer.calculate_size(_signal(), _money("1000000"))
         assert result.quantity == _qty("246")
-        assert result.risk_at_stake.to_decimal() <= Decimal("10000")
+        assert result.risk_at_stake.to_decimal() <= Decimal(10000)
         again = sizer.calculate_size(_signal(), _money("1000000"))
         assert again.quantity == result.quantity
         assert again.risk_at_stake.to_decimal() == result.risk_at_stake.to_decimal()
 
     def test_atr_volatility_python_wrapper(self) -> None:
-        sizer = PyAtrVolatilitySizer(Decimal("0.01"), Decimal("2"))
+        sizer = PyAtrVolatilitySizer(Decimal("0.01"), Decimal(2))
         result = sizer.calculate_size(
             _signal(entry="2540.50", stop="2500.00"),
             _money("1000000"),
-            atr=Decimal("20"),
+            atr=Decimal(20),
         )
         assert result.quantity == _qty("250")
 
@@ -241,25 +247,25 @@ class TestPythonSizingSdk:
         assert result.quantity == _qty("4938")
 
     def test_fixed_notional_python_wrapper(self) -> None:
-        sizer = PyFixedNotionalSizer(Decimal("254050"), lot_size=Decimal("1"))
+        sizer = PyFixedNotionalSizer(Decimal(254050), lot_size=Decimal(1))
         result = sizer.calculate_size(_signal(entry="2540.50"), _money("1000000"))
         assert result.quantity == _qty("100")
         assert result.allocated_notional.to_decimal() == Decimal("254050.00")
 
     def test_equal_risk_python_wrapper_allocate(self) -> None:
-        sizer = PyEqualRiskSizer(Decimal("0.01"), lot_size=Decimal("1"))
+        sizer = PyEqualRiskSizer(Decimal("0.01"), lot_size=Decimal(1))
         results = sizer.allocate(
             _money("1000000"),
             [RELIANCE, TCS],
             [_price("2540.50"), _price("4000.00")],
-            [Decimal("20"), Decimal("40")],
-            gross_exposure=Decimal("1"),
+            [Decimal(20), Decimal(40)],
+            gross_exposure=Decimal(1),
         )
         assert results[0].quantity == _qty("262")
         assert results[1].quantity == _qty("83")
 
     def test_callable_alias(self) -> None:
-        sizer = PyFixedFractionalSizer(Decimal("0.01"), lot_size=Decimal("1"))
+        sizer = PyFixedFractionalSizer(Decimal("0.01"), lot_size=Decimal(1))
         assert sizer(_signal(), _money("1000000")).quantity == _qty("246")
 
     def test_honba_export(self) -> None:

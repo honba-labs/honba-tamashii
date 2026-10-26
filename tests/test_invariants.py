@@ -9,12 +9,10 @@ Verifies fundamental mathematical and financial invariants:
 """
 
 from decimal import Decimal
-import pytest
-from hypothesis import given, settings, strategies as st
 
+import pytest
 from honba._honba import (
     AtrVolatilitySizer,
-    EqualRiskSizer,
     FixedFractionalSizer,
     FixedNotionalSizer,
     InstrumentId,
@@ -23,8 +21,8 @@ from honba._honba import (
     Price,
     Quantity,
 )
-from honba import sizing
-
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # ==============================================================================
 # Hypothesis Strategies
@@ -97,7 +95,7 @@ def test_boundary_refuses_python_float(f: float):
 
 
 @given(
-    equity=st.decimals(min_value=Decimal("10000"), max_value=Decimal("10000000"), places=2),
+    equity=st.decimals(min_value=Decimal(10000), max_value=Decimal(10000000), places=2),
     risk_pct=st.decimals(min_value=Decimal("0.001"), max_value=Decimal("0.05"), places=4),
     entry_price=st.decimals(min_value=Decimal("10.00"), max_value=Decimal("10000.00"), places=2),
     stop_distance_pct=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("0.20"), places=3),
@@ -112,7 +110,7 @@ def test_fixed_fractional_risk_bounds_invariant(
     lot_size: int,
 ):
     """Property: allocated_risk <= equity * risk_pct (strictly bounded by max risk budget)."""
-    stop_loss = entry_price * (Decimal("1") - stop_distance_pct)
+    stop_loss = entry_price * (Decimal(1) - stop_distance_pct)
     sizer = FixedFractionalSizer(risk_pct=risk_pct, lot_size=lot_size)
 
     result = sizer.calculate_size(
@@ -131,14 +129,14 @@ def test_fixed_fractional_risk_bounds_invariant(
 
     # Invariant 2: Quantity must be non-negative
     qty = result.quantity.to_decimal()
-    assert qty >= Decimal("0")
+    assert qty >= Decimal(0)
 
     # Invariant 3: Quantity must be an exact lot multiple
     assert result.quantity.is_lot_multiple(lot_size) is True
 
 
 @given(
-    equity=st.decimals(min_value=Decimal("50000"), max_value=Decimal("5000000"), places=2),
+    equity=st.decimals(min_value=Decimal(50000), max_value=Decimal(5000000), places=2),
     entry_price=st.decimals(min_value=Decimal("50.00"), max_value=Decimal("5000.00"), places=2),
     atr=st.decimals(min_value=Decimal("1.00"), max_value=Decimal("100.00"), places=2),
     multiplier=st.decimals(min_value=Decimal("1.0"), max_value=Decimal("3.0"), places=1),
@@ -171,7 +169,7 @@ def test_atr_volatility_sizer_invariants(
 
 
 @given(
-    equity=st.decimals(min_value=Decimal("100000"), max_value=Decimal("10000000"), places=2),
+    equity=st.decimals(min_value=Decimal(100000), max_value=Decimal(10000000), places=2),
     entry_price=st.decimals(min_value=Decimal("100.00"), max_value=Decimal("2000.00"), places=2),
     win_rate=st.decimals(min_value=Decimal("0.51"), max_value=Decimal("0.80"), places=2),
     payoff_ratio=st.decimals(min_value=Decimal("1.1"), max_value=Decimal("3.0"), places=2),
@@ -207,8 +205,8 @@ def test_kelly_sizer_invariants(
 
 
 @given(
-    equity=st.decimals(min_value=Decimal("10000"), max_value=Decimal("1000000"), places=2),
-    notional=st.decimals(min_value=Decimal("5000"), max_value=Decimal("100000"), places=2),
+    equity=st.decimals(min_value=Decimal(10000), max_value=Decimal(1000000), places=2),
+    notional=st.decimals(min_value=Decimal(5000), max_value=Decimal(100000), places=2),
     entry_price=st.decimals(min_value=Decimal("10.00"), max_value=Decimal("1000.00"), places=2),
     lot_size=st.integers(min_value=1, max_value=50),
 )

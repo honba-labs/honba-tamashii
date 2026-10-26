@@ -18,7 +18,6 @@ an exact decimal on both sides (`decimal.Decimal` in Python).
 
 from honba import async_bridge, compat, data, indicators, sizing, v1, v2
 from honba._honba import (
-    PyCancellationToken,
     ArrowStream,
     Bar,
     BhavRecord,
@@ -40,6 +39,7 @@ from honba._honba import (
     OtrConfig,
     Price,
     PriceBand,
+    PyCancellationToken,
     PyContext,
     PyContextV2,
     Quantity,
@@ -66,16 +66,16 @@ from honba.strategies.base import (
 from honba.strategy import Strategy
 from honba.v1.strategies import Strategy as StrategyV1
 from honba.v2.strategies import Strategy as StrategyV2
+
 CancellationToken = PyCancellationToken
 
 
 __all__ = [
     "ArbitrageStrategy",
-    "CancellationToken",
-    "PyCancellationToken",
     "ArrowStream",
     "Bar",
     "BhavRecord",
+    "CancellationToken",
     "DepthLevel",
     "FillReport",
     "FnoContract",
@@ -96,6 +96,7 @@ __all__ = [
     "PortfolioRunner",
     "Price",
     "PriceBand",
+    "PyCancellationToken",
     "PyContext",
     "PyContextV2",
     "Quantity",

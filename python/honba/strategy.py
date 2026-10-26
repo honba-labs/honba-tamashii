@@ -97,19 +97,19 @@ class Strategy:
     # Lifecycle hooks (override as needed)
     # ------------------------------------------------------------------
 
-    def setup(self) -> None:
+    def setup(self) -> Any:
         """Called once before the first bar or tick. Override to initialise state."""
 
-    def on_start(self) -> None:
+    def on_start(self) -> Any:
         """Called once when the runner starts. Override for per-strategy init."""
 
-    def on_tick(self, tick: Any, ctx: PyContext) -> None:
+    def on_tick(self, tick: Any, ctx: PyContext) -> Any:
         """Called per real-time tick (for tick-level strategies). Default no-op."""
 
-    def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+    def on_bar(self, bar: Bar, ctx: Any = None) -> Any:
         """Called for every bar close. Override to make trading decisions."""
 
-    def on_step(self, event: Any, ctx: Any = None) -> None:
+    def on_step(self, event: Any, ctx: Any = None) -> Any:
         """Called on every market event (MarketEvent, Bar, Tick).
 
         Defaults to unpacking Bar events and calling self.on_bar(bar, ctx)
@@ -131,7 +131,7 @@ class Strategy:
     def on_position_event(self, event: dict[str, Any], ctx: PyContext) -> None:
         """Called on position lifecycle events (opened, reduced, closed, reversed)."""
 
-    def on_stop(self) -> None:
+    def on_stop(self) -> Any:
         """Called once after the last bar or on market close. Override to log/close out."""
 
     # ------------------------------------------------------------------

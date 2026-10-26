@@ -3,7 +3,6 @@
 import copy
 import sys
 from pathlib import Path
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -13,6 +12,9 @@ from scripts.check_stub_compatibility import (
     extract_api_surface,
     get_package_version,
 )
+
+STUB_PATH = Path(__file__).resolve().parent.parent / "_honba.pyi"
+
 
 
 def test_semver_format_validation():
@@ -24,7 +26,7 @@ def test_semver_format_validation():
 
 
 def test_stub_surface_extraction():
-    stub_path = Path("_honba.pyi")
+    stub_path = STUB_PATH
     surface = extract_api_surface(stub_path)
 
     # Asserts canonical classes and functions exist
@@ -40,7 +42,7 @@ def test_stub_surface_extraction():
 
 
 def test_stub_backward_compatibility_no_breaking_changes():
-    stub_path = Path("_honba.pyi")
+    stub_path = STUB_PATH
     surface = extract_api_surface(stub_path)
     baseline = {
         "version": (0, 1, 0),
@@ -53,7 +55,7 @@ def test_stub_backward_compatibility_no_breaking_changes():
 
 
 def test_stub_backward_compatibility_catches_removal():
-    stub_path = Path("_honba.pyi")
+    stub_path = STUB_PATH
     surface = extract_api_surface(stub_path)
     baseline = {
         "version": (0, 1, 0),
@@ -70,7 +72,7 @@ def test_stub_backward_compatibility_catches_removal():
 
 
 def test_stub_backward_compatibility_catches_parameter_mutation():
-    stub_path = Path("_honba.pyi")
+    stub_path = STUB_PATH
     surface = extract_api_surface(stub_path)
     baseline = {
         "version": (0, 1, 0),
@@ -87,7 +89,7 @@ def test_stub_backward_compatibility_catches_parameter_mutation():
 
 
 def test_stub_major_bump_permits_breaking_changes():
-    stub_path = Path("_honba.pyi")
+    stub_path = STUB_PATH
     surface = extract_api_surface(stub_path)
     baseline = {
         "version": (0, 1, 0),

@@ -3,25 +3,19 @@
 import asyncio
 import time
 from decimal import Decimal
-import pytest
 
+import pytest
 from honba import (
     Bar,
     CancellationToken,
-    InstrumentId,
     MarketEvent,
-    Money,
-    Price,
-    PyCancellationToken,
     PyContext,
     PyContextV2,
-    Quantity,
     Runner,
     StrategyV1,
     StrategyV2,
     async_bridge,
 )
-
 
 # ==============================================================================
 # 1. CancellationToken Unit Tests
@@ -166,11 +160,12 @@ class AsyncV1Strategy(StrategyV1):
         await asyncio.sleep(0.01)
         self.setup_called = True
 
-    async def on_bar(self, bar: Bar, ctx: PyContext):
+    async def on_bar(self, bar: Bar, ctx: PyContext | None = None):
         await asyncio.sleep(0.001)
         self.bars += 1
         if self.bars == 10:
-            ctx.submit(bar.instrument, "BUY", Decimal("100"))
+            assert ctx is not None
+            ctx.submit(bar.instrument, "BUY", Decimal(100))
 
     async def on_stop(self):
         await asyncio.sleep(0.01)
@@ -188,7 +183,7 @@ def test_runner_executes_async_v1_strategy():
     assert metrics.degraded is False
     assert len(metrics.orders) == 1
     assert metrics.orders[0].side == "BUY"
-    assert metrics.orders[0].quantity.to_decimal() == Decimal("100")
+    assert metrics.orders[0].quantity.to_decimal() == Decimal(100)
 
 
 class AsyncV2Strategy(StrategyV2):
@@ -198,11 +193,12 @@ class AsyncV2Strategy(StrategyV2):
         super().__init__()
         self.events = 0
 
-    async def on_step(self, event: MarketEvent, ctx: PyContextV2):
+    async def on_step(self, event: MarketEvent, ctx: PyContextV2 | None = None):
         await asyncio.sleep(0.001)
         self.events += 1
         if self.events == 5:
-            ctx.submit("INFY", "BUY", Decimal("50"))
+            assert ctx is not None
+            ctx.submit("INFY", "BUY", Decimal(50))
 
 
 def test_runner_executes_async_v2_strategy():
@@ -213,13 +209,13 @@ def test_runner_executes_async_v2_strategy():
     assert strategy.events == 15
     assert metrics.degraded is False
     assert len(metrics.orders) == 1
-    assert metrics.orders[0].quantity.to_decimal() == Decimal("50")
+    assert metrics.orders[0].quantity.to_decimal() == Decimal(50)
 
 
 class StalledAsyncStrategy(StrategyV1):
     name = "stalled_async"
 
-    async def on_bar(self, bar: Bar, ctx: PyContext):
+    async def on_bar(self, bar: Bar, ctx: PyContext | None = None):
         # Deliberately raise or hang (we simulate an error)
         raise RuntimeError("Async callback failure")
 
