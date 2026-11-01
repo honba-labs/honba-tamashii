@@ -701,3 +701,33 @@ def spawn_blocking_call(
     timeout_secs: float | None = None,
 ) -> Any: ...
 def run_in_blocking_pool(callable: Any, args: tuple[Any, ...] | None = None) -> Any: ...
+def serve_api(
+    data_dir: str,
+    addr: str = "127.0.0.1:8000",
+    cors_origins: list[str] | None = None,
+    trading_state: str = "active",
+    journals_dir: str = "data/journals",
+    profiles_dir: str = "data/profiles",
+    portfolios_dir: str = "data/portfolios",
+    operator_journal: str | None = None,
+    max_concurrent_runs: int | None = None,
+    max_queued_runs: int = 64,
+    shutdown_grace_secs: int = 10,
+    keep_runs: int = 1000,
+    keep_days: int = 30,
+    tokens_file: str | None = None,
+    audit_log_file: str | None = None,
+    jwt_secret: str | None = None,
+    jwt_rsa_key: str | None = None,
+    jwt_issuer: str = "honba",
+    jwt_audience: str = "honba-api",
+    bar_ingest: bool = False,
+    bar_ingest_capacity: int = 1024,
+    risk_config: str | None = None,
+    fill_model: str | None = None,
+    ticks: str | None = None,
+) -> None: ...
+def run_migrations(
+    database_url: str = "sqlite://honba.db", rollback: bool = False
+) -> list[int]: ...
+def import_ticks_ndjson(ticks_path: str, out_dir: str) -> tuple[int, int]: ...

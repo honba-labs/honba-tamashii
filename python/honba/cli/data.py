@@ -1,25 +1,27 @@
-"""Data management commands (coverage, gaps, fetch) (Design.md Section 12.5)."""
+"""Data management commands (coverage, gaps, fetch, ticks-import) (Design.md Section 12.5)."""
 
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
 
+from honba._native import native_attr
 from honba.cli._output import FORMAT_HELP, parse_format
+from honba.data.loaders.nse import NseBhavcopyProvider
 from honba.data.loaders.yfinance import YFinanceProvider
 from honba.display import Column, OutputFormat, render
 from honba.entities.instrument import InstrumentId
-from honba.research.data_loader.nse import NseBhavcopyProvider
 from honba.screener.coverage import DateInterval
 from honba.screener.ports import InMemoryMarketDataProvider
 from honba.screener.service import DataService
 from honba.screener.store import ParquetBarStore
 
 app = typer.Typer(
-    help="Data inspection and fetch commands: coverage, gaps, fetch",
+    help="Data inspection and fetch commands: coverage, gaps, fetch, ticks-import",
     no_args_is_help=True,
 )
 console = Console()
@@ -136,7 +138,7 @@ def gaps_cmd(
     start_date = dt.date.fromisoformat(start)
     end_date = (
         dt.date.fromisoformat(end) if end else dt.date.today() + dt.timedelta(days=1)
-    )  # noqa: DTZ011 - CLI default 'today' is the user's local calendar date
+    )
     req_interval = DateInterval(start_date, end_date)
 
     plan = _DATA_SERVICE.plan([inst], timeframe, req_interval)
@@ -196,7 +198,7 @@ def fetch_cmd(
     start_date = dt.date.fromisoformat(start)
     end_date = (
         dt.date.fromisoformat(end) if end else dt.date.today() + dt.timedelta(days=1)
-    )  # noqa: DTZ011 - CLI default 'today' is the user's local calendar date
+    )
     req_interval = DateInterval(start_date, end_date)
 
     p_clean = provider.lower().strip()
@@ -312,8 +314,6 @@ def fundamentals_cmd(
     ] = None,
 ) -> None:
     """Download yearly and quarterly financial statements and ratios into DuckDB."""
-    from pathlib import Path
-
     from honba.data.loaders.fundamentals import download_fundamentals_to_duckdb
     from honba.screener.store import find_data_root
 
@@ -329,4 +329,34 @@ def fundamentals_cmd(
     )
     console.print(
         f"[bold green]Done! Total companies in DuckDB: {res['companies_total']}[/bold green]"
+    )
+
+
+@app.command("ticks-import")
+def ticks_import_cmd(
+    ticks: Annotated[
+        Path,
+        typer.Option(
+            "--ticks",
+            help="Input NDJSON ticks file (`QuoteTick` / `TradeTick`, ADR 0030).",
+        ),
+    ],
+    out: Annotated[
+        Path,
+        typer.Option(
+            "--out",
+            help="Data directory root where `ticks/ticks.parquet` will be written.",
+        ),
+    ],
+) -> None:
+    """Import an ADR 0030 NDJSON ticks file into `<out>/ticks/ticks.parquet`."""
+    try:
+        import_fn = native_attr("import_ticks_ndjson")
+        quotes, trades = import_fn(str(ticks), str(out))
+    except (ImportError, RuntimeError, ValueError) as exc:
+        err_console.print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(code=1) from None
+
+    typer.echo(
+        f"imported {quotes} quote tick(s) and {trades} trade tick(s) to {out}/ticks/ticks.parquet"
     )
