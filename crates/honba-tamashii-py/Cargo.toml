@@ -29,6 +29,9 @@ honba-me-market.workspace = true
 honba-me-feed.workspace = true
 honba-me-loaders.workspace = true
 honba-me-indicators.workspace = true
+honba-ya-config.workspace = true
+honba-ya-api-rest.workspace = true
+honba-ya-persistence.workspace = true
 honba-codegen.workspace = true
 arrow.workspace = true
 chrono.workspace = true
@@ -39,3 +42,4 @@ schemars.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+proptest.workspace = true

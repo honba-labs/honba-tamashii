@@ -9,6 +9,7 @@ from honba.cli.indicators import app as indicators_app
 from honba.cli.mcp import app as mcp_app
 from honba.cli.schema import app as schema_app
 from honba.cli.screener import app as screener_app
+from honba.cli.serve import migrate, serve
 from honba.cli.strategy import verify
 
 app = typer.Typer(
@@ -22,6 +23,8 @@ app.add_typer(mcp_app, name="mcp")
 app.add_typer(schema_app, name="schema")
 app.add_typer(screener_app, name="screener")
 app.command("backtest")(backtest)
+app.command("migrate")(migrate)
+app.command("serve")(serve)
 app.command("verify")(verify)
 
 

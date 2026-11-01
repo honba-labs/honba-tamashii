@@ -8,8 +8,10 @@
 //! - `honba-mon` — the pre-trade risk gate: SEBI algo ids, the
 //!   order-to-trade ratio breaker, price bands, freeze limits.
 //! - `honba-me-market` — the Indian market profile (calendar, F&O grammar).
+//! - `honba-ya-api-rest` & `honba-ya-persistence` — the Axum REST/WS server
+//!   bootstrap and sqlx migration runner.
 //!
-//! Everything above it is Python: `honba`, the SDK.
+//! Everything above it is Python: `honba`, the SDK and single CLI entrypoint.
 //!
 //! Money never crosses as a float. Prices, quantities and amounts are exact
 //! decimals (`rust_decimal::Decimal` here, `decimal.Decimal` in Python), and
@@ -34,6 +36,7 @@ pub mod decimal;
 pub mod pyclasses;
 pub mod runner;
 pub mod runtime;
+pub mod server;
 
 pub const HONBA_BRIDGE: &str = include_str!("honba_bridge.py");
 
@@ -44,6 +47,7 @@ pub fn _honba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     arrow::register(m)?;
     runner::register(m)?;
     async_bridge::register(m)?;
+    server::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -58,6 +62,7 @@ pub fn register_embedded(m: &Bound<'_, PyModule>) -> PyResult<()> {
     arrow::register(m)?;
     runner::register(m)?;
     async_bridge::register(m)?;
+    server::register(m)?;
     m.add_function(wrap_pyfunction!(initialize_runtime, m)?)?;
     m.add_function(wrap_pyfunction!(get_runtime_handle, m)?)?;
     m.add_function(wrap_pyfunction!(runtime_start, m)?)?;
@@ -105,7 +110,7 @@ pub fn initialize_runtime() -> PyResult<()> {
 }
 
 /// Deprecated: use `honba.event_loop.info()`. The running runtime's flavour, e.g.
-/// `\"tokio-multi-thread\"`; raises `RuntimeError` when none is running.
+/// `"tokio-multi-thread"`; raises `RuntimeError` when none is running.
 #[pyfunction]
 pub fn get_runtime_handle() -> PyResult<String> {
     runtime::info()

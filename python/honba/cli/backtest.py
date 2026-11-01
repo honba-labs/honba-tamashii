@@ -3,7 +3,7 @@
 Story E4-S3 (ADR 0017 decision 9). It is a thin front end over :class:`honba.client.Client`:
 the run is executed by the Rust run service, either in this process (``--data-dir``, journals
 under ``--journals-dir``) or on a running ``honba serve`` (``--url``). There is no second
-execution path; the native ``honba-cli backtest`` stays a single-shot command.
+execution path; ``honba`` is the single unified CLI entrypoint.
 
 The request comes from flags, from a manifest file (JSON or TOML, same keys as the flags), or
 both; a flag overrides the file.
