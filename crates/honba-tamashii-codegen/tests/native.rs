@@ -31,6 +31,9 @@ fn every_stub_line_is_annotated() {
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('"') {
             continue;
         }
+        if trimmed.starts_with('@') {
+            continue;
+        }
         if trimmed.starts_with("from ") || trimmed.starts_with("import ") {
             // Imports are not definitions; mypy-strict has no annotation
             // requirement for them.

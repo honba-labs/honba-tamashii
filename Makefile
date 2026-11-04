@@ -1,13 +1,8 @@
 .PHONY: default build build-dev build-prod build-release build-debug dev prod release debug develop test wheel check check-dev check-prod clean pyi stubtest invariants mutation
 
-default: dev
-build: dev
-
-dev: build-dev
-build-dev:
-	maturin develop
-
-develop: build-dev
+# Default target is 'prod' (no debug build unless asked for specifically)
+default: prod
+build: prod
 
 prod: build-prod
 build-prod:
@@ -17,6 +12,12 @@ release: build-release
 build-release:
 	maturin build --release
 
+dev: build-dev
+build-dev:
+	maturin develop
+
+develop: build-dev
+
 wheel: build-prod
 
 # Debug build is explicit and not run unless asked
@@ -24,12 +25,12 @@ debug: build-debug
 build-debug:
 	cargo build --workspace
 
-check: check-dev
-check-dev:
-	cargo check --workspace --profile dev
-
+check: check-prod
 check-prod:
 	cargo check --workspace --profile prod
+
+check-dev:
+	cargo check --workspace --profile dev
 
 test:
 	pytest -q

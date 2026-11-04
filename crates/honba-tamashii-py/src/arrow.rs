@@ -787,6 +787,126 @@ pub fn protocol_capsule(py: Python<'_>) -> PyResult<PyArrowStream> {
     bars_to_arrow(py, Vec::new())
 }
 
+/// Generates a synthetic ArrowStream of `count` bars for zero-copy ingestion benchmarks.
+#[pyfunction]
+#[pyo3(signature = (count=500_000))]
+pub fn generate_benchmark_bar_stream(py: Python<'_>, count: usize) -> PyResult<PyArrowStream> {
+    let batch = py
+        .allow_threads(move || -> Result<RecordBatch, String> {
+            let sym = Arc::new(StringArray::from(vec!["RELIANCE"; count]));
+            let ex = Arc::new(StringArray::from(vec!["NSE"; count]));
+            let ts_vec: Vec<i64> = (0..count).map(|i| (i as i64) * 60_000_000_000).collect();
+            let ts = Arc::new(TimestampNanosecondArray::from(ts_vec).with_timezone("UTC"));
+
+            let price_vals: Vec<Option<i128>> = vec![Some(2500_0000); count];
+            let price_arr = Arc::new(
+                Decimal128Array::from(price_vals)
+                    .with_precision_and_scale(PRICE_PRECISION, PRICE_SCALE)
+                    .map_err(|e| e.to_string())?,
+            );
+            let vol_vals: Vec<Option<i128>> = vec![Some(1000_0000); count];
+            let vol_arr = Arc::new(
+                Decimal128Array::from(vol_vals)
+                    .with_precision_and_scale(PRICE_PRECISION, PRICE_SCALE)
+                    .map_err(|e| e.to_string())?,
+            );
+
+            let columns: Vec<ArrayRef> = vec![
+                sym,
+                ex,
+                ts,
+                Arc::clone(&price_arr) as ArrayRef,
+                Arc::clone(&price_arr) as ArrayRef,
+                Arc::clone(&price_arr) as ArrayRef,
+                price_arr,
+                vol_arr,
+            ];
+            RecordBatch::try_new(Arc::new(bar_schema_v2()), columns).map_err(|e| e.to_string())
+        })
+        .map_err(PyRuntimeError::new_err)?;
+
+    let schema = batch.schema();
+    Ok(PyArrowStream {
+        schema,
+        batches: vec![batch],
+    })
+}
+
+/// Generates a synthetic ArrowStream of `count` ticks for zero-copy ingestion benchmarks.
+#[pyfunction]
+#[pyo3(signature = (count=10_000_000, batch_size=1_000_000))]
+pub fn generate_benchmark_tick_stream(
+    py: Python<'_>,
+    count: usize,
+    batch_size: usize,
+) -> PyResult<PyArrowStream> {
+    let batches = py
+        .allow_threads(move || -> Result<Vec<RecordBatch>, String> {
+            let mut result = Vec::new();
+            let mut remaining = count;
+            let mut cur_ts = 0i64;
+
+            while remaining > 0 {
+                let n = remaining.min(batch_size);
+                remaining -= n;
+
+                let kind = Arc::new(StringArray::from(vec!["trade"; n]));
+                let sym = Arc::new(StringArray::from(vec!["RELIANCE"; n]));
+                let ex = Arc::new(StringArray::from(vec!["NSE"; n]));
+                let token = Arc::new(StringArray::from(vec![""; n]));
+                let isin = Arc::new(StringArray::from(vec![""; n]));
+
+                let ts_vec: Vec<i64> = (0..n).map(|i| cur_ts + (i as i64) * 1_000_000).collect();
+                cur_ts += (n as i64) * 1_000_000;
+                let ts1 =
+                    Arc::new(TimestampNanosecondArray::from(ts_vec.clone()).with_timezone("UTC"));
+                let ts2 = Arc::new(TimestampNanosecondArray::from(ts_vec).with_timezone("UTC"));
+
+                let dec_some = |v: i128| -> Result<ArrayRef, String> {
+                    let arr = Decimal128Array::from(vec![Some(v); n])
+                        .with_precision_and_scale(PRICE_PRECISION, PRICE_SCALE)
+                        .map_err(|e| e.to_string())?;
+                    Ok(Arc::new(arr))
+                };
+                let dec_none = || -> Result<ArrayRef, String> {
+                    let arr = Decimal128Array::from(vec![None::<i128>; n])
+                        .with_precision_and_scale(PRICE_PRECISION, PRICE_SCALE)
+                        .map_err(|e| e.to_string())?;
+                    Ok(Arc::new(arr))
+                };
+
+                let str_none = Arc::new(StringArray::from(vec![None::<&str>; n]));
+
+                let columns: Vec<ArrayRef> = vec![
+                    kind,
+                    sym,
+                    ex,
+                    token,
+                    isin,
+                    ts1,
+                    ts2,
+                    dec_some(2500_0000)?,
+                    dec_some(50_0000)?,
+                    dec_none()?,
+                    dec_none()?,
+                    dec_none()?,
+                    dec_none()?,
+                    dec_some(2500_0000)?,
+                    str_none.clone(),
+                    str_none,
+                ];
+                let batch = RecordBatch::try_new(Arc::new(tick_schema_v2()), columns)
+                    .map_err(|e| e.to_string())?;
+                result.push(batch);
+            }
+            Ok(result)
+        })
+        .map_err(PyRuntimeError::new_err)?;
+
+    let schema = Arc::new(tick_schema_v2());
+    Ok(PyArrowStream { schema, batches })
+}
+
 // ---------------------------------------------------------------------------
 // Vectorized Batch Indicator Kernels (backed by `honba-me-indicators`, GIL-free)
 // ---------------------------------------------------------------------------
@@ -1217,6 +1337,8 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyLakehouse>()?;
     m.add_class::<PyBhavRecord>()?;
     m.add_function(wrap_pyfunction!(protocol_capsule, m)?)?;
+    m.add_function(wrap_pyfunction!(generate_benchmark_bar_stream, m)?)?;
+    m.add_function(wrap_pyfunction!(generate_benchmark_tick_stream, m)?)?;
     m.add_function(wrap_pyfunction!(bars_to_arrow, m)?)?;
     m.add_function(wrap_pyfunction!(ticks_to_arrow, m)?)?;
     m.add_function(wrap_pyfunction!(export_capsule, m)?)?;

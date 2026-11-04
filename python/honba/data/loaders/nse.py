@@ -26,7 +26,7 @@ from honba._honba import (
 from honba.domain.bar import Bar
 from honba.domain.instrument import InstrumentId
 from honba.markets.india.calendar import IST, NseCalendar
-from honba_data.store.coverage import DateInterval
+from honba.screener.coverage import DateInterval
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +288,68 @@ class NseBhavcopyProvider:
                 logger.debug("Failed to fetch %s: %s", url, exc)
 
         return {}
+
+    def fetch(
+        self,
+        instrument: InstrumentId,
+        timeframe: str,
+        interval: DateInterval,
+        progress_callback: Any = None,
+    ) -> list[Bar]:
+        """Fetch daily bars for the instrument in [interval.start, interval.end)."""
+        if timeframe.upper() not in ("1D", "D", "DAILY"):
+            return []
+        if interval.start >= interval.end:
+            return []
+
+        end_inclusive = interval.end - dt.timedelta(days=1)
+        trading_days = self.calendar.trading_days_between(interval.start, end_inclusive)
+        total_days = len(trading_days)
+        bars: list[Bar] = []
+
+        for idx, session_date in enumerate(trading_days, start=1):
+            day_bars = self.download_session_bhavcopy(session_date)
+            bar = day_bars.get(instrument.symbol)
+            if bar is not None:
+                bars.append(bar)
+            if progress_callback is not None:
+                try:
+                    progress_callback(session_date, idx, total_days)
+                except Exception as exc:  # noqa: BLE001 - user callback failure should not abort data loading
+                    logger.debug("progress_callback raised an exception: %s", exc)
+
+        return bars
+
+    def compress_existing_cache(self) -> tuple[int, int, int]:
+        """Compress uncompressed .csv bhavcopy cache files to .xz format.
+
+        Returns (count, original_bytes, compressed_bytes).
+        """
+        if not self.cache_dir or not self.cache_dir.exists():
+            return (0, 0, 0)
+
+        count = 0
+        orig_bytes = 0
+        comp_bytes = 0
+
+        for csv_path in sorted(self.cache_dir.glob("*.csv")):
+            if not csv_path.is_file():
+                continue
+            xz_path = csv_path.with_name(f"{csv_path.name}.xz")
+            try:
+                content = csv_path.read_bytes()
+                orig_size = len(content)
+                with lzma.open(xz_path, mode="wb") as f:
+                    f.write(content)
+                comp_size = xz_path.stat().st_size
+                csv_path.unlink(missing_ok=True)
+                count += 1
+                orig_bytes += orig_size
+                comp_bytes += comp_size
+            except (OSError, lzma.LZMAError) as exc:
+                logger.warning("Failed to compress cache file %s: %s", csv_path, exc)
+
+        return (count, orig_bytes, comp_bytes)
 
 
 __all__ = [

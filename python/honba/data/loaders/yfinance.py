@@ -468,7 +468,7 @@ class YFinanceProvider:
         end_date = (
             dt.date.fromisoformat(end)
             if isinstance(end, str)
-            else (end or dt.date.today() + dt.timedelta(days=1))  # noqa: DTZ011 - default end is the local calendar date
+            else (end or dt.date.today() + dt.timedelta(days=1))
         )
 
         ticker_sym = to_yfinance_symbol(inst, custom_map=self.symbol_map)

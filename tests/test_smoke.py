@@ -27,7 +27,8 @@ def test_sma_refuses_a_float():
 
 def test_runner_runs_strategy():
     class BuyAbove100(Strategy):
-        def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+        def on_bar(self, bar: Bar, ctx: PyContext | None = None) -> None:
+            assert ctx is not None
             if bar.close > 100:
                 ctx.submit(bar.instrument, "BUY", 1)
 
@@ -47,7 +48,8 @@ def test_runner_rejects_invalid_side():
     # A strategy that submits an invalid order does not take the host down:
     # the run is degraded and the reason is kept.
     class BadSide(Strategy):
-        def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+        def on_bar(self, bar: Bar, ctx: PyContext | None = None) -> None:
+            assert ctx is not None
             ctx.submit(bar.instrument, "HOLD", 1)
 
     result = Runner(num_bars=1).run(BadSide())
@@ -63,7 +65,7 @@ def test_lifecycle_order():
         def setup(self) -> None:
             events.append("setup")
 
-        def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+        def on_bar(self, bar: Bar, ctx: PyContext | None = None) -> None:
             if not events or events[-1] != "on_bar":
                 events.append("on_bar")
 
@@ -80,7 +82,7 @@ def test_a_raising_strategy_does_not_take_the_host_down():
     # The harness isolates a broken strategy: the run is degraded and the
     # traceback is kept, but the process keeps running.
     class Exploding(Strategy):
-        def on_bar(self, bar: Bar, ctx: PyContext) -> None:
+        def on_bar(self, bar: Bar, ctx: PyContext | None = None) -> None:
             raise ZeroDivisionError("boom")
 
     result = Runner(num_bars=5).run(Exploding())
