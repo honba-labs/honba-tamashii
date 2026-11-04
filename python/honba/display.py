@@ -260,7 +260,7 @@ def _console(rich: Any, out: TextIO, width: int | None) -> Any:
         file=out,
         width=width,
         force_terminal=color,
-        color_system="auto" if color else None,
+        color_system="standard" if color else None,
         no_color=not color,
         highlight=False,
         markup=False,

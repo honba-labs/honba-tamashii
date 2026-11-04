@@ -31,11 +31,11 @@ fn every_stub_line_is_annotated() {
         if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('"') {
             continue;
         }
+        if trimmed.starts_with('@') {
+            continue;
+        }
         if trimmed.starts_with("def ") {
-            assert!(
-                trimmed.contains("-> "),
-                "unannotated function: {trimmed}"
-            );
+            assert!(trimmed.contains("-> "), "unannotated function: {trimmed}");
             continue;
         }
         if trimmed.ends_with(':') && !trimmed.starts_with("class ") {
@@ -44,10 +44,7 @@ fn every_stub_line_is_annotated() {
         if trimmed.starts_with("class ") || trimmed.starts_with("pass") {
             continue;
         }
-        assert!(
-            trimmed.contains(": "),
-            "unannotated attribute: {trimmed}"
-        );
+        assert!(trimmed.contains(": "), "unannotated attribute: {trimmed}");
     }
 }
 

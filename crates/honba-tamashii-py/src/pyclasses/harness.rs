@@ -506,19 +506,19 @@ impl PyRunner {
             match strat_bound.call_method0("setup") {
                 Ok(val) => {
                     if let Err(err) = crate::async_bridge::resolve_callback_cooperative(py, val) {
-                        record_error(&state, err);
+                        record_error(py, &state, &self.algo_id, err);
                     }
                 }
-                Err(err) => record_error(&state, err),
+                Err(err) => record_error(py, &state, &self.algo_id, err),
             }
         } else if strat_bound.hasattr("on_start")? {
             match strat_bound.call_method0("on_start") {
                 Ok(val) => {
                     if let Err(err) = crate::async_bridge::resolve_callback_cooperative(py, val) {
-                        record_error(&state, err);
+                        record_error(py, &state, &self.algo_id, err);
                     }
                 }
-                Err(err) => record_error(&state, err),
+                Err(err) => record_error(py, &state, &self.algo_id, err),
             }
         }
 
@@ -581,7 +581,7 @@ impl PyRunner {
                     // want to react to it.
                     let _ = err;
                 } else {
-                    record_error(&state, err);
+                    record_error(py, &state, &self.algo_id, err);
                     break;
                 }
             }
@@ -591,10 +591,10 @@ impl PyRunner {
             match strat_bound.call_method0("on_stop") {
                 Ok(val) => {
                     if let Err(err) = crate::async_bridge::resolve_callback_cooperative(py, val) {
-                        record_error(&state, err);
+                        record_error(py, &state, &self.algo_id, err);
                     }
                 }
-                Err(err) => record_error(&state, err),
+                Err(err) => record_error(py, &state, &self.algo_id, err),
             }
         }
 
@@ -746,11 +746,26 @@ fn intent_of(order: &OrderRequest) -> PyOrderIntent {
     }
 }
 
-/// Records a failed callback and marks the run degraded.
-fn record_error(state: &Arc<Mutex<ContextState>>, err: PyErr) {
+/// Records a failed callback, marks the run degraded, and suspends the algo in honba-mon.
+fn record_error(py: Python<'_>, state: &Arc<Mutex<ContextState>>, algo_id: &str, err: PyErr) {
+    let err_str = if let Some(tb) = err.traceback_bound(py) {
+        match tb.format() {
+            Ok(formatted) => format!(
+                "{err}
+Traceback (most recent call last):
+{formatted}"
+            ),
+            Err(_) => format!("{err}"),
+        }
+    } else {
+        format!("{err}")
+    };
     if let Ok(mut state) = state.lock() {
         state.degraded = true;
-        state.errors.push(format!("{err}"));
+        state.errors.push(err_str);
+        state
+            .engine
+            .suspend_algo(algo_id, format!("strategy failure: {err}"));
     }
 }
 

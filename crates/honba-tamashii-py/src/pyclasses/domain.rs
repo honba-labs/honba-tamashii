@@ -72,6 +72,7 @@ fn fno_contract_of(contract: &FnoContract) -> PyFnoContract {
             honba_market::expiry::InstrumentKind::Future => "future".to_string(),
             honba_market::expiry::InstrumentKind::Option => "option".to_string(),
             honba_market::expiry::InstrumentKind::Equity => "equity".to_string(),
+            honba_market::expiry::InstrumentKind::Index => "index".to_string(),
         },
         expiry_year: expiry.year(),
         expiry_month: expiry.month(),
